@@ -1,0 +1,117 @@
+"""FastAPI application entry point.
+
+Creates the app, configures CORS, includes all routers,
+and provides a startup event for table creation.
+"""
+
+from __future__ import annotations
+
+import logging
+from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings
+from app.core.database import engine, Base
+
+# Import all models so Base.metadata is fully populated
+import app.models  # noqa: F401
+
+# Import routers
+# Import routers
+from app.api.auth import router as auth_router
+from app.api.users import router as users_router
+from app.api.career import router as career_router, router_root as career_root_router
+from app.api.projects import router as projects_router
+from app.api.mentors import router as mentors_router
+from app.api.webhooks import router as webhooks_router
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan: create tables on startup, cleanup on shutdown."""
+    logger.info("Starting AI Career & Project Intelligence Platform...")
+    async with engine.begin() as conn:
+        if conn.dialect.name != "sqlite":
+            from sqlalchemy import text
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        # Create all tables if they don't exist (dev convenience).
+        # In production, use Alembic migrations instead.
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables ensured.")
+    yield
+    logger.info("Shutting down...")
+    await engine.dispose()
+
+
+app = FastAPI(
+    title="AI Career & Project Intelligence Platform",
+    description=(
+        "AI-powered career coaching platform that analyses your skills, "
+        "recommends projects, reviews your portfolio, and matches you "
+        "with mentors — all through intelligent skill-gap analysis."
+    ),
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# ── CORS Middleware ───────────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Register Routers (with /api/v1 prefix) ───────────────────────────
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(career_router, prefix="/api/v1")
+app.include_router(career_root_router, prefix="/api/v1")
+app.include_router(projects_router, prefix="/api/v1")
+app.include_router(mentors_router, prefix="/api/v1")
+app.include_router(webhooks_router, prefix="/api/v1")
+
+# ── Register Routers (without prefix) ────────────────────────────────
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(career_router)
+app.include_router(career_root_router)
+app.include_router(projects_router)
+app.include_router(mentors_router)
+app.include_router(webhooks_router)
+
+
+
+# ── Root Endpoint ─────────────────────────────────────────────────────
+@app.get("/", tags=["Health"])
+async def root() -> dict:
+    """Root endpoint returning API information and health status."""
+    return {
+        "name": "AI Career & Project Intelligence Platform",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs",
+        "endpoints": {
+            "auth": "/auth",
+            "users": "/users",
+            "career": "/career",
+            "projects": "/projects",
+            "mentors": "/mentors",
+            "webhooks": "/webhooks",
+        },
+    }
+
+
+@app.get("/health", tags=["Health"])
+async def health_check() -> dict:
+    """Health-check endpoint for load balancers and monitoring."""
+    return {"status": "healthy"}

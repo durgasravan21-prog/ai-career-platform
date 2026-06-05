@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js build
+.next/
+frontend/.next/
+out/
+
+# Python virtual environment
+.venv/
+venv/
+backend/.venv/
+backend/venv/
+ENV/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+backend/app/**/__pycache__/
+backend/app/api/__pycache__/
+backend/app/models/__pycache__/
+backend/app/schemas/__pycache__/
+backend/app/core/__pycache__/
+
+# SQLite database files
+*.db
+*.db-journal
+*.sqlite
+backend/*.db
+backend/*.db-journal
+backend/*.sqlite
+ai_career.db
+
+# local env files
+.env*.local
+.env.production
+.env
+
+# Expo / mobile folders (if any)
+.expo/
+dist/
+web-build/
+/ios
+/android
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
