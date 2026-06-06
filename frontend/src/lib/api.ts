@@ -297,9 +297,13 @@ class ApiClient {
       ...(options.headers || {}),
     };
 
-    // Use mock client if we are on Vercel
-    const isVercel = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
-    if (isVercel) {
+    // Use mock client if we are not running locally
+    const isLocal = typeof window !== "undefined" && (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname.startsWith("192.168.")
+    );
+    if (!isLocal) {
       return this.handleMockCall<T>(endpoint, options);
     }
 
