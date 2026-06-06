@@ -273,6 +273,35 @@ async def book_session(
             detail="You cannot book a session with yourself",
         )
 
+    # Check if student has any unreviewed completed sessions
+    sessions_result = await db.execute(
+        select(MentorSession).where(
+            MentorSession.student_id == current_user.id,
+            MentorSession.status == SessionStatus.completed
+        )
+    )
+    completed_sessions = sessions_result.scalars().all()
+    for s in completed_sessions:
+        if not s.reviews:
+            # Get mentor name explicitly to avoid lazy-loading issues
+            mentor_res = await db.execute(
+                select(MentorProfile).where(MentorProfile.id == s.mentor_id)
+            )
+            mentor_prof = mentor_res.scalar_one_or_none()
+            mentor_name = "Coach"
+            if mentor_prof:
+                user_res = await db.execute(
+                    select(User).where(User.id == mentor_prof.user_id)
+                )
+                mentor_user = user_res.scalar_one_or_none()
+                if mentor_user:
+                    mentor_name = mentor_user.name or "Coach"
+            
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Mandatory Feedback Required: You must submit a review for your completed session with Coach {mentor_name} before booking a new session."
+            )
+
     # Calculate amount (includes 10% commission markup)
     hours = body.duration_minutes / 60.0
     amount_cents = int(mentor.hourly_rate * 1.1 * hours * 100)
@@ -303,6 +332,7 @@ async def book_session(
         stripe_payment_intent_id=session.stripe_payment_intent_id,
         created_at=session.created_at,
         mentor_name=mentor.user.name if mentor.user else None,
+        is_reviewed=False,
     )
 
 
@@ -433,6 +463,7 @@ async def get_my_sessions(
             stripe_payment_intent_id=s.stripe_payment_intent_id,
             created_at=s.created_at,
             mentor_name=s.mentor.user.name if s.mentor and s.mentor.user else None,
+            is_reviewed=len(s.reviews) > 0 if s.reviews else False,
         )
         for s in sessions
     ]
@@ -741,6 +772,7 @@ async def update_session_status(
         stripe_payment_intent_id=session.stripe_payment_intent_id,
         created_at=session.created_at,
         mentor_name=mentor.user.name if mentor and mentor.user else None,
+        is_reviewed=len(session.reviews) > 0 if session.reviews else False,
     )
 
 

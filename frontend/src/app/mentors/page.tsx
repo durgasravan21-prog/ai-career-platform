@@ -143,6 +143,17 @@ export default function MentorsPage() {
     }
   };
 
+  const handleOpenBookingModal = (mentor: Mentor) => {
+    const unreviewed = sessions.find(s => s.status === "completed" && !s.is_reviewed);
+    if (unreviewed) {
+      setError(`Mandatory Feedback Required: You must submit a review for your completed session with Coach ${unreviewed.mentor_name || 'Expert'} before booking a new session.`);
+      setReviewingSession(unreviewed);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setBookingMentor(mentor);
+  };
+
   // Submit Booking
   const handleBookSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -350,7 +361,7 @@ export default function MentorsPage() {
                           This is You
                         </div>
                       ) : (
-                        <Button size="sm" onClick={() => setBookingMentor(match.mentor)} className="w-full">
+                        <Button size="sm" onClick={() => handleOpenBookingModal(match.mentor)} className="w-full">
                           Book Session Now
                         </Button>
                       )}
@@ -486,7 +497,7 @@ export default function MentorsPage() {
                               This is You
                             </Button>
                           ) : (
-                            <Button size="sm" onClick={() => setBookingMentor(mentor)}>
+                            <Button size="sm" onClick={() => handleOpenBookingModal(mentor)}>
                               Book Session
                             </Button>
                           )}
@@ -555,7 +566,8 @@ export default function MentorsPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-3 flex-wrap justify-end self-end md:self-center">
-                        {isPast && session.status !== "completed" && session.status !== "cancelled" && (
+                        {((isPast && session.status !== "completed" && session.status !== "cancelled") || 
+                          (session.status === "completed" && !session.is_reviewed)) && (
                           <Button size="sm" onClick={() => setReviewingSession(session)}>
                             <MessageSquare className="h-4 w-4 mr-2" />
                             Leave Review
@@ -567,8 +579,22 @@ export default function MentorsPage() {
                           </Badge>
                         )}
                         {session.status === "completed" && (
-                          <Badge variant="outline" className="text-success flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" /> Reviewed & Completed
+                          <Badge 
+                            variant="outline" 
+                            className={session.is_reviewed 
+                              ? "text-success flex items-center gap-1 border-success/20 bg-success/5" 
+                              : "text-warning flex items-center gap-1 border-warning/20 bg-warning/5"
+                            }
+                          >
+                            {session.is_reviewed ? (
+                              <>
+                                <CheckCircle className="h-3 w-3" /> Reviewed & Completed
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle className="h-3 w-3" /> Completed - Review Required
+                              </>
+                            )}
                           </Badge>
                         )}
                         <Button

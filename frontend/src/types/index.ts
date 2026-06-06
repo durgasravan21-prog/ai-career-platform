@@ -298,6 +298,7 @@ export interface MentorSession {
   price: number;
   amount_cents: number;
   review?: Review;
+  is_reviewed?: boolean;
   created_at: string;
 }
 

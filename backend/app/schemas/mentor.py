@@ -124,6 +124,7 @@ class SessionResponse(BaseModel):
     stripe_payment_intent_id: Optional[str] = None
     created_at: datetime
     mentor_name: Optional[str] = None
+    is_reviewed: bool = False
 
 
 class ReviewRequest(BaseModel):

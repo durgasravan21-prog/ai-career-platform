@@ -69,6 +69,12 @@ export default function DashboardPage() {
   const [reportReason, setReportReason] = useState("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  // Session Review States
+  const [reviewingSession, setReviewingSession] = useState<any | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingSessionReview, setIsSubmittingSessionReview] = useState(false);
+
   // Mentor Submissions & Creation Form states
   const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([]);
   const [reviewingSubmission, setReviewingSubmission] = useState<any | null>(null);
@@ -354,6 +360,33 @@ export default function DashboardPage() {
       setError(apiErr.message || "Failed to submit report.");
     } finally {
       setIsSubmittingReport(false);
+    }
+  };
+
+  const handleSubmitSessionReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewingSession) return;
+    setIsSubmittingSessionReview(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.mentors.submitReview({
+        session_id: reviewingSession.id,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      setSuccess("Thank you! Review submitted successfully.");
+      setReviewingSession(null);
+      setReviewComment("");
+      setReviewRating(5);
+      
+      const sessionsData = await api.mentors.getMySessions();
+      setMentorSessions(sessionsData || []);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to submit review.");
+    } finally {
+      setIsSubmittingSessionReview(false);
     }
   };
 
@@ -1352,6 +1385,44 @@ export default function DashboardPage() {
             </p>
           </div>
 
+          {/* Mandatory Session Review Prompt */}
+          {(() => {
+            const unreviewed = mentorSessions.find(s => s.status === "completed" && !s.is_reviewed);
+            if (!unreviewed) return null;
+            return (
+              <div className="mb-6 bg-primary/10 border border-primary/25 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-warning/10 border border-warning/20 flex items-center justify-center text-warning flex-shrink-0">
+                    <Star className="h-6 w-6 fill-current" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Mandatory Review Feedback Required</h4>
+                    <p className="text-xs text-muted leading-relaxed mt-0.5">
+                      You have a completed session with Coach <strong className="text-foreground">{unreviewed.mentor_name || 'Expert'}</strong> that has not been reviewed yet. Leaving reviews helps other students choose the best coaches.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleOpenReportModal(unreviewed.mentor_id, unreviewed.mentor_name || 'Coach')}
+                    className="border-error/20 hover:bg-error/10 text-error flex-1 sm:flex-initial"
+                  >
+                    Report Issue
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setReviewingSession(unreviewed)}
+                    className="flex-1 sm:flex-initial bg-gradient-to-r from-primary to-secondary text-white font-bold"
+                  >
+                    Submit Review
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
           {error && (
             <div className="mb-6 bg-error/10 border border-error/20 rounded-xl px-4 py-3 flex items-center gap-3 animate-fadeIn">
               <AlertCircle className="h-5 w-5 text-error flex-shrink-0" />
@@ -1906,6 +1977,15 @@ export default function DashboardPage() {
                               >
                                 {session.status}
                               </Badge>
+                              {session.status === "completed" && !session.is_reviewed && (
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewingSession(session)}
+                                  className="bg-primary/20 hover:bg-primary/30 text-primary py-1 px-2.5 text-[10px] rounded-lg font-medium transition-all"
+                                >
+                                  Leave Review
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleOpenReportModal(session.mentor_id, session.mentor_name || `Coach #${session.mentor_id}`)}
@@ -1971,6 +2051,60 @@ export default function DashboardPage() {
                     className="flex-1 bg-error hover:bg-error/80 text-white font-bold"
                   >
                     {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Leave Session Review Modal */}
+        {reviewingSession && (
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
+              <div>
+                <h3 className="text-xl font-bold text-foreground">Review Mentoring Session</h3>
+                <p className="text-xs text-muted mt-1">Leave feedback for {reviewingSession.mentor_name}</p>
+              </div>
+
+              <form onSubmit={handleSubmitSessionReview} className="space-y-4">
+                {/* Rating Stars */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-medium block">Rating</label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewRating(star)}
+                        className="transition-transform active:scale-95"
+                      >
+                        <Star className={`h-8 w-8 ${star <= reviewRating ? "text-warning fill-warning" : "text-muted"}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Comment */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-medium">Your Review</label>
+                  <textarea
+                    placeholder="Describe your experience during this mentoring session..."
+                    required
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    rows={4}
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setReviewingSession(null)} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmittingSessionReview || !reviewComment.trim()} className="flex-1 bg-gradient-to-r from-primary to-secondary text-white font-bold">
+                    {isSubmittingSessionReview ? "Submitting..." : "Submit Review"}
                   </Button>
                 </div>
               </form>
