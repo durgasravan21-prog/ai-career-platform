@@ -45,43 +45,42 @@ function LandingPageContent() {
   const [debugOtp, setDebugOtp] = useState("");
   const [formError, setFormError] = useState("");
 
-  // Typing animation text state
-  const [typedText, setTypedText] = useState("");
+  // Typing animation text state (initialized to avoid SSR hydration mismatch)
+  const [typedText, setTypedText] = useState("Tech Career");
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [typingSpeed, setTypingSpeed] = useState(150);
-
-  const phrases = [
-    "Tech Career",
-    "Coding Skills",
-    "Project Portfolio",
-    "Career Future"
-  ];
 
   useEffect(() => {
+    const phrases = [
+      "Tech Career",
+      "Coding Skills",
+      "Project Portfolio",
+      "Career Future"
+    ];
     const currentPhrase = phrases[phraseIndex];
     let timer: NodeJS.Timeout;
 
-    if (!isDeleting && typedText === currentPhrase) {
-      // Pause at full word
-      timer = setTimeout(() => {
-        setIsDeleting(true);
-      }, 1500);
-    } else if (isDeleting && typedText === "") {
-      // Pause at empty word before next phrase
-      setIsDeleting(false);
-      setPhraseIndex((prev) => (prev + 1) % phrases.length);
-      setTypingSpeed(120);
+    if (!isDeleting) {
+      if (typedText !== currentPhrase) {
+        timer = setTimeout(() => {
+          setTypedText(currentPhrase.substring(0, typedText.length + 1));
+        }, 120);
+      } else {
+        // Pause at full word
+        timer = setTimeout(() => {
+          setIsDeleting(true);
+        }, 2000);
+      }
     } else {
-      // Typing or deleting
-      const speed = isDeleting ? 50 : 100;
-      timer = setTimeout(() => {
-        setTypedText((prev) =>
-          isDeleting
-            ? currentPhrase.substring(0, prev.length - 1)
-            : currentPhrase.substring(0, prev.length + 1)
-        );
-      }, speed);
+      if (typedText !== "") {
+        timer = setTimeout(() => {
+          setTypedText(currentPhrase.substring(0, typedText.length - 1));
+        }, 60);
+      } else {
+        // Pause briefly before starting next word
+        setIsDeleting(false);
+        setPhraseIndex((prev) => (prev + 1) % phrases.length);
+      }
     }
 
     return () => clearTimeout(timer);
@@ -270,10 +269,10 @@ function LandingPageContent() {
               </div>
 
               {/* Heading */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-tight w-full">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-tight w-full min-h-[160px] sm:min-h-[200px] lg:min-h-[240px]">
                 <span className="text-foreground">Accelerate Your</span>
                 <br />
-                <span className="gradient-text pb-1 pr-1 blink-cursor">{typedText}</span>
+                <span className="gradient-text pb-1 pr-1 blink-cursor">{typedText || "\u00A0"}</span>
                 <br />
                 <span className="text-foreground">with AI</span>
               </h1>
