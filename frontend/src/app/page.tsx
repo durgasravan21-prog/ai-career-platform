@@ -157,8 +157,8 @@ function LandingPageContent() {
         if (res && res.debug_otp) {
           setDebugOtp(res.debug_otp);
         }
-      } catch {
-        setFormError(error || "Failed to send OTP. Please try again.");
+      } catch (err: any) {
+        setFormError(err?.message || "Failed to send OTP. Please try again.");
       }
     } else {
       if (!otpCode || otpCode.length !== 6) {
@@ -191,8 +191,8 @@ function LandingPageContent() {
         } else {
           router.push("/dashboard");
         }
-      } catch {
-        setFormError(error || "Invalid OTP code. Please try again.");
+      } catch (err: any) {
+        setFormError(err?.message || "Invalid OTP code. Please try again.");
       }
     }
   };
