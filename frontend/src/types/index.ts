@@ -260,6 +260,7 @@ export interface Mentor {
   verified_at?: string;
   rejected_at?: string;
   reviewed_count?: number;
+  experience_years?: number;
 }
 
 export interface ApplyMentorPayload {

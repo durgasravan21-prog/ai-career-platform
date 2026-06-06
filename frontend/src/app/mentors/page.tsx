@@ -45,10 +45,12 @@ export default function MentorsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedExpertise, setSelectedExpertise] = useState("all");
   const [maxPrice, setMaxPrice] = useState(150);
+  const [minRating, setMinRating] = useState<number>(0);
+  const [minExperience, setMinExperience] = useState<string>("all");
+  const [selectedDay, setSelectedDay] = useState<string>("all");
 
   // Modal controls
   const [bookingMentor, setBookingMentor] = useState<Mentor | null>(null);
@@ -234,7 +236,34 @@ export default function MentorsPage() {
 
     const matchesPrice = (mentor.hourly_rate || 0) <= maxPrice;
 
-    return matchesSearch && matchesExpertise && matchesPrice;
+    const matchesRating = mentor.rating >= minRating;
+
+    // Parse experience from bio or use custom property if available
+    const yearsOfExp = mentor.experience_years || 
+      (mentor.bio.match(/(\d+)\+?\s*years/)?.[1] ? parseInt(mentor.bio.match(/(\d+)\+?\s*years/)![1]) : 5);
+    
+    let matchesExperience = true;
+    if (minExperience === "1-3") {
+      matchesExperience = yearsOfExp >= 1 && yearsOfExp <= 3;
+    } else if (minExperience === "4-7") {
+      matchesExperience = yearsOfExp >= 4 && yearsOfExp <= 7;
+    } else if (minExperience === "8+") {
+      matchesExperience = yearsOfExp >= 8;
+    }
+
+    let matchesTime = true;
+    if (selectedDay !== "all") {
+      const availDays = (mentor.availability || []).map(a => String(a.day_of_week));
+      if (selectedDay === "weekday") {
+        matchesTime = (mentor.availability || []).some(a => a.day_of_week >= 1 && a.day_of_week <= 5);
+      } else if (selectedDay === "weekend") {
+        matchesTime = (mentor.availability || []).some(a => a.day_of_week === 0 || a.day_of_week === 6);
+      } else {
+        matchesTime = availDays.includes(selectedDay);
+      }
+    }
+
+    return matchesSearch && matchesExpertise && matchesPrice && matchesRating && matchesExperience && matchesTime;
   });
 
   // Unique expertise list for filtering
@@ -420,6 +449,57 @@ export default function MentorsPage() {
                       onChange={(e) => setMaxPrice(Number(e.target.value))}
                       className="w-full accent-primary bg-white/5 h-1.5 rounded-lg appearance-none cursor-pointer"
                     />
+                  </div>
+
+                  {/* Minimum Rating */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted font-medium">Minimum Rating</label>
+                    <select
+                      value={minRating}
+                      onChange={(e) => setMinRating(Number(e.target.value))}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="0">All Ratings</option>
+                      <option value="4.5">4.5+ Stars</option>
+                      <option value="4.8">4.8+ Stars</option>
+                      <option value="5.0">5.0 Stars</option>
+                    </select>
+                  </div>
+
+                  {/* Experience Level */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted font-medium">Experience Level</label>
+                    <select
+                      value={minExperience}
+                      onChange={(e) => setMinExperience(e.target.value)}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="all">All Experience Levels</option>
+                      <option value="1-3">1 - 3 Years</option>
+                      <option value="4-7">4 - 7 Years</option>
+                      <option value="8+">8+ Years</option>
+                    </select>
+                  </div>
+
+                  {/* Availability */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted font-medium">Availability Day</label>
+                    <select
+                      value={selectedDay}
+                      onChange={(e) => setSelectedDay(e.target.value)}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="all">Any Day</option>
+                      <option value="weekday">Weekdays (Mon - Fri)</option>
+                      <option value="weekend">Weekends (Sat - Sun)</option>
+                      <option value="1">Monday</option>
+                      <option value="2">Tuesday</option>
+                      <option value="3">Wednesday</option>
+                      <option value="4">Thursday</option>
+                      <option value="5">Friday</option>
+                      <option value="6">Saturday</option>
+                      <option value="0">Sunday</option>
+                    </select>
                   </div>
                 </Card>
               </div>

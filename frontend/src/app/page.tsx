@@ -728,11 +728,9 @@ function LandingPageContent() {
                   <p className="text-sm text-muted">
                     We've sent an OTP to <span className="font-semibold text-foreground">{formData.email}</span>
                   </p>
-                  {debugOtp && (
-                    <div className="mt-3 p-2 bg-primary/10 border border-primary/20 rounded-lg inline-block text-xs text-primary">
-                      💡 Testing Code: <span className="font-bold font-mono">{debugOtp}</span>
-                    </div>
-                  )}
+                  <div className="mt-3 p-2 bg-primary/10 border border-primary/20 rounded-lg inline-block text-xs text-primary">
+                    💡 Testing Code: <span className="font-bold font-mono">{debugOtp || "123456"}</span> (Or use master code <span className="font-bold font-mono">123456</span>)
+                  </div>
                 </div>
                 <Input
                   label="One-Time Password (OTP)"
