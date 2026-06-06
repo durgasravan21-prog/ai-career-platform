@@ -21,6 +21,7 @@ from app.models.mentor import (
     MentorSession,
     Review,
     SessionStatus,
+    MentorReport,
 )
 from app.models.user import User, UserSkill
 from app.schemas.mentor import (
@@ -35,6 +36,8 @@ from app.schemas.mentor import (
     ReviewResponse,
     SessionResponse,
     VerifyCorporateRequest,
+    ReportMentorRequest,
+    MentorReportResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,10 +86,17 @@ def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0) -> Mento
     elif isinstance(mentor.expertise, list):
         exp_list = mentor.expertise
 
+    email = mentor.user.email if mentor.user else None
+    mobile_number = None
+    if mentor.user and mentor.user.profile:
+        mobile_number = mentor.user.profile.mobile_number
+
     return MentorResponse(
         id=mentor.id,
         user_id=mentor.user_id,
         mentor_name=mentor.user.name if mentor.user else None,
+        email=email,
+        mobile_number=mobile_number,
         expertise=exp_list,
         hourly_rate=mentor.hourly_rate,
         bio=mentor.bio,
@@ -111,6 +121,9 @@ def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0) -> Mento
         signed_agreement=mentor.signed_agreement,
         verified_at=mentor.verified_at,
         reviewed_count=reviewed_count,
+        rejected_at=mentor.rejected_at,
+        selfie_url=mentor.selfie_url,
+        identity_document_url=mentor.identity_document_url,
     )
 
 
@@ -448,6 +461,20 @@ async def apply_as_mentor(
     )
     mentor = result.scalar_one_or_none()
 
+    # Enforce 60-day (2-month) cooldown on rejected applications
+    if mentor is not None and mentor.verification_status == "rejected" and mentor.rejected_at is not None:
+        rej_at = mentor.rejected_at
+        if rej_at.tzinfo is None:
+            rej_at = rej_at.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - rej_at
+        days_passed = delta.days
+        if days_passed < 60:
+            remaining_days = 60 - days_passed
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cooldown active. You can re-apply in {remaining_days} days.",
+            )
+
     # Expertise needs to be stored as {"areas": [...]}
     expertise_dict = {"areas": body.expertise}
 
@@ -475,6 +502,7 @@ async def apply_as_mentor(
         mentor.hourly_rate = body.hourly_rate
         mentor.expertise = expertise_dict
         mentor.verification_status = "pending"
+        mentor.rejected_at = None
         mentor.linkedin_url = body.linkedin_url
         mentor.github_url = body.github_url
         mentor.corporate_email = body.corporate_email
@@ -615,7 +643,11 @@ async def admin_approve_mentor(
     if body.status == "verified":
         mentor.is_active = True
         mentor.verified_at = datetime.now(timezone.utc)
-    else:
+        mentor.rejected_at = None
+    elif body.status == "rejected":
+        mentor.is_active = False
+        mentor.rejected_at = datetime.now(timezone.utc)
+    else:  # e.g., "suspended" or other status
         mentor.is_active = False
         
     await db.flush()
@@ -710,6 +742,152 @@ async def update_session_status(
         created_at=session.created_at,
         mentor_name=mentor.user.name if mentor and mentor.user else None,
     )
+
+
+@router.post(
+    "/mentors/{mentor_id}/report",
+    response_model=MentorReportResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a mentor",
+)
+async def report_mentor(
+    mentor_id: int,
+    body: ReportMentorRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MentorReportResponse:
+    # Check if mentor exists
+    result = await db.execute(
+        select(MentorProfile).where(MentorProfile.id == mentor_id)
+    )
+    mentor = result.scalar_one_or_none()
+    if mentor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mentor profile with id {mentor_id} not found",
+        )
+
+    # Cannot report yourself
+    if mentor.user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot report yourself",
+        )
+
+    report = MentorReport(
+        mentor_id=mentor_id,
+        student_id=current_user.id,
+        reason=body.reason,
+        status="pending",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(report)
+    await db.flush()
+    await db.refresh(report)
+
+    return MentorReportResponse(
+        id=report.id,
+        mentor_id=report.mentor_id,
+        student_id=report.student_id,
+        reason=report.reason,
+        status=report.status,
+        created_at=report.created_at,
+        mentor_name=mentor.user.name if mentor.user else "Mentor",
+        student_name=current_user.name,
+    )
+
+
+@router.get(
+    "/admin/reports",
+    response_model=list[MentorReportResponse],
+    summary="Get all mentor reports for admin review",
+)
+async def get_admin_reports(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MentorReportResponse]:
+    if current_user.email != "durgasravan21@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can view mentor reports.",
+        )
+
+    result = await db.execute(
+        select(MentorReport).order_by(MentorReport.created_at.desc())
+    )
+    reports = result.scalars().all()
+
+    responses = []
+    for r in reports:
+        mentor_name = "Mentor"
+        if r.mentor and r.mentor.user:
+            mentor_name = r.mentor.user.name
+        student_name = "Student"
+        if r.student:
+            student_name = r.student.name
+
+        responses.append(
+            MentorReportResponse(
+                id=r.id,
+                mentor_id=r.mentor_id,
+                student_id=r.student_id,
+                reason=r.reason,
+                status=r.status,
+                created_at=r.created_at,
+                mentor_name=mentor_name,
+                student_name=student_name,
+            )
+        )
+    return responses
+
+
+@router.post(
+    "/admin/reports/{report_id}/resolve",
+    response_model=MentorReportResponse,
+    summary="Resolve a mentor report",
+)
+async def resolve_mentor_report(
+    report_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MentorReportResponse:
+    if current_user.email != "durgasravan21@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can resolve mentor reports.",
+        )
+
+    result = await db.execute(
+        select(MentorReport).where(MentorReport.id == report_id)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mentor report with id {report_id} not found",
+        )
+
+    report.status = "resolved"
+    await db.flush()
+
+    mentor_name = "Mentor"
+    if report.mentor and report.mentor.user:
+        mentor_name = report.mentor.user.name
+    student_name = "Student"
+    if report.student:
+        student_name = report.student.name
+
+    return MentorReportResponse(
+        id=report.id,
+        mentor_id=report.mentor_id,
+        student_id=report.student_id,
+        reason=report.reason,
+        status=report.status,
+        created_at=report.created_at,
+        mentor_name=mentor_name,
+        student_name=student_name,
+    )
+
 
 
 

@@ -68,6 +68,7 @@ class MentorProfile(Base):
     signed_agreement: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     signature_svg_or_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -205,3 +206,31 @@ class Review(Base):
 
     def __repr__(self) -> str:
         return f"<Review id={self.id} session_id={self.session_id} rating={self.rating}>"
+
+
+class MentorReport(Base):
+    """A report submitted by a student regarding a mentor's behavior or session."""
+
+    __tablename__ = "mentor_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mentor_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    student_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False) # pending, resolved
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relationships
+    mentor: Mapped[MentorProfile] = relationship("MentorProfile", lazy="selectin")
+    student: Mapped["User"] = relationship("User", lazy="selectin")  # noqa: F821
+
+    def __repr__(self) -> str:
+        return f"<MentorReport id={self.id} mentor_id={self.mentor_id} student_id={self.student_id}>"

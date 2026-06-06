@@ -17,6 +17,7 @@ import type {
   MentorFilters,
   MentorMatch,
   MentorSession,
+  MentorReport,
   BookSessionPayload,
   Review,
   ReviewPayload,
@@ -423,6 +424,23 @@ class ApiClient {
       return this.fetchApi<MentorSession>(`/mentors/sessions/${sessionId}/status`, {
         method: "POST",
         body: JSON.stringify({ status }),
+      });
+    },
+
+    reportMentor: async (mentorId: string, reason: string): Promise<MentorReport> => {
+      return this.fetchApi<MentorReport>(`/mentors/${mentorId}/report`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+    },
+
+    getReports: async (): Promise<MentorReport[]> => {
+      return this.fetchApi<MentorReport[]>("/admin/reports");
+    },
+
+    resolveReport: async (reportId: string): Promise<MentorReport> => {
+      return this.fetchApi<MentorReport>(`/admin/reports/${reportId}/resolve`, {
+        method: "POST",
       });
     },
   };

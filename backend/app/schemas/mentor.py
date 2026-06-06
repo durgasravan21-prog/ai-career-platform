@@ -27,6 +27,8 @@ class MentorResponse(BaseModel):
     id: int
     user_id: int
     mentor_name: Optional[str] = None
+    email: Optional[str] = None
+    mobile_number: Optional[str] = None
     expertise: list[str] = Field(default_factory=list)
     hourly_rate: float
     bio: Optional[str] = None
@@ -44,6 +46,9 @@ class MentorResponse(BaseModel):
     corporate_email_verified: bool = False
     signed_agreement: bool = False
     verified_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+    selfie_url: Optional[str] = None
+    identity_document_url: Optional[str] = None
     reviewed_count: int = 0
 
 
@@ -139,3 +144,25 @@ class ReviewResponse(BaseModel):
     rating: int
     comment: Optional[str] = None
     created_at: datetime
+
+
+class ReportMentorRequest(BaseModel):
+    """Request schema for submitting a mentor report."""
+
+    reason: str = Field(..., min_length=5, max_length=2000)
+
+
+class MentorReportResponse(BaseModel):
+    """Response schema for a mentor report."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    mentor_id: int
+    student_id: int
+    reason: str
+    status: str
+    created_at: datetime
+    mentor_name: Optional[str] = None
+    student_name: Optional[str] = None
+

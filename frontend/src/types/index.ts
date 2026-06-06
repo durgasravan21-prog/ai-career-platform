@@ -23,6 +23,7 @@ export interface UserProfile {
   current_role?: string;
   location?: string;
   skills: UserSkill[];
+  mobile_number?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -230,6 +231,7 @@ export interface Mentor {
   name: string;
   mentor_name?: string;
   email?: string;
+  mobile_number?: string;
   bio: string;
   avatar_url?: string;
   expertise: string[];
@@ -256,6 +258,7 @@ export interface Mentor {
   signed_agreement?: boolean;
   signature_svg_or_text?: string;
   verified_at?: string;
+  rejected_at?: string;
   reviewed_count?: number;
 }
 
@@ -335,6 +338,17 @@ export interface MentorMatch {
   mentor: Mentor;
   match_score: number;
   reasoning: string;
+}
+
+export interface MentorReport {
+  id: string;
+  mentor_id: string;
+  student_id: string;
+  reason: string;
+  status: "pending" | "resolved";
+  created_at: string;
+  mentor_name?: string;
+  student_name?: string;
 }
 
 // ─── API Common ─────────────────────────────────────────────

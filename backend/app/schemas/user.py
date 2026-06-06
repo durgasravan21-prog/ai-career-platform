@@ -81,6 +81,7 @@ class UserProfileDetail(BaseModel):
     location: Optional[str] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
+    mobile_number: Optional[str] = None
 
 
 class CVAnalysisResponse(BaseModel):

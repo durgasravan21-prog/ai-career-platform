@@ -146,6 +146,7 @@ class FrontendUserProfileUpdate(BaseModel):
     years_of_experience: Optional[float] = None
     current_role: Optional[str] = None
     location: Optional[str] = None
+    mobile_number: Optional[str] = None
 
 class FrontendUserProfileResponse(BaseModel):
     id: int
@@ -159,6 +160,7 @@ class FrontendUserProfileResponse(BaseModel):
     years_of_experience: Optional[float] = None
     current_role: Optional[str] = None
     location: Optional[str] = None
+    mobile_number: Optional[str] = None
     skills: list[UserSkillResponse] = []
     created_at: datetime
     updated_at: datetime
@@ -202,6 +204,7 @@ async def _build_profile_response(user: User, db: AsyncSession) -> FrontendUserP
         years_of_experience=profile.years_of_experience,
         current_role=profile.current_role,
         location=profile.location,
+        mobile_number=profile.mobile_number,
         skills=skills_resp,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
@@ -257,6 +260,8 @@ async def update_profile(
         profile.current_role = body.current_role
     if body.location is not None:
         profile.location = body.location
+    if body.mobile_number is not None:
+        profile.mobile_number = body.mobile_number
         
     # If target_role_id is specified, let's ensure we create/update the active career path
     if body.target_role_id is not None:

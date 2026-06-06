@@ -42,6 +42,7 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [portfolioUrl, setPortfolioUrl] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [targetRoleId, setTargetRoleId] = useState("");
 
   // Route protection
@@ -78,6 +79,7 @@ export default function ProfilePage() {
         setBio(profileData.bio || "");
         setLinkedinUrl(profileData.linkedin_url || "");
         setPortfolioUrl(profileData.portfolio_url || "");
+        setMobileNumber(profileData.mobile_number || "");
         setTargetRoleId(
           profileData.target_role_id !== undefined && profileData.target_role_id !== null
             ? String(profileData.target_role_id)
@@ -108,6 +110,7 @@ export default function ProfilePage() {
         location: location.trim() || "",
         linkedin_url: linkedinUrl.trim() || "",
         portfolio_url: portfolioUrl.trim() || "",
+        mobile_number: mobileNumber.trim() || "",
         years_of_experience: yearsOfExperience ? Number(yearsOfExperience) : null,
         target_role_id: targetRoleId ? Number(targetRoleId) : null,
       };
@@ -208,6 +211,19 @@ export default function ProfilePage() {
                   />
                   <span className="text-[10px] text-muted block mt-1">
                     Your email address cannot be changed as it is used for login.
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-semibold uppercase tracking-wider">
+                    Mobile Number
+                  </label>
+                  <Input
+                    placeholder="e.g. +1 (555) 019-2834"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                  />
+                  <span className="text-[10px] text-muted block mt-1">
+                    Used by administration to contact you in case of session issues.
                   </span>
                 </div>
               </div>

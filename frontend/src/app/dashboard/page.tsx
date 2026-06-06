@@ -60,6 +60,14 @@ export default function DashboardPage() {
   const [learningPathOpen, setLearningPathOpen] = useState(false);
   const [pendingMentors, setPendingMentors] = useState<Mentor[]>([]);
   const [mentorSessions, setMentorSessions] = useState<MentorSession[]>([]);
+  const [mentorReports, setMentorReports] = useState<any[]>([]);
+
+  // Report Modal States
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTargetMentorId, setReportTargetMentorId] = useState("");
+  const [reportTargetMentorName, setReportTargetMentorName] = useState("");
+  const [reportReason, setReportReason] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   // Mentor Submissions & Creation Form states
   const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([]);
@@ -147,9 +155,13 @@ export default function DashboardPage() {
       setError("");
       try {
         if (user?.email === "durgasravan21@gmail.com") {
-          // Admin View: Fetch pending mentors
-          const pending = await api.mentors.getPendingMentors();
+          // Admin View: Fetch pending mentors and reports
+          const [pending, reports] = await Promise.all([
+            api.mentors.getPendingMentors(),
+            api.mentors.getReports(),
+          ]);
           setPendingMentors(pending || []);
+          setMentorReports(reports || []);
         } else {
           // Check if mentor profile exists
           let currentMentor: Mentor | null = null;
@@ -176,9 +188,10 @@ export default function DashboardPage() {
             setPendingSubmissions(submissionsData || []);
           } else {
             // Student View: Always load student data as fallback or primary (since pending/non-mentors need it)
-            const [roadmapData, projectsData] = await Promise.allSettled([
+            const [roadmapData, projectsData, sessionsData] = await Promise.allSettled([
               api.career.getSkillGap(),
               api.projects.getRecommendations(),
+              api.mentors.getMySessions(),
             ]);
 
             if (roadmapData.status === "fulfilled") {
@@ -197,6 +210,10 @@ export default function DashboardPage() {
               if (reason && (!reason.status || reason.status !== 404)) {
                 throw reason;
               }
+            }
+
+            if (sessionsData.status === "fulfilled") {
+              setMentorSessions(sessionsData.value || []);
             }
           }
         }
@@ -264,17 +281,79 @@ export default function DashboardPage() {
     }
   };
 
-  const handleAdminApprove = async (mentorId: string, status: "verified" | "rejected") => {
+  const getCooldownStatus = () => {
+    if (!mentorProfile || mentorProfile.verification_status !== "rejected" || !mentorProfile.rejected_at) {
+      return { isLocked: false, remainingDays: 0 };
+    }
+    const rejectedDate = new Date(mentorProfile.rejected_at);
+    const now = new Date();
+    const diffTime = now.getTime() - rejectedDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 60) {
+      return { isLocked: true, remainingDays: 60 - diffDays };
+    }
+    return { isLocked: false, remainingDays: 0 };
+  };
+
+  const handleAdminApprove = async (mentorId: string, status: "verified" | "rejected" | "suspended") => {
     setError("");
     setSuccess("");
     try {
       await api.mentors.adminApprove(mentorId, status);
-      const pending = await api.mentors.getPendingMentors();
+      const [pending, reports] = await Promise.all([
+        api.mentors.getPendingMentors(),
+        api.mentors.getReports(),
+      ]);
       setPendingMentors(pending || []);
-      setSuccess(`Mentor application successfully ${status === "verified" ? "approved" : "rejected"}.`);
+      setMentorReports(reports || []);
+      
+      let label = "approved";
+      if (status === "rejected") label = "rejected";
+      if (status === "suspended") label = "suspended and put on hold";
+      setSuccess(`Mentor profile successfully ${label}.`);
     } catch (err) {
       const apiErr = err as ApiError;
       setError(apiErr.message || "Action failed.");
+    }
+  };
+
+  const handleResolveReport = async (reportId: string) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.mentors.resolveReport(reportId);
+      const reports = await api.mentors.getReports();
+      setMentorReports(reports || []);
+      setSuccess("Report resolved successfully.");
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to resolve report.");
+    }
+  };
+
+  const handleOpenReportModal = (mentorId: string | number, mentorName: string) => {
+    setReportTargetMentorId(String(mentorId));
+    setReportTargetMentorName(mentorName);
+    setReportReason("");
+    setIsReportModalOpen(true);
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportReason.trim() || !reportTargetMentorId) return;
+    setIsSubmittingReport(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.mentors.reportMentor(reportTargetMentorId, reportReason.trim());
+      setIsReportModalOpen(false);
+      setSuccess(`Report on coach ${reportTargetMentorName} submitted successfully for review.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to submit report.");
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -385,6 +464,14 @@ export default function DashboardPage() {
                           <span className="text-success font-semibold">{formatDualCurrency(mentor.hourly_rate)}</span>
                         </div>
                         <div>
+                          <span className="font-medium text-foreground block">Contact Mobile:</span>
+                          <span className="text-foreground">{mentor.mobile_number || "Not provided"}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground block">Login Email:</span>
+                          <span className="text-foreground">{mentor.email || "Not provided"}</span>
+                        </div>
+                        <div>
                           <span className="font-medium text-foreground block">LinkedIn Profile:</span>
                           {mentor.linkedin_url ? (
                             <a href={mentor.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-[250px]">
@@ -472,6 +559,77 @@ export default function DashboardPage() {
               </div>
             )}
           </Card>
+
+          {/* Reports Under Review */}
+          <Card className="p-6 mt-8">
+            <CardTitle className="mb-6 flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-error" />
+              Reports Under Review ({mentorReports.length})
+            </CardTitle>
+
+            {mentorReports.length === 0 ? (
+              <div className="text-center py-12 text-muted text-sm bg-white/[0.01] rounded-2xl border border-white/5">
+                <Check className="h-10 w-10 text-success mx-auto mb-2 bg-success/15 p-2.5 rounded-full" />
+                No pending or active mentor reports.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {mentorReports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="p-5 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center"
+                  >
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-foreground">
+                          Reported Mentor: {report.mentor_name || `Mentor #${report.mentor_id}`}
+                        </span>
+                        <Badge
+                          className={
+                            report.status === "pending"
+                              ? "bg-error/20 text-error border-error/30"
+                              : "bg-success/20 text-success border-success/30"
+                          }
+                        >
+                          {report.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted">
+                        Submitted by Student: <span className="text-foreground">{report.student_name || `Student #${report.student_id}`}</span> on{" "}
+                        {new Date(report.created_at).toLocaleDateString()} at{" "}
+                        {new Date(report.created_at).toLocaleTimeString()}
+                      </p>
+                      <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-xs text-muted-foreground italic mt-2">
+                        &ldquo;{report.reason}&rdquo;
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 self-stretch md:self-auto justify-end">
+                      {report.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleAdminApprove(report.mentor_id, "suspended")}
+                            className="bg-error hover:bg-error/80 text-white font-bold"
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Suspend Mentor
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResolveReport(report.id)}
+                            className="border-success/30 text-success hover:bg-success/10 font-bold"
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" /> Resolve
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     );
@@ -479,6 +637,31 @@ export default function DashboardPage() {
 
   // ─── MENTOR COACH DASHBOARD ────────────────────────────────────
   const renderMentorDashboard = () => {
+    if (mentorProfile && mentorProfile.verification_status === "suspended") {
+      return (
+        <div className="min-h-screen bg-background py-16 px-4">
+          <div className="max-w-xl mx-auto text-center space-y-6 animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-error/15 flex items-center justify-center mx-auto text-error border border-error/25">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
+              Mentor Profile Suspended
+            </h1>
+            <p className="text-sm text-muted leading-relaxed">
+              Your professional mentor profile has been put on hold by the administrator due to student reports under review.
+              Students can no longer find your profile in the marketplace, and you cannot accept bookings or review project submissions at this time.
+            </p>
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs text-muted-foreground flex flex-col gap-2">
+              <p>For inquiries or to resolve this status, please contact the platform administrator at:</p>
+              <a href="mailto:durgasravan21@gmail.com" className="text-primary font-bold hover:underline">
+                durgasravan21@gmail.com
+              </a>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Filter sessions
     const pendingBookings = mentorSessions.filter(
       (s) => s.status === "pending" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
@@ -1119,20 +1302,42 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {mentorProfile && mentorProfile.verification_status === "rejected" && (
-            <div className="mb-6 bg-error/10 border border-error/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <XCircle className="h-6 w-6 text-error flex-shrink-0" />
-                <div>
-                  <h4 className="text-sm font-bold text-foreground">Mentor Application Rejected</h4>
-                  <p className="text-xs text-muted">Your application to become a mentor was rejected. You can update your credentials and submit a new application.</p>
+          {mentorProfile && mentorProfile.verification_status === "rejected" && (() => {
+            const { isLocked, remainingDays } = getCooldownStatus();
+            return (
+              <div className="mb-6 bg-error/10 border border-error/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+                <div className="flex items-center gap-3">
+                  <XCircle className="h-6 w-6 text-error flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Mentor Application Rejected</h4>
+                    {isLocked ? (
+                      <p className="text-xs text-muted">
+                        Your application to become a mentor was rejected. Re-application is locked for{" "}
+                        <span className="text-error font-semibold">{remainingDays} more days</span> (60-day cooldown period).
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted">
+                        Your application to become a mentor was rejected. You can now submit a new application.
+                      </p>
+                    )}
+                  </div>
                 </div>
+                <Button
+                  size="sm"
+                  disabled={isLocked}
+                  onClick={() => router.push("/mentors/apply")}
+                  className={cn(
+                    "w-full sm:w-auto font-bold border-none",
+                    isLocked
+                      ? "bg-white/10 text-muted cursor-not-allowed"
+                      : "bg-error hover:bg-error/80 text-white"
+                  )}
+                >
+                  {isLocked ? `Locked (${remainingDays}d)` : "Re-apply as Mentor"}
+                </Button>
               </div>
-              <Button size="sm" onClick={() => router.push("/mentors/apply")} className="w-full sm:w-auto bg-error hover:bg-error/80 text-white font-bold border-none">
-                Re-apply as Mentor
-              </Button>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Welcome Header */}
           <div className="mb-8 animate-fadeIn">
@@ -1617,9 +1822,161 @@ export default function DashboardPage() {
                   </div>
                 )}
               </Card>
+
+              {/* Coaching Sessions & Bookings */}
+              <Card className="animate-slideUp" style={{ animationDelay: "0.2s" }}>
+                <CardTitle className="mb-4 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Your Coaching Sessions
+                </CardTitle>
+
+                {mentorSessions.length === 0 ? (
+                  <div className="text-center py-8 text-muted text-sm bg-white/[0.01] rounded-2xl border border-white/5">
+                    No sessions booked yet. Book a session with a mentor to get expert guidance!
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Upcoming */}
+                    {mentorSessions.filter(s => s.status === "pending" || s.status === "confirmed").length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Upcoming Sessions</h4>
+                        {mentorSessions.filter(s => s.status === "pending" || s.status === "confirmed").map((session) => (
+                          <div
+                            key={session.id}
+                            className="p-3 bg-white/[0.01] border border-white/5 rounded-xl text-xs flex flex-col sm:flex-row justify-between sm:items-center gap-3"
+                          >
+                            <div>
+                              <span className="font-semibold text-foreground block">
+                                Coach: {session.mentor_name || `Coach #${session.mentor_id}`}
+                              </span>
+                              <div className="flex flex-wrap gap-3 mt-1 text-[10px] text-muted">
+                                <span>{new Date(session.scheduled_at).toLocaleDateString()}</span>
+                                <span>
+                                  {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <Badge
+                                className={
+                                  session.status === "confirmed"
+                                    ? "bg-success/20 text-success border-success/30"
+                                    : "bg-warning/20 text-warning border-warning/30"
+                                }
+                              >
+                                {session.status}
+                              </Badge>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReportModal(session.mentor_id, session.mentor_name || `Coach #${session.mentor_id}`)}
+                                className="border border-error/20 hover:bg-error/10 text-error py-1 px-2.5 text-[10px] rounded-lg font-medium transition-all"
+                              >
+                                Report
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Completed */}
+                    {mentorSessions.filter(s => s.status === "completed" || s.status === "cancelled").length > 0 && (
+                      <div className="space-y-3 pt-2">
+                        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Session History</h4>
+                        {mentorSessions.filter(s => s.status === "completed" || s.status === "cancelled").map((session) => (
+                          <div
+                            key={session.id}
+                            className="p-3 bg-white/[0.01] border border-white/5 rounded-xl text-xs flex flex-col sm:flex-row justify-between sm:items-center gap-3"
+                          >
+                            <div>
+                              <span className="font-semibold text-foreground block">
+                                Coach: {session.mentor_name || `Coach #${session.mentor_id}`}
+                              </span>
+                              <span className="text-muted block mt-0.5 text-[10px]">
+                                {new Date(session.scheduled_at).toLocaleDateString()} · {session.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <Badge
+                                className={
+                                  session.status === "completed"
+                                    ? "bg-success/15 text-success border-success/20"
+                                    : "bg-white/10 text-muted border-white/10"
+                                }
+                              >
+                                {session.status}
+                              </Badge>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReportModal(session.mentor_id, session.mentor_name || `Coach #${session.mentor_id}`)}
+                                className="border border-error/20 hover:bg-error/10 text-error py-1 px-2.5 text-[10px] rounded-lg font-medium transition-all"
+                              >
+                                Report
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
             </div>
           </div>
         </div>
+
+        {/* Report Coach Modal */}
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
+              <div>
+                <h3 className="text-xl font-bold text-foreground">Report Coach</h3>
+                <p className="text-xs text-muted mt-1">
+                  Submit a report regarding your experience or issues with coach <strong>{reportTargetMentorName}</strong>.
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitReport} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-medium block">
+                    Reason for Report:
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    minLength={5}
+                    maxLength={2000}
+                    placeholder="Describe the issue, missed session details, or inappropriate behavior in detail..."
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
+                  />
+                  <span className="text-[10px] text-muted block">
+                    Your report will be reviewed confidentially by the platform administrator.
+                  </span>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsReportModalOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmittingReport || !reportReason.trim()}
+                    className="flex-1 bg-error hover:bg-error/80 text-white font-bold"
+                  >
+                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1632,7 +1989,8 @@ export default function DashboardPage() {
   if (
     mentorProfile &&
     (mentorProfile.verification_status === "verified" ||
-      mentorProfile.verification_status === "pending")
+      mentorProfile.verification_status === "pending" ||
+      mentorProfile.verification_status === "suspended")
   ) {
     return renderMentorDashboard();
   }

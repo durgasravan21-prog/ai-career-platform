@@ -86,6 +86,7 @@ class UserProfile(Base):
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     portfolio_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    mobile_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

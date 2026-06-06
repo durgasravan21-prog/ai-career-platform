@@ -62,6 +62,39 @@ export default function MentorsPage() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
 
+  // Report states
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTargetMentorId, setReportTargetMentorId] = useState("");
+  const [reportTargetMentorName, setReportTargetMentorName] = useState("");
+  const [reportReason, setReportReason] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const handleOpenReportModal = (mentorId: string | number, mentorName: string) => {
+    setReportTargetMentorId(String(mentorId));
+    setReportTargetMentorName(mentorName);
+    setReportReason("");
+    setIsReportModalOpen(true);
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportReason.trim() || !reportTargetMentorId) return;
+    setIsSubmittingReport(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.mentors.reportMentor(reportTargetMentorId, reportReason.trim());
+      setIsReportModalOpen(false);
+      setSuccess(`Report on coach ${reportTargetMentorName} submitted successfully for review.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to submit report.");
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   // Tabs: 'marketplace' | 'sessions'
   const [activeTab, setActiveTab] = useState<"marketplace" | "sessions">("marketplace");
 
@@ -521,7 +554,7 @@ export default function MentorsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-3 self-end md:self-center">
+                      <div className="flex items-center gap-3 flex-wrap justify-end self-end md:self-center">
                         {isPast && session.status !== "completed" && session.status !== "cancelled" && (
                           <Button size="sm" onClick={() => setReviewingSession(session)}>
                             <MessageSquare className="h-4 w-4 mr-2" />
@@ -538,6 +571,14 @@ export default function MentorsPage() {
                             <CheckCircle className="h-3 w-3" /> Reviewed & Completed
                           </Badge>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenReportModal(session.mentor_id, session.mentor_name || "Coach")}
+                          className="border-error/20 hover:bg-error/10 text-error font-medium"
+                        >
+                          Report Coach
+                        </Button>
                       </div>
 
                     </Card>
@@ -693,6 +734,59 @@ export default function MentorsPage() {
                   </Button>
                 </div>
 
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Report Coach Modal */}
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
+              <div>
+                <h3 className="text-xl font-bold text-foreground">Report Coach</h3>
+                <p className="text-xs text-muted mt-1">
+                  Submit a report regarding your experience or issues with coach <strong>{reportTargetMentorName}</strong>.
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitReport} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-medium block">
+                    Reason for Report:
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    minLength={5}
+                    maxLength={2000}
+                    placeholder="Describe the issue, missed session details, or inappropriate behavior in detail..."
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
+                  />
+                  <span className="text-[10px] text-muted block">
+                    Your report will be reviewed confidentially by the platform administrator.
+                  </span>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsReportModalOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmittingReport || !reportReason.trim()}
+                    className="flex-1 bg-error hover:bg-error/80 text-white font-bold"
+                  >
+                    {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                  </Button>
+                </div>
               </form>
             </div>
           </div>
