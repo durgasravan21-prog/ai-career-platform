@@ -393,7 +393,7 @@ export default function DashboardPage() {
   const renderAdminDashboard = () => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL 
       ? process.env.NEXT_PUBLIC_API_URL.replace("/api/v1", "") 
-      : "";
+      : "https://durga-career-ai.loca.lt";
 
     return (
       <div className="min-h-screen bg-background py-8">
