@@ -57,6 +57,13 @@ async def register(
 
     # Create mentor profile if registering as mentor
     if body.role == "mentor" or body.company_name:
+        personal_domains = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "mail.com", "proton.me", "protonmail.com", "aol.com", "gmx.com", "zoho.com"}
+        email_domain = body.email.split("@")[1].lower() if "@" in body.email else ""
+        if email_domain in personal_domains:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Mentors must register with a corporate/company email address, not a personal email.",
+            )
         mentor = MentorProfile(
             user_id=user.id,
             company_name=body.company_name,
@@ -200,6 +207,13 @@ async def verify_otp(
 
         # Create mentor profile if registering as mentor
         if body.role == "mentor" or body.company_name:
+            personal_domains = {"gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "mail.com", "proton.me", "protonmail.com", "aol.com", "gmx.com", "zoho.com"}
+            email_domain = email_clean.split("@")[1].lower() if "@" in email_clean else ""
+            if email_domain in personal_domains:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Mentors must register with a corporate/company email address, not a personal email.",
+                )
             mentor = MentorProfile(
                 user_id=user.id,
                 company_name=body.company_name,

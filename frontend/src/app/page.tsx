@@ -134,6 +134,14 @@ function LandingPageContent() {
         setFormError("Please enter your email address.");
         return;
       }
+      if (isMentorMode) {
+        const personalDomains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "mail.com", "proton.me", "protonmail.com", "aol.com", "gmx.com", "zoho.com"];
+        const emailDomain = formData.email.split("@")[1]?.toLowerCase();
+        if (emailDomain && personalDomains.includes(emailDomain)) {
+          setFormError("Mentors must use a corporate/work email address (e.g., name@company.com), not a personal email (gmail, yahoo, etc.).");
+          return;
+        }
+      }
       if (isRegisterMode && !formData.name) {
         setFormError("Please enter your name.");
         return;

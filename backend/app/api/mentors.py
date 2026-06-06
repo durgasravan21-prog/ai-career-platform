@@ -595,6 +595,12 @@ async def admin_approve_mentor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorResponse:
+    if current_user.email != "durgasravan21@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can approve or reject mentor applications.",
+        )
+
     result = await db.execute(
         select(MentorProfile).where(MentorProfile.id == mentor_id)
     )

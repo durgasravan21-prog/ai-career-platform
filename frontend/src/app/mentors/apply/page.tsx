@@ -222,6 +222,26 @@ export default function MentorApplyPage() {
     }
   };
 
+  // Step 2 Continue Validation
+  const handleStep2Continue = () => {
+    setError("");
+    if (!linkedinUrl) {
+      setError("LinkedIn profile is mandatory.");
+      return;
+    }
+    if (!corporateEmail) {
+      setError("Corporate email address is mandatory for workplace verification.");
+      return;
+    }
+    const personalDomains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "mail.com", "proton.me", "protonmail.com", "aol.com", "gmx.com", "zoho.com"];
+    const emailDomain = corporateEmail.split("@")[1]?.toLowerCase();
+    if (emailDomain && personalDomains.includes(emailDomain)) {
+      setError("Please use your corporate/work email address (e.g., name@company.com), not a personal email (gmail, yahoo, etc.).");
+      return;
+    }
+    setStep(3);
+  };
+
   // Submit Application
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,20 +302,6 @@ export default function MentorApplyPage() {
     }
   };
 
-  // Administrative Bypass (Simulate Approval in Sandbox)
-  const handleAdminBypass = async () => {
-    if (!profile) return;
-    setError("");
-    setSuccess("");
-    try {
-      const approved = await api.mentors.adminApprove(String(profile.id), "verified");
-      setProfile(approved);
-      setSuccess("Sandbox Simulation: Profile approved successfully!");
-    } catch (err) {
-      const apiErr = err as ApiError;
-      setError(apiErr.message || "Failed to bypass admin check.");
-    }
-  };
 
   if (loadingProfile) {
     return (
@@ -426,20 +432,6 @@ export default function MentorApplyPage() {
               </div>
             </div>
 
-            {/* Sandbox Simulation tools */}
-            {profile.verification_status === "pending" && (
-              <div className="p-4 bg-primary/10 border border-primary/20 rounded-3xl space-y-3">
-                <h4 className="text-xs font-extrabold text-primary uppercase tracking-widest flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" /> Sandbox Tools
-                </h4>
-                <p className="text-xs text-muted">
-                  Skip the manual screening queue and immediately activate this mentor profile.
-                </p>
-                <Button variant="outline" size="sm" onClick={handleAdminBypass} className="w-full border-primary/30 hover:bg-primary/20 text-foreground font-bold">
-                  Bypass Admin Check (Approve Instantly)
-                </Button>
-              </div>
-            )}
 
             {/* Navigation back */}
             <div className="flex justify-between gap-4 pt-4">
@@ -593,7 +585,7 @@ export default function MentorApplyPage() {
               <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
               </Button>
-              <Button onClick={() => linkedinUrl ? setStep(3) : setError("LinkedIn profile is mandatory.")} className="flex-1">
+              <Button onClick={handleStep2Continue} className="flex-1">
                 Continue <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </div>
