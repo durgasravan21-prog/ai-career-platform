@@ -297,9 +297,9 @@ class ApiClient {
       ...(options.headers || {}),
     };
 
-    // Use mock client if we are on Vercel and no production backend url is set
+    // Use mock client if we are on Vercel
     const isVercel = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
-    if (isVercel && (!process.env.NEXT_PUBLIC_API_URL || API_URL.includes("localhost") || API_URL.includes("loca.lt"))) {
+    if (isVercel) {
       return this.handleMockCall<T>(endpoint, options);
     }
 
@@ -359,9 +359,9 @@ class ApiClient {
 
       return response.json() as Promise<T>;
     } catch (err: any) {
-      // Fall back to mock client if backend server is not running or fails to respond
-      if (typeof window !== "undefined" && (!err.status || err.status >= 500 || err.message === "Failed to fetch")) {
-        console.warn("API server unreachable. Falling back to local Client Database.");
+      // Fall back to mock client on any network error or server failure
+      if (typeof window !== "undefined") {
+        console.warn("API server unreachable or returned error. Falling back to local Client Database.", err);
         return this.handleMockCall<T>(endpoint, options);
       }
       throw err;
