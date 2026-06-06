@@ -362,6 +362,31 @@ class ApiClient {
         body: JSON.stringify(data),
       });
     },
+
+    apply: async (data: any): Promise<Mentor> => {
+      return this.fetchApi<Mentor>("/mentors/apply", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    verifyCorporate: async (email: string, token: string): Promise<{ message: string }> => {
+      return this.fetchApi<{ message: string }>("/mentors/verify-corporate", {
+        method: "POST",
+        body: JSON.stringify({ email, token }),
+      });
+    },
+
+    getAppStatus: async (): Promise<Mentor> => {
+      return this.fetchApi<Mentor>("/mentors/application-status");
+    },
+
+    adminApprove: async (mentorId: string, status: string): Promise<Mentor> => {
+      return this.fetchApi<Mentor>(`/mentors/${mentorId}/admin-approve`, {
+        method: "POST",
+        body: JSON.stringify({ status }),
+      });
+    },
   };
 }
 

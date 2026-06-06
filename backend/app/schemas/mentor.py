@@ -34,6 +34,45 @@ class MentorResponse(BaseModel):
     total_sessions: int
     is_active: bool
     availability: list[MentorAvailabilityResponse] = []
+    
+    # Verification and Agreement fields
+    verification_status: str = "pending"
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    corporate_email: Optional[str] = None
+    corporate_email_verified: bool = False
+    signed_agreement: bool = False
+    verified_at: Optional[datetime] = None
+
+
+class ApplyMentorRequest(BaseModel):
+    """Payload to apply as a new professional mentor."""
+
+    bio: str
+    hourly_rate: float = Field(..., ge=10)
+    expertise: list[str]
+    linkedin_url: str
+    github_url: Optional[str] = None
+    corporate_email: Optional[str] = None
+    selfie_base64: Optional[str] = None  # Base64 string of captured webcam selfie
+    identity_document_base64: Optional[str] = None  # Base64 string of passport/ID card
+    signed_agreement: bool
+    signature_svg_or_text: Optional[str] = None
+    availability: list[dict] = []  # list of {"day_of_week": int, "start_time": str, "end_time": str}
+
+
+class VerifyCorporateRequest(BaseModel):
+    """Payload to verify corporate email OTP token."""
+
+    email: str
+    token: str
+
+
+class AdminApproveRequest(BaseModel):
+    """Payload for admin to verify or reject a mentor."""
+
+    status: str  # "verified" or "rejected" or "suspended"
+
 
 
 class MentorMatchRequest(BaseModel):

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 
 export default function MentorsPage() {
+  const router = useRouter();
   // States
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [sessions, setSessions] = useState<MentorSession[]>([]);
@@ -220,20 +222,26 @@ export default function MentorsPage() {
             <p className="text-muted mt-1">Book 1-on-1 sessions with industry experts tailored to your career roadmap.</p>
           </div>
 
-          {/* Tab switches */}
-          <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 self-start">
-            <button
-              onClick={() => setActiveTab("marketplace")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "marketplace" ? "bg-primary text-white" : "text-muted hover:text-foreground"}`}
-            >
-              Browse Mentors
-            </button>
-            <button
-              onClick={() => setActiveTab("sessions")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "sessions" ? "bg-primary text-white" : "text-muted hover:text-foreground"}`}
-            >
-              My Bookings ({sessions.length})
-            </button>
+          {/* Tab switches & Apply Button */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 self-start">
+            <div className="flex bg-white/5 border border-white/10 rounded-xl p-1">
+              <button
+                onClick={() => setActiveTab("marketplace")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "marketplace" ? "bg-primary text-white" : "text-muted hover:text-foreground"}`}
+              >
+                Browse Mentors
+              </button>
+              <button
+                onClick={() => setActiveTab("sessions")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "sessions" ? "bg-primary text-white" : "text-muted hover:text-foreground"}`}
+              >
+                My Bookings ({sessions.length})
+              </button>
+            </div>
+
+            <Button onClick={() => router.push("/mentors/apply")} variant="outline" className="h-10 text-xs border-primary/30 text-primary font-bold">
+              Join as Mentor
+            </Button>
           </div>
         </div>
 

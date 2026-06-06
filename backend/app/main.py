@@ -88,7 +88,12 @@ app.include_router(career_root_router)
 app.include_router(projects_router)
 app.include_router(mentors_router)
 app.include_router(webhooks_router)
+# ── Mount Uploads Static Files ────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+import os
 
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 # ── Root Endpoint ─────────────────────────────────────────────────────

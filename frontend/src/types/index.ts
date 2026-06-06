@@ -240,6 +240,32 @@ export interface Mentor {
   match_score?: number;
   match_reasoning?: string;
   created_at: string;
+
+  // Verification and Agreement
+  verification_status: "pending" | "verified" | "rejected" | "suspended";
+  linkedin_url?: string;
+  github_url?: string;
+  corporate_email?: string;
+  corporate_email_verified?: boolean;
+  selfie_url?: string;
+  identity_document_url?: string;
+  signed_agreement?: boolean;
+  signature_svg_or_text?: string;
+  verified_at?: string;
+}
+
+export interface ApplyMentorPayload {
+  bio: string;
+  hourly_rate: number;
+  expertise: string[];
+  linkedin_url: string;
+  github_url?: string;
+  corporate_email?: string;
+  selfie_base64?: string;
+  identity_document_base64?: string;
+  signed_agreement: boolean;
+  signature_svg_or_text?: string;
+  availability: Array<{ day_of_week: number; start_time: string; end_time: string }>;
 }
 
 export interface MentorAvailability {

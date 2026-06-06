@@ -55,6 +55,19 @@ class MentorProfile(Base):
         else mapped_column(Text, nullable=True)
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Verification and Application Flow
+    verification_status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    github_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    corporate_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    corporate_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    selfie_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    identity_document_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    signed_agreement: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    signature_svg_or_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
