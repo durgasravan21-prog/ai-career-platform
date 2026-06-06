@@ -209,7 +209,7 @@ export default function DashboardPage() {
           (err.message && err.message.includes("Failed to fetch")) ||
           err.status === undefined
         ) {
-          msg = "Could not connect to the backend server. Please verify the API server is running on port 8000 and is reachable.";
+          msg = "Could not connect to the backend server. Please verify the API service is online and reachable.";
         }
         setError(msg);
       } finally {
