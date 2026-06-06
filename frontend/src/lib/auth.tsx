@@ -22,6 +22,7 @@ interface AuthContextType {
   clearError: () => void;
   sendOtp: (email: string) => Promise<{ debug_otp: string; message: string }>;
   verifyOtp: (email: string, otp: string, name?: string, role?: string, companyName?: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -138,6 +139,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const userData = await api.auth.getMe();
+      setUser(userData);
+    } catch (err) {
+      // ignore
+    }
+  }, []);
+
   const value = useMemo<AuthContextType>(
     () => ({
       user,
@@ -150,8 +160,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearError,
       sendOtp,
       verifyOtp,
+      refreshUser,
     }),
-    [user, isLoading, isAuthenticated, error, login, register, logout, clearError, sendOtp, verifyOtp]
+    [user, isLoading, isAuthenticated, error, login, register, logout, clearError, sendOtp, verifyOtp, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

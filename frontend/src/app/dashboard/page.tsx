@@ -156,8 +156,14 @@ export default function DashboardPage() {
           try {
             currentMentor = await api.mentors.getAppStatus();
             setMentorProfile(currentMentor);
-          } catch (e) {
-            // 404 is normal for students who have never applied
+          } catch (e: any) {
+            // 404 is normal for students who have never applied.
+            // If it is a network error (no status code, or Failed to fetch) or other server error, propagate it!
+            if (e && e.status === 404) {
+              // Ignore 404
+            } else {
+              throw e;
+            }
           }
 
           if (currentMentor && currentMentor.verification_status === "verified") {
@@ -177,15 +183,35 @@ export default function DashboardPage() {
 
             if (roadmapData.status === "fulfilled") {
               setRoadmap(roadmapData.value);
+            } else {
+              const reason = roadmapData.reason;
+              if (reason && (!reason.status || reason.status !== 404)) {
+                throw reason;
+              }
             }
+
             if (projectsData.status === "fulfilled") {
               setRecommendedProjects(projectsData.value);
+            } else {
+              const reason = projectsData.reason;
+              if (reason && (!reason.status || reason.status !== 404)) {
+                throw reason;
+              }
             }
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        console.error("Dashboard error:", err);
         const apiErr = err as ApiError;
-        setError(apiErr.message || "Failed to load dashboard data");
+        let msg = apiErr.message || "Failed to load dashboard data";
+        if (
+          err instanceof TypeError ||
+          (err.message && err.message.includes("Failed to fetch")) ||
+          err.status === undefined
+        ) {
+          msg = "Could not connect to the backend server. Please verify the API server is running on port 8000 and is reachable.";
+        }
+        setError(msg);
       } finally {
         setIsLoadingData(false);
       }

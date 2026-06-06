@@ -15,10 +15,13 @@ export interface UserProfile {
   avatar_url?: string;
   github_url?: string;
   linkedin_url?: string;
+  portfolio_url?: string;
   target_role_id?: string;
   target_role?: Role;
   experience_level?: "beginner" | "intermediate" | "advanced" | "expert";
   years_of_experience?: number;
+  current_role?: string;
+  location?: string;
   skills: UserSkill[];
   created_at: string;
   updated_at?: string;

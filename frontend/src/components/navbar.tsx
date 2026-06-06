@@ -102,7 +102,7 @@ export function Navbar() {
                       </div>
                       <div className="p-1">
                         <Link
-                          href="/dashboard"
+                          href="/profile"
                           onClick={() => setProfileDropdownOpen(false)}
                           className="flex items-center gap-2 px-3 py-2 text-sm text-muted hover:text-foreground hover:bg-white/5 rounded-lg transition-colors"
                         >

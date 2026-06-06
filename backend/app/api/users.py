@@ -138,6 +138,7 @@ async def get_skills(
 from pydantic import BaseModel
 
 class FrontendUserProfileUpdate(BaseModel):
+    name: Optional[str] = None
     bio: Optional[str] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
@@ -156,6 +157,8 @@ class FrontendUserProfileResponse(BaseModel):
     portfolio_url: Optional[str] = None
     target_role_id: Optional[int] = None
     years_of_experience: Optional[float] = None
+    current_role: Optional[str] = None
+    location: Optional[str] = None
     skills: list[UserSkillResponse] = []
     created_at: datetime
     updated_at: datetime
@@ -197,6 +200,8 @@ async def _build_profile_response(user: User, db: AsyncSession) -> FrontendUserP
         portfolio_url=profile.portfolio_url,
         target_role_id=target_role,
         years_of_experience=profile.years_of_experience,
+        current_role=profile.current_role,
+        location=profile.location,
         skills=skills_resp,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
@@ -238,6 +243,8 @@ async def update_profile(
         db.add(profile)
         await db.flush()
         
+    if body.name is not None:
+        user.name = body.name
     if body.bio is not None:
         profile.bio = body.bio
     if body.linkedin_url is not None:
