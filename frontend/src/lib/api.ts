@@ -390,6 +390,104 @@ class ApiClient {
           
           let currentUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
 
+          const MOCK_SKILLS = [
+            { id: "1", name: "JavaScript", category: "frontend" },
+            { id: "2", name: "TypeScript", category: "frontend" },
+            { id: "3", name: "React", category: "frontend" },
+            { id: "4", name: "Next.js", category: "frontend" },
+            { id: "5", name: "Vue.js", category: "frontend" },
+            { id: "6", name: "HTML/CSS", category: "frontend" },
+            { id: "7", name: "Tailwind CSS", category: "frontend" },
+            { id: "8", name: "Node.js", category: "backend" },
+            { id: "9", name: "Python", category: "backend" },
+            { id: "10", name: "Java", category: "backend" },
+            { id: "11", name: "Go", category: "backend" },
+            { id: "12", name: "Express.js", category: "backend" },
+            { id: "13", name: "Django", category: "backend" },
+            { id: "14", name: "FastAPI", category: "backend" },
+            { id: "15", name: "PostgreSQL", category: "database" },
+            { id: "16", name: "MongoDB", category: "database" },
+            { id: "17", name: "Redis", category: "database" },
+            { id: "18", name: "MySQL", category: "database" },
+            { id: "19", name: "Docker", category: "devops" },
+            { id: "20", name: "Kubernetes", category: "devops" },
+            { id: "21", name: "AWS", category: "cloud" },
+            { id: "22", name: "GCP", category: "cloud" },
+            { id: "23", name: "Azure", category: "cloud" },
+            { id: "24", name: "React Native", category: "mobile" },
+            { id: "25", name: "Flutter", category: "mobile" },
+            { id: "26", name: "TensorFlow", category: "ml_ai" },
+            { id: "27", name: "PyTorch", category: "ml_ai" },
+            { id: "28", name: "Git", category: "devops" },
+            { id: "29", name: "CI/CD", category: "devops" },
+            { id: "30", name: "GraphQL", category: "backend" },
+            { id: "31", name: "REST APIs", category: "backend" },
+            { id: "32", name: "Figma", category: "design" }
+          ];
+
+          const roleSkillsMap: Record<string, Array<{name: string, proficiency: string}>> = {
+            "1": [ // Full-Stack Developer
+              { name: "React", proficiency: "Intermediate" },
+              { name: "Node.js", proficiency: "Intermediate" },
+              { name: "PostgreSQL", proficiency: "Intermediate" },
+              { name: "Docker", proficiency: "Beginner" },
+              { name: "JavaScript", proficiency: "Advanced" },
+              { name: "HTML/CSS", proficiency: "Intermediate" }
+            ],
+            "2": [ // Frontend Developer
+              { name: "React", proficiency: "Intermediate" },
+              { name: "Next.js", proficiency: "Intermediate" },
+              { name: "JavaScript", proficiency: "Advanced" },
+              { name: "HTML/CSS", proficiency: "Intermediate" },
+              { name: "TypeScript", proficiency: "Intermediate" },
+              { name: "Tailwind CSS", proficiency: "Intermediate" }
+            ],
+            "3": [ // Backend Developer
+              { name: "Node.js", proficiency: "Intermediate" },
+              { name: "PostgreSQL", proficiency: "Intermediate" },
+              { name: "Go", proficiency: "Intermediate" },
+              { name: "Python", proficiency: "Intermediate" },
+              { name: "SQL", proficiency: "Intermediate" },
+              { name: "REST APIs", proficiency: "Advanced" }
+            ],
+            "4": [ // DevOps Engineer
+              { name: "Docker", proficiency: "Advanced" },
+              { name: "Kubernetes", proficiency: "Intermediate" },
+              { name: "AWS", proficiency: "Intermediate" },
+              { name: "CI/CD", proficiency: "Intermediate" },
+              { name: "Terraform", proficiency: "Intermediate" },
+              { name: "Git", proficiency: "Advanced" }
+            ],
+            "5": [ // ML Engineer
+              { name: "Python", proficiency: "Advanced" },
+              { name: "PyTorch", proficiency: "Intermediate" },
+              { name: "TensorFlow", proficiency: "Intermediate" },
+              { name: "Pandas", proficiency: "Intermediate" },
+              { name: "Scikit-Learn", proficiency: "Intermediate" }
+            ],
+            "6": [ // Data Scientist
+              { name: "Python", proficiency: "Advanced" },
+              { name: "Pandas", proficiency: "Advanced" },
+              { name: "PostgreSQL", proficiency: "Intermediate" },
+              { name: "SQL", proficiency: "Advanced" },
+              { name: "Data Visualization", proficiency: "Intermediate" }
+            ],
+            "7": [ // Mobile Developer
+              { name: "React Native", proficiency: "Intermediate" },
+              { name: "Swift", proficiency: "Intermediate" },
+              { name: "Kotlin", proficiency: "Intermediate" },
+              { name: "Android SDK", proficiency: "Intermediate" },
+              { name: "iOS", proficiency: "Intermediate" }
+            ],
+            "8": [ // Cloud Architect
+              { name: "AWS", proficiency: "Advanced" },
+              { name: "Kubernetes", proficiency: "Intermediate" },
+              { name: "Docker", proficiency: "Intermediate" },
+              { name: "Terraform", proficiency: "Intermediate" },
+              { name: "Cloud Security", proficiency: "Advanced" }
+            ]
+          };
+
           // ─── AUTH ───
           if (path === "/auth/otp/send") {
             const email = body.email || "";
@@ -542,27 +640,76 @@ class ApiClient {
           }
 
           // ─── ROLES & ROADMAPS ───
+          if (path === "/skills") {
+            resolve(MOCK_SKILLS as any);
+            return;
+          }
+
           if (path === "/roles") {
             resolve(mockRoles as any);
             return;
           }
 
-          if (path === "/career/roadmap") {
-            resolve({
-              target_role: "Full-Stack Developer",
-              completion_percentage: 45.0,
-              skill_gap_analysis: {
-                matching_skills: ["React", "CSS", "HTML"],
-                missing_skills: [
-                  { skill: "Node.js", priority: "High", proficiency_needed: "Intermediate" },
-                  { skill: "Docker", priority: "Medium", proficiency_needed: "Beginner" },
-                  { skill: "PostgreSQL", priority: "High", proficiency_needed: "Intermediate" }
-                ],
-                learning_suggestions: [
-                  "Build simple CRUD servers in Node.js",
-                  "Containerize your database using Docker"
-                ]
+          if (path === "/career/roadmap" || path === "/career/skill-gap") {
+            const profile = JSON.parse(localStorage.getItem(`mock_profile_${currentUser.id}`) || "null");
+            const targetRoleId = body.target_role_id || (profile ? profile.target_role_id : "1");
+            const selectedRoleObj = mockRoles.find((r: any) => String(r.id) === String(targetRoleId)) || mockRoles[0];
+
+            const userSkills = JSON.parse(localStorage.getItem(`mock_skills_${currentUser.id}`) || "[]");
+            const userSkillsList = userSkills.map((us: any) => {
+              const skillObj = MOCK_SKILLS.find((s: any) => String(s.id) === String(us.skill_id));
+              return skillObj ? skillObj.name.toLowerCase() : "";
+            }).filter(Boolean);
+
+            const reqSkills = roleSkillsMap[String(targetRoleId)] || roleSkillsMap["1"];
+            
+            const matchingSkills: string[] = [];
+            const missingSkills: any[] = [];
+
+            reqSkills.forEach((req: any) => {
+              if (userSkillsList.includes(req.name.toLowerCase())) {
+                matchingSkills.push(req.name);
+              } else {
+                missingSkills.push({
+                  skill: { id: req.name, name: req.name, category: "other" },
+                  priority: Math.random() > 0.5 ? "High" : "Medium",
+                  proficiency_needed: req.proficiency
+                });
               }
+            });
+
+            const completionPercent = reqSkills.length > 0 
+              ? Math.round((matchingSkills.length / reqSkills.length) * 100) 
+              : 0;
+
+            resolve({
+              skill_gap: {
+                target_role: selectedRoleObj,
+                current_skills: userSkills.map((us: any) => {
+                  const skillObj = MOCK_SKILLS.find((s: any) => String(s.id) === String(us.skill_id));
+                  return {
+                    skill_id: us.skill_id,
+                    skill: skillObj || { id: us.skill_id, name: `Skill #${us.skill_id}`, category: "other" },
+                    proficiency: us.proficiency
+                  };
+                }),
+                missing_skills: missingSkills,
+                completion_percent: completionPercent,
+                estimated_months: Math.max(2, Math.ceil((missingSkills.length * 1.5)))
+              },
+              recommended_projects: [],
+              learning_path: [
+                {
+                  order: 1,
+                  title: `Mastering Core ${selectedRoleObj.title} Skills`,
+                  description: `Focus on learning and solidifying missing skills: ${missingSkills.slice(0, 3).map(m => m.skill.name).join(", ")}.`,
+                  skills: missingSkills.slice(0, 3).map(m => m.skill),
+                  estimated_weeks: missingSkills.length * 2,
+                  resources: [
+                    { title: `${selectedRoleObj.title} Roadmap Guide`, url: "https://roadmap.sh", type: "documentation", estimated_hours: 5 }
+                  ]
+                }
+              ]
             } as any);
             return;
           }
@@ -612,17 +759,36 @@ class ApiClient {
           }
 
           if (path === "/projects/recommendations") {
-            const shuffled = [...mockProjects];
-            shuffled.sort(() => Math.random() - 0.5);
-
-            const recommendations = shuffled.slice(0, 3).map(p => {
-              const relevance = Math.floor(65 + Math.random() * 30);
+            let targetRoleId = "1";
+            if (currentUser) {
+              const profile = JSON.parse(localStorage.getItem(`mock_profile_${currentUser.id}`) || "null");
+              if (profile && profile.target_role_id) {
+                targetRoleId = String(profile.target_role_id);
+              }
+            }
+            
+            const reqSkills = roleSkillsMap[targetRoleId] || roleSkillsMap["1"];
+            const scoredProjects = mockProjects.map((p: any) => {
+              const matchCount = p.tech_stack.filter((tech: string) => 
+                reqSkills.some((req: any) => req.name.toLowerCase().includes(tech.toLowerCase()) || tech.toLowerCase().includes(req.name.toLowerCase()))
+              ).length;
+              
+              const baseScore = 65;
+              const relevance = Math.min(99, baseScore + (matchCount * 8) + Math.floor(Math.random() * 8));
               return {
                 project: p,
                 relevance_score: relevance,
-                reason: `This project is a high match for your current learning path and teaches missing tech stack keywords: ${p.tech_stack.slice(0, 2).join(", ")}.`
+                reason: `This project is recommended because it utilizes ${p.tech_stack.slice(0, 2).join(" and ")} which are high-priority requirements for your dream career goal.`
               };
             });
+            
+            scoredProjects.sort((a: any, b: any) => b.relevance_score - a.relevance_score);
+            
+            // Dynamic variety among top relevance matches
+            const topProjects = scoredProjects.slice(0, 5);
+            topProjects.sort(() => Math.random() - 0.5);
+            const recommendations = topProjects.slice(0, 3);
+            
             resolve(recommendations as any);
             return;
           }
@@ -691,16 +857,38 @@ class ApiClient {
           }
 
           if (path === "/mentors/match") {
+            let targetRoleId = "1";
+            if (currentUser) {
+              const profile = JSON.parse(localStorage.getItem(`mock_profile_${currentUser.id}`) || "null");
+              if (profile && profile.target_role_id) {
+                targetRoleId = String(profile.target_role_id);
+              }
+            }
+            const reqSkills = roleSkillsMap[targetRoleId] || roleSkillsMap["1"];
+            const roleObj = mockRoles.find((r: any) => String(r.id) === String(targetRoleId)) || { title: "Software Developer" };
+
             const matches = mockMentors.map((m: any) => {
-              const score = Math.floor(78 + Math.random() * 21);
+              const overlap = m.expertise.filter((exp: string) =>
+                reqSkills.some((req: any) => req.name.toLowerCase().includes(exp.toLowerCase()) || exp.toLowerCase().includes(req.name.toLowerCase()))
+              ).length;
+
+              const baseScore = 55;
+              const matchScore = Math.min(99, baseScore + (overlap * 10) + Math.floor(Math.random() * 8));
               return {
                 mentor: m,
-                match_score: score,
-                reasoning: `Highly compatible. Expert guidance in ${m.expertise.slice(0, 2).join(" and ")} matches your dream role roadmap.`
+                match_score: matchScore,
+                reasoning: `Matched for your ${roleObj.title} goal. Expert in ${m.expertise.slice(0, 2).join(" and ")}, helping you learn the required skills: ${reqSkills.slice(0, 2).map((r: any) => r.name).join(", ")}.`
               };
             });
+            
             matches.sort((a: any, b: any) => b.match_score - a.match_score);
-            resolve(matches as any);
+            
+            // Pick top 4 and randomize order to refresh dynamically while keeping highly relevant!
+            const topMatches = matches.slice(0, 4);
+            topMatches.sort(() => Math.random() - 0.5);
+            const resultMatches = topMatches.slice(0, 3);
+            
+            resolve(resultMatches as any);
             return;
           }
 
