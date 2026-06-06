@@ -567,9 +567,22 @@ export default function DashboardPage() {
           {/* Header */}
           <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                Mentor Coach Dashboard
-              </h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-3xl font-bold text-foreground">
+                  Mentor Coach Dashboard
+                </h1>
+                {mentorProfile && (
+                  <Badge
+                    className={
+                      mentorProfile.verification_status === "verified"
+                        ? "bg-success/20 text-success border-success/30"
+                        : "bg-warning/20 text-warning border-warning/30"
+                    }
+                  >
+                    {mentorProfile.verification_status === "verified" ? "Verified Expert" : "Under Verification"}
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted mt-1">
                 Manage student session requests, review peer submissions, and track your platform earnings.
               </p>
@@ -578,6 +591,22 @@ export default function DashboardPage() {
               <Settings className="h-4 w-4 mr-2" /> Edit Availability & Rates
             </Button>
           </div>
+
+          {/* Mentor Verification Pending Alert */}
+          {mentorProfile && mentorProfile.verification_status === "pending" && (
+            <div className="mb-6 bg-warning/10 border border-warning/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-6 w-6 text-warning flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">Mentor Verification Pending Approval</h4>
+                  <p className="text-xs text-muted">Your mentor profile is currently being reviewed by the administrator. You can customize your settings and upload project templates, but students cannot book sessions with you until your profile is verified.</p>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => router.push("/mentors/apply")} className="w-full sm:w-auto">
+                Complete Verification Checklist
+              </Button>
+            </div>
+          )}
 
           {/* Success / Error Alerts */}
           {success && (
@@ -1559,7 +1588,7 @@ export default function DashboardPage() {
     return renderAdminDashboard();
   }
 
-  if (mentorProfile && mentorProfile.verification_status === "verified") {
+  if (mentorProfile) {
     return renderMentorDashboard();
   }
 

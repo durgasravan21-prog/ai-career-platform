@@ -651,6 +651,36 @@ function LandingPageContent() {
         </DialogHeader>
         <DialogBody>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {otpStep === "email" && (
+              <div className="grid grid-cols-2 p-1 bg-white/5 border border-white/10 rounded-xl mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMentorMode(false);
+                    setCompanyName("");
+                  }}
+                  className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                    !isMentorMode
+                      ? "bg-gradient-to-r from-primary to-secondary text-white shadow-lg"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  Student
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMentorMode(true)}
+                  className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                    isMentorMode
+                      ? "bg-gradient-to-r from-primary to-secondary text-white shadow-lg"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  Mentor Coach
+                </button>
+              </div>
+            )}
+
             {otpStep === "email" ? (
               <>
                 {isRegisterMode && (
@@ -663,22 +693,6 @@ function LandingPageContent() {
                         setFormData({ ...formData, name: e.target.value })
                       }
                     />
-                    
-                    <div className="flex items-center gap-2 py-2">
-                      <input
-                        type="checkbox"
-                        id="mentor-checkbox"
-                        checked={isMentorMode}
-                        onChange={(e) => {
-                          setIsMentorMode(e.target.checked);
-                          if (!e.target.checked) setCompanyName("");
-                        }}
-                        className="accent-primary rounded"
-                      />
-                      <label htmlFor="mentor-checkbox" className="text-sm text-foreground cursor-pointer select-none">
-                        Register as a Mentor
-                      </label>
-                    </div>
 
                     {isMentorMode && (
                       <Input
