@@ -1119,6 +1119,21 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {mentorProfile && mentorProfile.verification_status === "rejected" && (
+            <div className="mb-6 bg-error/10 border border-error/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <XCircle className="h-6 w-6 text-error flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">Mentor Application Rejected</h4>
+                  <p className="text-xs text-muted">Your application to become a mentor was rejected. You can update your credentials and submit a new application.</p>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => router.push("/mentors/apply")} className="w-full sm:w-auto bg-error hover:bg-error/80 text-white font-bold border-none">
+                Re-apply as Mentor
+              </Button>
+            </div>
+          )}
+
           {/* Welcome Header */}
           <div className="mb-8 animate-fadeIn">
             <h1 className="text-3xl font-bold text-foreground">
@@ -1614,7 +1629,11 @@ export default function DashboardPage() {
     return renderAdminDashboard();
   }
 
-  if (mentorProfile) {
+  if (
+    mentorProfile &&
+    (mentorProfile.verification_status === "verified" ||
+      mentorProfile.verification_status === "pending")
+  ) {
     return renderMentorDashboard();
   }
 
