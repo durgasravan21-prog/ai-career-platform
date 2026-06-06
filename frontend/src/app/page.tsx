@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogHeader,
@@ -33,6 +34,8 @@ function LandingPageContent() {
   const { isAuthenticated, login, register, isLoading, error, clearError, sendOtp, verifyOtp } = useAuth();
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isMentorMode, setIsMentorMode] = useState(false);
+  const [companyName, setCompanyName] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -41,6 +44,48 @@ function LandingPageContent() {
   const [otpCode, setOtpCode] = useState("");
   const [debugOtp, setDebugOtp] = useState("");
   const [formError, setFormError] = useState("");
+
+  // Typing animation text state
+  const [typedText, setTypedText] = useState("");
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [typingSpeed, setTypingSpeed] = useState(150);
+
+  const phrases = [
+    "Tech Career",
+    "Coding Skills",
+    "Project Portfolio",
+    "Career Future"
+  ];
+
+  useEffect(() => {
+    const currentPhrase = phrases[phraseIndex];
+    let timer: NodeJS.Timeout;
+
+    if (!isDeleting && typedText === currentPhrase) {
+      // Pause at full word
+      timer = setTimeout(() => {
+        setIsDeleting(true);
+      }, 1500);
+    } else if (isDeleting && typedText === "") {
+      // Pause at empty word before next phrase
+      setIsDeleting(false);
+      setPhraseIndex((prev) => (prev + 1) % phrases.length);
+      setTypingSpeed(120);
+    } else {
+      // Typing or deleting
+      const speed = isDeleting ? 50 : 100;
+      timer = setTimeout(() => {
+        setTypedText((prev) =>
+          isDeleting
+            ? currentPhrase.substring(0, prev.length - 1)
+            : currentPhrase.substring(0, prev.length + 1)
+        );
+      }, speed);
+    }
+
+    return () => clearTimeout(timer);
+  }, [typedText, isDeleting, phraseIndex]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -94,6 +139,10 @@ function LandingPageContent() {
         setFormError("Please enter your name.");
         return;
       }
+      if (isRegisterMode && isMentorMode && !companyName) {
+        setFormError("Please enter your company name.");
+        return;
+      }
   
       try {
         const res = await sendOtp(formData.email);
@@ -111,15 +160,27 @@ function LandingPageContent() {
       }
   
       try {
-        await verifyOtp(formData.email, otpCode, isRegisterMode ? formData.name : undefined);
+        await verifyOtp(
+          formData.email,
+          otpCode,
+          isRegisterMode ? formData.name : undefined,
+          isRegisterMode && isMentorMode ? "mentor" : "student",
+          isRegisterMode && isMentorMode ? companyName : undefined
+        );
         setShowLoginDialog(false);
         setFormData({ name: "", email: "" });
         setOtpStep("email");
         setOtpCode("");
         setDebugOtp("");
+        setIsMentorMode(false);
+        setCompanyName("");
         
         if (isRegisterMode) {
-          router.push("/onboarding");
+          if (isMentorMode) {
+            router.push("/mentors/apply");
+          } else {
+            router.push("/onboarding");
+          }
         } else {
           router.push("/dashboard");
         }
@@ -172,56 +233,200 @@ function LandingPageContent() {
         <div className="absolute top-40 right-1/4 w-96 h-96 bg-secondary/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: "1s" }} />
         <div className="absolute bottom-20 left-1/3 w-64 h-64 bg-accent/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: "2s" }} />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32">
-          <div className="text-center max-w-4xl mx-auto">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-primary text-sm font-medium mb-8 animate-fadeIn">
-              <Sparkles className="h-4 w-4" />
-              AI-Powered Career Intelligence
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 lg:pt-20 pb-32">
+          {/* Custom style block for typing cursor & mockups animations */}
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes float-slow {
+              0%, 100% { transform: translateY(0px) rotate(0deg); }
+              50% { transform: translateY(-8px) rotate(0.5deg); }
+            }
+            @keyframes float-delay {
+              0%, 100% { transform: translateY(0px) rotate(0deg); }
+              50% { transform: translateY(8px) rotate(-0.5deg); }
+            }
+            .animate-float-slow {
+              animation: float-slow 6s ease-in-out infinite;
+            }
+            .animate-float-delay {
+              animation: float-delay 7s ease-in-out infinite;
+            }
+            .blink-cursor {
+              border-right: 2px solid #06b6d4;
+              animation: blink 0.75s step-end infinite;
+            }
+            @keyframes blink {
+              from, to { border-color: transparent }
+              50% { border-color: #06b6d4; }
+            }
+          `}} />
+
+          <div className="grid lg:grid-cols-12 gap-12 items-center">
+            {/* Left Column */}
+            <div className="lg:col-span-7 text-center lg:text-left flex flex-col items-center lg:items-start space-y-8">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-primary text-sm font-medium animate-fadeIn">
+                <Sparkles className="h-4 w-4" />
+                AI-Powered Career Intelligence
+              </div>
+
+              {/* Heading */}
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-tight w-full">
+                <span className="text-foreground">Accelerate Your</span>
+                <br />
+                <span className="gradient-text pb-1 pr-1 blink-cursor">{typedText}</span>
+                <br />
+                <span className="text-foreground">with AI</span>
+              </h1>
+
+              {/* Subtitle */}
+              <p className="text-base sm:text-lg text-muted max-w-xl animate-slideUp" style={{ animationDelay: "0.1s" }}>
+                Identify skill gaps, discover custom projects, and connect with
+                professional mentors — including free passion service coaching, support for INR conversions, and automated CV review.
+              </p>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4 w-full animate-slideUp" style={{ animationDelay: "0.2s" }}>
+                <Button
+                  size="lg"
+                  className="group min-w-[180px]"
+                  onClick={() => {
+                    setIsRegisterMode(true);
+                    setIsMentorMode(false);
+                    setShowLoginDialog(true);
+                  }}
+                >
+                  Get Started Free
+                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="min-w-[180px] border-primary/30 text-primary hover:bg-primary/10"
+                  onClick={() => {
+                    setIsRegisterMode(true);
+                    setIsMentorMode(true);
+                    setShowLoginDialog(true);
+                  }}
+                >
+                  Join as Mentor
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  className="min-w-[100px]"
+                  onClick={() => {
+                    setIsRegisterMode(false);
+                    setShowLoginDialog(true);
+                  }}
+                >
+                  Login
+                </Button>
+              </div>
             </div>
 
-            {/* Heading */}
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-slideUp">
-              <span className="text-foreground">Accelerate Your</span>
-              <br />
-              <span className="gradient-text">Tech Career</span>
-              <br />
-              <span className="text-foreground">with AI</span>
-            </h1>
+            {/* Right Column (Visual Mockups) */}
+            <div className="lg:col-span-5 relative h-[480px] w-full hidden lg:block select-none animate-fadeIn" style={{ animationDelay: "0.15s" }}>
+              {/* Mockup 1: AI Mentor Match Card */}
+              <div className="absolute top-0 right-0 w-[300px] glass-card p-5 animate-float-slow bg-[#12121a]/85 border-white/10 shadow-2xl z-20">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/20 border border-primary/35 text-primary text-[10px] font-bold">
+                    <Sparkles className="h-3 w-3" />
+                    98% AI Match
+                  </span>
+                  <Badge variant="success" className="text-[9px] bg-success/20 text-success border-success/30 font-bold">Available</Badge>
+                </div>
+                
+                <div className="flex items-center gap-3.5 mb-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                    PC
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-foreground text-sm">Priya Patel</h4>
+                    <p className="text-[10px] text-muted font-medium">Senior ML Architect at Stripe</p>
+                  </div>
+                </div>
 
-            {/* Subtitle */}
-            <p className="text-lg sm:text-xl text-muted max-w-2xl mx-auto mb-10 animate-slideUp" style={{ animationDelay: "0.1s" }}>
-              Identify skill gaps, discover impactful projects, and connect with
-              mentors — all powered by intelligent AI that understands your career
-              goals.
-            </p>
+                <p className="text-[11px] text-muted leading-relaxed italic mb-3.5 border-l-2 border-primary/40 pl-2">
+                  &ldquo;I will review your ML project models, help deploy inference pipelines, and guide your resume review.&rdquo;
+                </p>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slideUp" style={{ animationDelay: "0.2s" }}>
-              <Button
-                size="lg"
-                className="group min-w-[200px]"
-                onClick={() => router.push("/onboarding")}
-              >
-                Get Started Free
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="min-w-[200px]"
-                onClick={() => {
-                  setIsRegisterMode(false);
-                  setShowLoginDialog(true);
-                }}
-              >
-                Login
-              </Button>
+                <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                  <div>
+                    <span className="text-[9px] text-muted block uppercase tracking-wider font-semibold">Passion Rate</span>
+                    <span className="text-xs font-bold text-success">₹0 / hr (Free Session)</span>
+                  </div>
+                  <div className="h-7 px-3 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-foreground flex items-center cursor-pointer hover:bg-white/10">
+                    Book Call
+                  </div>
+                </div>
+              </div>
+
+              {/* Mockup 2: Skill Gap Circular Progress */}
+              <div className="absolute bottom-4 left-0 w-[240px] glass-card p-5 animate-float-delay bg-[#12121a]/90 border-white/10 shadow-2xl z-30">
+                <h4 className="text-xs font-bold text-foreground mb-4 flex items-center gap-1.5">
+                  <Target className="h-4 w-4 text-primary" />
+                  Full-Stack Career Goal
+                </h4>
+                
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="32" cy="32" r="28" className="stroke-white/5 fill-none" strokeWidth="5" />
+                      <circle cx="32" cy="32" r="28" className="stroke-primary fill-none" strokeWidth="5" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - 0.74)} strokeLinecap="round" />
+                    </svg>
+                    <span className="absolute text-xs font-black text-foreground">74%</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted block">Next Step:</span>
+                    <span className="text-xs font-bold text-foreground block">System Architecture</span>
+                    <span className="text-[9px] text-primary block mt-0.5">Est. 2 weeks left</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Docker</Badge>
+                  <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Next.js</Badge>
+                  <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Python</Badge>
+                </div>
+              </div>
+
+              {/* Mockup 3: GitHub Complexity Analysis */}
+              <div className="absolute top-1/2 left-1/3 transform -translate-x-1/2 -translate-y-1/2 w-[220px] glass-card p-4 bg-[#12121a]/80 border-white/5 shadow-xl z-10">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+                  <span className="text-[9px] text-muted font-bold block uppercase tracking-wider">GitHub Analyzer</span>
+                  <Badge className="text-[8px] bg-primary/20 text-primary border-primary/35">Project Audited</Badge>
+                </div>
+                
+                <div className="space-y-2.5">
+                  <div>
+                    <div className="flex justify-between text-[10px] font-medium mb-1">
+                      <span className="text-muted">Problem Clarity</span>
+                      <span className="text-foreground">8.8 / 10</span>
+                    </div>
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" style={{ width: "88%" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] font-medium mb-1">
+                      <span className="text-muted">Complexity</span>
+                      <span className="text-foreground">9.4 / 10</span>
+                    </div>
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-secondary to-accent rounded-full" style={{ width: "94%" }} />
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-medium pt-1.5">
+                    <span className="text-muted">Portfolio Grade:</span>
+                    <span className="text-xs font-black text-success">Grade A</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="mt-20 grid grid-cols-3 max-w-lg mx-auto gap-8 animate-slideUp" style={{ animationDelay: "0.3s" }}>
+          {/* Stats Section */}
+          <div className="mt-24 grid grid-cols-3 max-w-2xl mx-auto gap-8 animate-slideUp border-t border-white/5 pt-12" style={{ animationDelay: "0.3s" }}>
             {stats.map((stat) => (
               <div key={stat.label} className="text-center">
                 <p className="text-3xl sm:text-4xl font-bold gradient-text">
@@ -424,6 +629,8 @@ function LandingPageContent() {
           setOtpStep("email");
           setOtpCode("");
           setDebugOtp("");
+          setIsMentorMode(false);
+          setCompanyName("");
         }}
         size="sm"
       >
@@ -435,6 +642,8 @@ function LandingPageContent() {
             setOtpStep("email");
             setOtpCode("");
             setDebugOtp("");
+            setIsMentorMode(false);
+            setCompanyName("");
           }}
         >
           <DialogTitle>
@@ -446,14 +655,41 @@ function LandingPageContent() {
             {otpStep === "email" ? (
               <>
                 {isRegisterMode && (
-                  <Input
-                    label="Name"
-                    placeholder="Your full name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                  />
+                  <>
+                    <Input
+                      label="Name"
+                      placeholder="Your full name"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                    />
+                    
+                    <div className="flex items-center gap-2 py-2">
+                      <input
+                        type="checkbox"
+                        id="mentor-checkbox"
+                        checked={isMentorMode}
+                        onChange={(e) => {
+                          setIsMentorMode(e.target.checked);
+                          if (!e.target.checked) setCompanyName("");
+                        }}
+                        className="accent-primary rounded"
+                      />
+                      <label htmlFor="mentor-checkbox" className="text-sm text-foreground cursor-pointer select-none">
+                        Register as a Mentor
+                      </label>
+                    </div>
+
+                    {isMentorMode && (
+                      <Input
+                        label="Company Name"
+                        placeholder="Google, Stripe, Microsoft etc."
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                      />
+                    )}
+                  </>
                 )}
                 <Input
                   label="Email"
@@ -519,6 +755,8 @@ function LandingPageContent() {
               type="button"
               onClick={() => {
                 setIsRegisterMode(!isRegisterMode);
+                setIsMentorMode(false);
+                setCompanyName("");
                 setFormError("");
                 clearError();
                 setOtpStep("email");

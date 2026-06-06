@@ -21,7 +21,7 @@ interface AuthContextType {
   logout: () => void;
   clearError: () => void;
   sendOtp: (email: string) => Promise<{ debug_otp: string; message: string }>;
-  verifyOtp: (email: string, otp: string, name?: string) => Promise<void>;
+  verifyOtp: (email: string, otp: string, name?: string, role?: string, companyName?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -123,11 +123,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const verifyOtp = useCallback(async (email: string, otp: string, name?: string) => {
+  const verifyOtp = useCallback(async (email: string, otp: string, name?: string, role?: string, companyName?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.auth.verifyOtp(email, otp, name);
+      const response = await api.auth.verifyOtp(email, otp, name, role, companyName);
       setUser(response.user);
     } catch (err) {
       const apiError = err as ApiError;

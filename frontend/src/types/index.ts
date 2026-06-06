@@ -242,6 +242,7 @@ export interface Mentor {
   created_at: string;
 
   // Verification and Agreement
+  company_name?: string;
   verification_status: "pending" | "verified" | "rejected" | "suspended";
   linkedin_url?: string;
   github_url?: string;
@@ -252,6 +253,7 @@ export interface Mentor {
   signed_agreement?: boolean;
   signature_svg_or_text?: string;
   verified_at?: string;
+  reviewed_count?: number;
 }
 
 export interface ApplyMentorPayload {

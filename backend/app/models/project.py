@@ -136,11 +136,17 @@ class UserProject(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     review_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     review_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewer_mentor_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("mentor_profiles.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # Relationships
+    reviewer = relationship("MentorProfile", lazy="selectin")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

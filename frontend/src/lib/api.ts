@@ -158,10 +158,10 @@ class ApiClient {
       });
     },
 
-    verifyOtp: async (email: string, otp: string, name?: string): Promise<AuthResponse> => {
+    verifyOtp: async (email: string, otp: string, name?: string, role?: string, companyName?: string): Promise<AuthResponse> => {
       const response = await this.fetchApi<AuthResponse>("/auth/otp/verify", {
         method: "POST",
-        body: JSON.stringify({ email, otp, name }),
+        body: JSON.stringify({ email, otp, name, role, company_name: companyName }),
       });
       this.setToken(response.access_token);
       return response;
@@ -304,6 +304,32 @@ class ApiClient {
     getAnalysis: async (id: string): Promise<ProjectAnalysis> => {
       return this.fetchApi<ProjectAnalysis>(`/projects/${id}/analysis`);
     },
+
+    create: async (payload: any): Promise<Project> => {
+      const res = await this.fetchApi<Project>("/projects", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      return this.normalizeProject(res);
+    },
+
+    getPendingSubmissions: async (): Promise<any[]> => {
+      return this.fetchApi<any[]>("/projects/submissions/pending");
+    },
+
+    reviewSubmission: async (
+      userProjectId: string | number,
+      score: number,
+      feedback: string
+    ): Promise<any> => {
+      return this.fetchApi<any>(`/projects/submissions/${userProjectId}/review`, {
+        method: "POST",
+        body: JSON.stringify({
+          review_score: score,
+          review_feedback: feedback,
+        }),
+      });
+    },
   };
 
   // ─── Mentors ────────────────────────────────────────────────
@@ -339,9 +365,10 @@ class ApiClient {
       return this.fetchApi<Mentor>(`/mentors/${id}`);
     },
 
-    match: async (): Promise<MentorMatch[]> => {
+    match: async (body: any = {}): Promise<MentorMatch[]> => {
       return this.fetchApi<MentorMatch[]>("/mentors/match", {
         method: "POST",
+        body: JSON.stringify(body),
       });
     },
 
@@ -383,6 +410,17 @@ class ApiClient {
 
     adminApprove: async (mentorId: string, status: string): Promise<Mentor> => {
       return this.fetchApi<Mentor>(`/mentors/${mentorId}/admin-approve`, {
+        method: "POST",
+        body: JSON.stringify({ status }),
+      });
+    },
+
+    getPendingMentors: async (): Promise<Mentor[]> => {
+      return this.fetchApi<Mentor[]>("/admin/mentors/pending");
+    },
+
+    updateSessionStatus: async (sessionId: string, status: string): Promise<MentorSession> => {
+      return this.fetchApi<MentorSession>(`/mentors/sessions/${sessionId}/status`, {
         method: "POST",
         body: JSON.stringify({ status }),
       });

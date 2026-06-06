@@ -24,6 +24,7 @@ from app.models.project import (
     UserProjectStatus,
 )
 from app.models.user import User, UserSkill
+from app.models.mentor import MentorProfile
 from app.schemas.project import (
     AnalyzeGithubRequest,
     ProjectAnalysisResponse,
@@ -33,6 +34,8 @@ from app.schemas.project import (
     ProjectSkillResponse,
     SubmitProjectRequest,
     UpgradeResponse,
+    CreateProjectRequest,
+    ReviewSubmissionRequest,
 )
 from app.services.github import fetch_repo_metadata
 
@@ -333,4 +336,153 @@ async def get_analysis(
         github_url=project.github_url or "https://github.com/example/portfolio-project",
     )
     return analysis
+
+
+@router.post(
+    "",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new project template (Mentor)",
+)
+async def create_project(
+    body: CreateProjectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProjectResponse:
+    """Create a new project template. Restricted to verified mentors."""
+    result = await db.execute(
+        select(MentorProfile).where(
+            MentorProfile.user_id == current_user.id,
+            MentorProfile.verification_status == "verified",
+        )
+    )
+    mentor = result.scalar_one_or_none()
+    if not mentor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only verified mentors can create project templates.",
+        )
+
+    project = Project(
+        title=body.title,
+        description=body.description,
+        difficulty=ProjectDifficulty(body.difficulty),
+        tech_stack={tech: {} for tech in body.tech_stack},
+        estimated_hours=body.estimated_hours,
+        career_relevance_score=85.0,
+    )
+    db.add(project)
+    await db.flush()
+
+    for tech in body.tech_stack:
+        result_s = await db.execute(select(Skill).where(Skill.name.ilike(tech)))
+        skill = result_s.scalar_one_or_none()
+        if not skill:
+            skill = Skill(
+                name=tech,
+                category="Custom",
+                description=f"Custom skill for {tech}",
+            )
+            db.add(skill)
+            await db.flush()
+
+        project_skill = ProjectSkill(
+            project_id=project.id,
+            skill_id=skill.id,
+            is_primary=True,
+        )
+        db.add(project_skill)
+
+    await db.flush()
+    await db.refresh(project)
+    return _project_to_response(project)
+
+
+@router.get(
+    "/submissions/pending",
+    response_model=list[dict],
+    summary="List pending project submissions for review (Mentor)",
+)
+async def get_pending_submissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Get all project submissions with status 'submitted'. Restricted to verified mentors."""
+    result = await db.execute(
+        select(MentorProfile).where(
+            MentorProfile.user_id == current_user.id,
+            MentorProfile.verification_status == "verified",
+        )
+    )
+    mentor = result.scalar_one_or_none()
+    if not mentor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only verified mentors can view pending submissions.",
+        )
+
+    result_subs = await db.execute(
+        select(UserProject).where(UserProject.status == UserProjectStatus.submitted)
+    )
+    submissions = result_subs.scalars().all()
+
+    return [
+        {
+            "id": sub.id,
+            "user_id": sub.user_id,
+            "user_name": sub.user.name if sub.user else "Student",
+            "project_id": sub.project_id,
+            "project_title": sub.project.title if sub.project else "Project",
+            "github_url": sub.github_url,
+            "portfolio_url": sub.portfolio_url,
+            "description": sub.description,
+            "status": sub.status.value if hasattr(sub.status, "value") else sub.status,
+            "submitted_at": sub.submitted_at.isoformat() if sub.submitted_at else None,
+        }
+        for sub in submissions
+    ]
+
+
+@router.post(
+    "/submissions/{user_project_id}/review",
+    response_model=dict,
+    summary="Submit review for a user project (Mentor)",
+)
+async def review_submission(
+    user_project_id: int,
+    body: ReviewSubmissionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Submit a peer review for a user project submission. Restricted to verified mentors."""
+    result = await db.execute(
+        select(MentorProfile).where(
+            MentorProfile.user_id == current_user.id,
+            MentorProfile.verification_status == "verified",
+        )
+    )
+    mentor = result.scalar_one_or_none()
+    if not mentor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only verified mentors can review submissions.",
+        )
+
+    result_sub = await db.execute(
+        select(UserProject).where(UserProject.id == user_project_id)
+    )
+    user_project = result_sub.scalar_one_or_none()
+    if not user_project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Submission with id {user_project_id} not found.",
+        )
+
+    user_project.status = UserProjectStatus.reviewed
+    user_project.review_score = body.review_score
+    user_project.review_feedback = body.review_feedback
+    user_project.reviewer_mentor_id = mentor.id
+
+    await db.flush()
+    return {"message": "Review submitted successfully."}
 

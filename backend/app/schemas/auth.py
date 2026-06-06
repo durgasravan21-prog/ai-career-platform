@@ -13,6 +13,8 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=320, description="User email address")
     name: str = Field(..., min_length=1, max_length=255, description="Full name")
     password: str = Field(..., min_length=8, max_length=128, description="Plain-text password")
+    role: str | None = Field("student", description="Role to register")
+    company_name: str | None = Field(None, max_length=255, description="Company name if registering as mentor")
 
     @model_validator(mode="after")
     def validate_email_format(self) -> "RegisterRequest":
@@ -66,3 +68,5 @@ class VerifyOTPRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=320)
     otp: str = Field(..., min_length=6, max_length=6)
     name: str | None = Field(None, min_length=1, max_length=255)
+    role: str | None = Field("student", description="Role to register")
+    company_name: str | None = Field(None, max_length=255, description="Company name if registering as mentor")

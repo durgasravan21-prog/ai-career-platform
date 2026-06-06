@@ -439,6 +439,7 @@ def seed_mentors(session: Session) -> None:
             rating=mdata["rating"],
             total_sessions=mdata["total_sessions"],
             is_active=True,
+            verification_status="verified",
         )
         session.add(mentor)
         session.flush()
@@ -456,39 +457,39 @@ def seed_mentors(session: Session) -> None:
 
 def run_seed() -> None:
     """Execute the full seeding process."""
-    print("🌱 Starting database seed...")
+    print("=== Starting database seed ===")
 
     # Ensure tables exist
     Base.metadata.create_all(sync_engine)
 
     with SyncSession() as session:
         try:
-            print("  → Seeding skills...")
+            print("  -> Seeding skills...")
             skill_ids = seed_skills(session)
-            print(f"    ✓ {len(skill_ids)} skills")
+            print(f"     [OK] {len(skill_ids)} skills")
 
-            print("  → Seeding roles...")
+            print("  -> Seeding roles...")
             role_ids = seed_roles(session)
-            print(f"    ✓ {len(role_ids)} roles")
+            print(f"     [OK] {len(role_ids)} roles")
 
-            print("  → Seeding role-skill mappings...")
+            print("  -> Seeding role-skill mappings...")
             seed_role_skills(session, role_ids, skill_ids)
-            print("    ✓ Role-skill mappings")
+            print("     [OK] Role-skill mappings")
 
-            print("  → Seeding projects...")
+            print("  -> Seeding projects...")
             seed_projects(session, skill_ids)
-            print("    ✓ Projects with skill mappings")
+            print("     [OK] Projects with skill mappings")
 
-            print("  → Seeding mentor profiles...")
+            print("  -> Seeding mentor profiles...")
             seed_mentors(session)
-            print("    ✓ Mentor profiles with availability")
+            print("     [OK] Mentor profiles with availability")
 
             session.commit()
-            print("\n✅ Database seeded successfully!")
+            print("\n=== Database seeded successfully! ===")
 
         except Exception as e:
             session.rollback()
-            print(f"\n❌ Seeding failed: {e}")
+            print(f"\n[ERROR] Seeding failed: {e}")
             raise
 
 

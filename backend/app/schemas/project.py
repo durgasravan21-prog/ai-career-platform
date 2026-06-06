@@ -108,3 +108,20 @@ class ProjectRecommendationResponse(BaseModel):
     project: ProjectResponse
     relevance_score: float
     reason: str
+
+
+class CreateProjectRequest(BaseModel):
+    """Payload to create a new project template (Mentor upload)."""
+
+    title: str = Field(..., min_length=3, max_length=200)
+    description: str = Field(..., min_length=10)
+    difficulty: str = Field(..., pattern="^(beginner|intermediate|advanced)$")
+    tech_stack: list[str] = Field(default_factory=list)
+    estimated_hours: int = Field(..., ge=1, le=500)
+
+
+class ReviewSubmissionRequest(BaseModel):
+    """Payload for peer project review submission by a mentor."""
+
+    review_score: float = Field(..., ge=1, le=10)
+    review_feedback: str = Field(..., min_length=10, max_length=5000)

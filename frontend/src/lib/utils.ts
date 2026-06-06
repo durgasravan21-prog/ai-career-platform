@@ -95,3 +95,23 @@ export function getPriorityColor(priority: string): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export function formatDualCurrency(rate: number): string {
+  if (rate === 0) return "Free (Passion Service)";
+  const inrRate = Math.round(rate * 83.5);
+  return `₹${inrRate.toLocaleString("en-IN")} ($${rate}/hr)`;
+}
+
+export function getMentorPriceDetails(baseRate: number) {
+  return {
+    currentRate: Math.round(baseRate * 1.1),
+    originalRate: Math.round(baseRate * 1.5),
+  };
+}
+
+export function formatDualCurrencyWithDiscount(baseRate: number): string {
+  if (baseRate === 0) return "Free (Passion Service)";
+  const { currentRate } = getMentorPriceDetails(baseRate);
+  const inrCurrent = Math.round(currentRate * 83.5);
+  return `₹${inrCurrent.toLocaleString("en-IN")} ($${currentRate}/hr)`;
+}

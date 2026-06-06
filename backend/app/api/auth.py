@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password, get_current_user
 from app.models.user import User, UserProfile
+from app.models.mentor import MentorProfile
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse, SendOTPRequest, VerifyOTPRequest
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -53,6 +54,20 @@ async def register(
     profile = UserProfile(user_id=user.id)
     db.add(profile)
     await db.flush()
+
+    # Create mentor profile if registering as mentor
+    if body.role == "mentor" or body.company_name:
+        mentor = MentorProfile(
+            user_id=user.id,
+            company_name=body.company_name,
+            verification_status="pending",
+            is_active=False,
+            hourly_rate=0.0,
+            expertise={"areas": []},
+            bio="",
+        )
+        db.add(mentor)
+        await db.flush()
 
     # Generate token
     access_token = create_access_token(data={"sub": str(user.id)})
@@ -182,6 +197,20 @@ async def verify_otp(
         profile = UserProfile(user_id=user.id)
         db.add(profile)
         await db.flush()
+
+        # Create mentor profile if registering as mentor
+        if body.role == "mentor" or body.company_name:
+            mentor = MentorProfile(
+                user_id=user.id,
+                company_name=body.company_name,
+                verification_status="pending",
+                is_active=False,
+                hourly_rate=0.0,
+                expertise={"areas": []},
+                bio="",
+            )
+            db.add(mentor)
+            await db.flush()
         
     access_token = create_access_token(data={"sub": str(user.id)})
     

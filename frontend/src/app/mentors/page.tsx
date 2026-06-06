@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { formatDualCurrency, getMentorPriceDetails } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +30,7 @@ import {
 
 export default function MentorsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   // States
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [sessions, setSessions] = useState<MentorSession[]>([]);
@@ -238,10 +241,6 @@ export default function MentorsPage() {
                 My Bookings ({sessions.length})
               </button>
             </div>
-
-            <Button onClick={() => router.push("/mentors/apply")} variant="outline" className="h-10 text-xs border-primary/30 text-primary font-bold">
-              Join as Mentor
-            </Button>
           </div>
         </div>
 
@@ -297,13 +296,31 @@ export default function MentorsPage() {
                         </div>
                         <div>
                           <h4 className="font-bold text-foreground">{match.mentor.mentor_name}</h4>
-                          <p className="text-xs text-muted">Hourly Rate: ${match.mentor.hourly_rate}</p>
+                          {match.mentor.hourly_rate === 0 ? (
+                            <p className="text-xs text-success">Free (Passion Service)</p>
+                          ) : (
+                            <p className="text-xs text-muted flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span>Hourly Rate:</span>
+                              <span className="line-through opacity-60">
+                                {formatDualCurrency(getMentorPriceDetails(match.mentor.hourly_rate).originalRate)}
+                              </span>
+                              <span className="text-primary font-bold">
+                                {formatDualCurrency(getMentorPriceDetails(match.mentor.hourly_rate).currentRate)}
+                              </span>
+                            </p>
+                          )}
                         </div>
                       </div>
                       <p className="text-xs text-muted italic leading-relaxed">&ldquo;{match.reasoning}&rdquo;</p>
-                      <Button size="sm" onClick={() => setBookingMentor(match.mentor)} className="w-full">
-                        Book Session Now
-                      </Button>
+                      {user && String(match.mentor.user_id) === String(user.id) ? (
+                        <div className="text-center py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-primary font-semibold">
+                          This is You
+                        </div>
+                      ) : (
+                        <Button size="sm" onClick={() => setBookingMentor(match.mentor)} className="w-full">
+                          Book Session Now
+                        </Button>
+                      )}
                     </Card>
                   ))}
                 </div>
@@ -387,7 +404,12 @@ export default function MentorsPage() {
                               {mentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
                             </div>
                             <div>
-                              <h4 className="font-bold text-foreground text-base">{mentor.mentor_name}</h4>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-foreground text-base">{mentor.mentor_name}</h4>
+                                {user && String(mentor.user_id) === String(user.id) && (
+                                  <Badge variant="default" className="bg-primary/20 text-primary border-primary/30 text-[10px] py-0.5">This is You</Badge>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1 mt-1 text-warning text-xs font-semibold">
                                 <Star className="h-3.5 w-3.5 fill-current" />
                                 {mentor.rating.toFixed(1)}
@@ -413,11 +435,28 @@ export default function MentorsPage() {
                         <div className="pt-4 border-t border-white/5 flex items-center justify-between">
                           <div>
                             <span className="text-[10px] text-muted uppercase tracking-wider block">Price per hour</span>
-                            <span className="text-lg font-bold text-foreground flex items-center"><DollarSign className="h-4.5 w-4.5 text-success" />{mentor.hourly_rate}</span>
+                            {mentor.hourly_rate === 0 ? (
+                              <span className="text-sm font-bold text-success">Free (Passion Service)</span>
+                            ) : (
+                              <div className="flex flex-col items-start">
+                                <span className="text-[11px] text-muted/60 line-through leading-none mb-0.5">
+                                  {formatDualCurrency(getMentorPriceDetails(mentor.hourly_rate).originalRate)}
+                                </span>
+                                <span className="text-sm font-bold text-primary leading-none">
+                                  {formatDualCurrency(getMentorPriceDetails(mentor.hourly_rate).currentRate)}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          <Button size="sm" onClick={() => setBookingMentor(mentor)}>
-                            Book Session
-                          </Button>
+                          {user && String(mentor.user_id) === String(user.id) ? (
+                            <Button size="sm" variant="outline" disabled className="opacity-50">
+                              This is You
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => setBookingMentor(mentor)}>
+                              Book Session
+                            </Button>
+                          )}
                         </div>
 
                       </Card>
@@ -470,7 +509,7 @@ export default function MentorsPage() {
                           <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted">
                             <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />{new Date(session.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
                             <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />{new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)</span>
-                            <span className="flex items-center gap-1.5"><DollarSign className="h-3.5 w-3.5" />${(session.amount_cents / 100).toFixed(2)}</span>
+                            <span className="flex items-center gap-1.5">{formatDualCurrency(session.amount_cents / 100)}</span>
                           </div>
                           {session.project_id && (
                             <p className="text-[11px] text-primary mt-2 flex items-center gap-1.5">
@@ -574,7 +613,18 @@ export default function MentorsPage() {
                 {/* Summary */}
                 <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex justify-between items-center text-sm font-semibold">
                   <span className="text-muted">Total (1 Hour)</span>
-                  <span className="text-foreground">${bookingMentor.hourly_rate}</span>
+                  {bookingMentor.hourly_rate === 0 ? (
+                    <span className="text-success">Free (Passion Service)</span>
+                  ) : (
+                    <div className="text-right">
+                      <span className="text-[11px] text-muted/60 line-through block leading-none mb-1">
+                        {formatDualCurrency(getMentorPriceDetails(bookingMentor.hourly_rate).originalRate)}
+                      </span>
+                      <span className="text-foreground leading-none">
+                        {formatDualCurrency(getMentorPriceDetails(bookingMentor.hourly_rate).currentRate)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Buttons */}

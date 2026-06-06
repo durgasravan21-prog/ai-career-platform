@@ -36,6 +36,7 @@ class MentorResponse(BaseModel):
     availability: list[MentorAvailabilityResponse] = []
     
     # Verification and Agreement fields
+    company_name: Optional[str] = None
     verification_status: str = "pending"
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
@@ -43,17 +44,19 @@ class MentorResponse(BaseModel):
     corporate_email_verified: bool = False
     signed_agreement: bool = False
     verified_at: Optional[datetime] = None
+    reviewed_count: int = 0
 
 
 class ApplyMentorRequest(BaseModel):
     """Payload to apply as a new professional mentor."""
 
     bio: str
-    hourly_rate: float = Field(..., ge=10)
+    hourly_rate: float = Field(..., ge=0)
     expertise: list[str]
     linkedin_url: str
     github_url: Optional[str] = None
     corporate_email: Optional[str] = None
+    company_name: Optional[str] = None
     selfie_base64: Optional[str] = None  # Base64 string of captured webcam selfie
     identity_document_base64: Optional[str] = None  # Base64 string of passport/ID card
     signed_agreement: bool

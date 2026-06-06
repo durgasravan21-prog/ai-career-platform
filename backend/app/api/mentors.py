@@ -75,7 +75,7 @@ def save_base64_file(base64_str: str, file_prefix: str, user_id: int) -> str:
         return ""
 
 
-def _mentor_to_response(mentor: MentorProfile) -> MentorResponse:
+def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0) -> MentorResponse:
     """Convert a MentorProfile ORM object to a MentorResponse schema."""
     exp_list = []
     if isinstance(mentor.expertise, dict):
@@ -102,6 +102,7 @@ def _mentor_to_response(mentor: MentorProfile) -> MentorResponse:
             )
             for a in mentor.availability
         ],
+        company_name=mentor.company_name,
         verification_status=mentor.verification_status,
         linkedin_url=mentor.linkedin_url,
         github_url=mentor.github_url,
@@ -109,6 +110,7 @@ def _mentor_to_response(mentor: MentorProfile) -> MentorResponse:
         corporate_email_verified=mentor.corporate_email_verified,
         signed_agreement=mentor.signed_agreement,
         verified_at=mentor.verified_at,
+        reviewed_count=reviewed_count,
     )
 
 
@@ -258,9 +260,11 @@ async def book_session(
             detail="You cannot book a session with yourself",
         )
 
-    # Calculate amount
+    # Calculate amount (includes 10% commission markup)
     hours = body.duration_minutes / 60.0
-    amount_cents = int(mentor.hourly_rate * hours * 100)
+    amount_cents = int(mentor.hourly_rate * 1.1 * hours * 100)
+
+    session_status = SessionStatus.confirmed if mentor.hourly_rate == 0 else SessionStatus.pending
 
     session = MentorSession(
         student_id=current_user.id,
@@ -268,7 +272,7 @@ async def book_session(
         project_id=body.project_id,
         scheduled_at=body.scheduled_at,
         duration_minutes=body.duration_minutes,
-        status=SessionStatus.pending,
+        status=session_status,
         amount_cents=amount_cents,
     )
     db.add(session)
@@ -457,6 +461,7 @@ async def apply_as_mentor(
             linkedin_url=body.linkedin_url,
             github_url=body.github_url,
             corporate_email=body.corporate_email,
+            company_name=body.company_name,
             corporate_email_verified=False,
             selfie_url=selfie_url,
             identity_document_url=id_doc_url,
@@ -473,6 +478,8 @@ async def apply_as_mentor(
         mentor.linkedin_url = body.linkedin_url
         mentor.github_url = body.github_url
         mentor.corporate_email = body.corporate_email
+        if body.company_name:
+            mentor.company_name = body.company_name
         mentor.corporate_email_verified = False
         if selfie_url:
             mentor.selfie_url = selfie_url
@@ -534,7 +541,16 @@ async def get_application_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No mentor profile found for this user.",
         )
-    return _mentor_to_response(mentor)
+    
+    from app.models.project import UserProject, UserProjectStatus
+    result_count = await db.execute(
+        select(UserProject).where(
+            UserProject.reviewer_mentor_id == mentor.id,
+            UserProject.status == UserProjectStatus.reviewed
+        )
+    )
+    reviewed_count = len(result_count.scalars().all())
+    return _mentor_to_response(mentor, reviewed_count=reviewed_count)
 
 
 @router.post(
@@ -598,5 +614,96 @@ async def admin_approve_mentor(
         
     await db.flush()
     return _mentor_to_response(mentor)
+
+
+@router.get(
+    "/admin/mentors/pending",
+    response_model=list[MentorResponse],
+    summary="List pending mentors for admin review",
+)
+async def list_pending_mentors(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MentorResponse]:
+    """Return all pending mentors for admin review. Only accessible by durgasravan21@gmail.com."""
+    if current_user.email != "durgasravan21@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can view pending applications.",
+        )
+    query = select(MentorProfile).where(
+        MentorProfile.verification_status == "pending"
+    )
+    result = await db.execute(query)
+    mentors = result.scalars().all()
+    return [_mentor_to_response(m) for m in mentors]
+
+
+class UpdateSessionStatusRequest(BaseModel):
+    status: str  # "confirmed", "completed", "cancelled"
+
+
+@router.post(
+    "/mentors/sessions/{session_id}/status",
+    response_model=SessionResponse,
+    summary="Update session status (mentor action)",
+)
+async def update_session_status(
+    session_id: int,
+    body: UpdateSessionStatusRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    """Update session status (confirm, complete, cancel). Accessible by the mentor or student involved."""
+    result = await db.execute(
+        select(MentorSession).where(MentorSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session with id {session_id} not found",
+        )
+
+    # Verify user is either student or mentor for this session
+    result_m = await db.execute(
+        select(MentorProfile).where(MentorProfile.id == session.mentor_id)
+    )
+    mentor = result_m.scalar_one_or_none()
+    
+    is_mentor_user = mentor and mentor.user_id == current_user.id
+    is_student_user = session.student_id == current_user.id
+
+    if not is_mentor_user and not is_student_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to manage this session.",
+        )
+
+    # Validate status transition
+    new_status = body.status.lower()
+    if new_status not in ["confirmed", "completed", "cancelled"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid session status: {body.status}",
+        )
+
+    session.status = SessionStatus(new_status)
+    await db.flush()
+
+    return SessionResponse(
+        id=session.id,
+        student_id=session.student_id,
+        mentor_id=session.mentor_id,
+        project_id=session.project_id,
+        scheduled_at=session.scheduled_at,
+        duration_minutes=session.duration_minutes,
+        status=session.status.value if hasattr(session.status, "value") else session.status,
+        amount_cents=session.amount_cents,
+        stripe_payment_intent_id=session.stripe_payment_intent_id,
+        created_at=session.created_at,
+        mentor_name=mentor.user.name if mentor and mentor.user else None,
+    )
+
 
 
