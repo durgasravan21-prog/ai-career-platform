@@ -35,11 +35,17 @@ router = APIRouter(tags=["Mentors & Sessions"])
 
 def _mentor_to_response(mentor: MentorProfile) -> MentorResponse:
     """Convert a MentorProfile ORM object to a MentorResponse schema."""
+    exp_list = []
+    if isinstance(mentor.expertise, dict):
+        exp_list = mentor.expertise.get("areas", [])
+    elif isinstance(mentor.expertise, list):
+        exp_list = mentor.expertise
+
     return MentorResponse(
         id=mentor.id,
         user_id=mentor.user_id,
         mentor_name=mentor.user.name if mentor.user else None,
-        expertise=mentor.expertise,
+        expertise=exp_list,
         hourly_rate=mentor.hourly_rate,
         bio=mentor.bio,
         rating=mentor.rating,

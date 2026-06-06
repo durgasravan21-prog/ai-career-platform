@@ -27,7 +27,7 @@ class MentorResponse(BaseModel):
     id: int
     user_id: int
     mentor_name: Optional[str] = None
-    expertise: Optional[dict[str, Any]] = None
+    expertise: list[str] = Field(default_factory=list)
     hourly_rate: float
     bio: Optional[str] = None
     rating: float

@@ -123,7 +123,7 @@ export default function MentorsPage() {
         notes: notes || undefined,
       });
 
-      setSuccess(`Mentoring session booked successfully with ${bookingMentor.name}!`);
+      setSuccess(`Mentoring session booked successfully with ${bookingMentor.mentor_name || bookingMentor.name}!`);
       setBookingMentor(null);
       setSelectedDate("");
       setSelectedTime("");
@@ -175,13 +175,15 @@ export default function MentorsPage() {
 
   // Filter Logic
   const filteredMentors = mentors.filter((mentor) => {
-    const matchesSearch = mentor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mentor.bio.toLowerCase().includes(searchQuery.toLowerCase());
+    const nameStr = mentor.mentor_name || mentor.name || "";
+    const bioStr = mentor.bio || "";
+    const matchesSearch = nameStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bioStr.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesExpertise = selectedExpertise === "all" || 
-      mentor.expertise.some(e => e.toLowerCase().includes(selectedExpertise.toLowerCase()));
+      (mentor.expertise || []).some(e => e.toLowerCase().includes(selectedExpertise.toLowerCase()));
 
-    const matchesPrice = mentor.hourly_rate <= maxPrice;
+    const matchesPrice = (mentor.hourly_rate || 0) <= maxPrice;
 
     return matchesSearch && matchesExpertise && matchesPrice;
   });
@@ -505,7 +507,7 @@ export default function MentorsPage() {
             <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
               <div>
                 <h3 className="text-xl font-bold text-foreground">Book Mentoring Session</h3>
-                <p className="text-xs text-muted mt-1">Schedule a 60-minute call with {bookingMentor.name}</p>
+                <p className="text-xs text-muted mt-1">Schedule a 60-minute call with {bookingMentor.mentor_name || bookingMentor.name}</p>
               </div>
 
               <form onSubmit={handleBookSession} className="space-y-4">
