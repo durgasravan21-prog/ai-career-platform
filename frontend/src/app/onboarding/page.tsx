@@ -649,11 +649,6 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              {error && (
-                <p className="text-sm text-error text-center bg-error/10 border border-error/20 rounded-lg px-4 py-2 max-w-md mx-auto">
-                  {error}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -661,6 +656,13 @@ export default function OnboardingPage() {
 
       {/* Navigation Buttons */}
       <div className="sticky bottom-0 bg-background/80 backdrop-blur-xl border-t border-white/5">
+        {error && (
+          <div className="max-w-2xl mx-auto px-4 pt-4">
+            <p className="text-sm text-error text-center bg-error/10 border border-error/20 rounded-lg px-4 py-2">
+              {error}
+            </p>
+          </div>
+        )}
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <Button
             variant="ghost"

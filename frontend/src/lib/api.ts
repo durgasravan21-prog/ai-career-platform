@@ -25,7 +25,7 @@ import type {
   CVAnalysis,
 } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://durga-career-ai.loca.lt/api/v1";
 
 // ─── Core fetch wrapper ─────────────────────────────────────
 class ApiClient {
@@ -71,6 +71,7 @@ class ApiClient {
     const headers: HeadersInit = {
       ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Bypass-Tunnel-Reminder": "true",
       ...(options.headers || {}),
     };
 
