@@ -38,6 +38,11 @@ export default function ProjectAnalysisPage() {
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isSaved, setIsSaved] = useState(false);
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+
+  const toggleFlip = (key: string) => {
+    setFlippedCards((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -257,47 +262,175 @@ export default function ProjectAnalysisPage() {
         {/* Scores & Metrics Grid */}
         {analysis && (
           <div className="space-y-8 animate-fadeIn">
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               
               {/* Portfolio Grade */}
-              <Card className="flex flex-col items-center justify-center p-6 text-center">
-                <p className="text-xs text-muted uppercase tracking-wider mb-2 font-medium">Portfolio Grade</p>
-                <div className={`w-24 h-24 rounded-full border flex items-center justify-center text-4xl font-extrabold shadow-lg ${gradeColors[analysis.portfolio_grade] || "text-foreground"}`}>
-                  {analysis.portfolio_grade}
+              <div 
+                className="w-full h-[230px] perspective-1000 group cursor-pointer"
+                onClick={() => toggleFlip('grade')}
+              >
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['grade'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                  
+                  {/* Front Side */}
+                  <div className="absolute inset-0 w-full h-full backface-hidden">
+                    <Card className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                      <p className="text-xs text-muted uppercase tracking-wider mb-2 font-medium">Portfolio Grade</p>
+                      <div className={`w-24 h-24 rounded-full border flex items-center justify-center text-4xl font-extrabold shadow-lg ${gradeColors[analysis.portfolio_grade] || "text-foreground"}`}>
+                        {analysis.portfolio_grade}
+                      </div>
+                      <p className="text-xs text-muted mt-3">Reflects general code quality & readiness</p>
+                    </Card>
+                  </div>
+
+                  {/* Back Side */}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      style={{ backgroundImage: `url('/images/portfolio_badge.png')` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-primary animate-pulse" /> Portfolio Grade Details
+                      </h3>
+                      <p className="text-[11px] text-muted leading-relaxed">
+                        Your codebase rates a solid <strong className="text-success">{analysis.portfolio_grade}</strong> based on production readiness, structure, and readability.
+                      </p>
+                      <span className="text-[9px] text-primary flex items-center gap-1">
+                        Click card to flip back
+                      </span>
+                    </div>
+                  </div>
+
                 </div>
-                <p className="text-xs text-muted mt-3">Reflects general code quality & readiness</p>
-              </Card>
+              </div>
 
               {/* Problem Clarity */}
-              <Card className="flex flex-col items-center justify-center p-6 text-center">
-                <p className="text-xs text-muted uppercase tracking-wider mb-4 font-medium">Problem Clarity</p>
-                <CircularProgress value={analysis.problem_clarity * 10} size={100} strokeWidth={8} className="text-primary">
-                  <span className="text-xl font-bold text-foreground">{analysis.problem_clarity}/10</span>
-                </CircularProgress>
-                <p className="text-xs text-muted mt-3">Documentation & architecture design</p>
-              </Card>
+              <div 
+                className="w-full h-[230px] perspective-1000 group cursor-pointer"
+                onClick={() => toggleFlip('clarity')}
+              >
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['clarity'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                  
+                  {/* Front Side */}
+                  <div className="absolute inset-0 w-full h-full backface-hidden">
+                    <Card className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                      <p className="text-xs text-muted uppercase tracking-wider mb-4 font-medium">Problem Clarity</p>
+                      <CircularProgress value={analysis.problem_clarity * 10} size={100} strokeWidth={8} className="text-primary">
+                        <span className="text-xl font-bold text-foreground">{analysis.problem_clarity}/10</span>
+                      </CircularProgress>
+                      <p className="text-xs text-muted mt-3">Documentation & architecture design</p>
+                    </Card>
+                  </div>
+
+                  {/* Back Side */}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      style={{ backgroundImage: `url('/images/clarity_flow.png')` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <GitBranch className="h-4 w-4 text-primary animate-pulse" /> Clarity & Documentation
+                      </h3>
+                      <p className="text-[11px] text-muted leading-relaxed">
+                        Scored at <strong className="text-primary">{analysis.problem_clarity}/10</strong>. Evaluates README detail, setup instructions, architecture structure, and schema clarity.
+                      </p>
+                      <span className="text-[9px] text-primary flex items-center gap-1">
+                        Click card to flip back
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
 
               {/* Technical Complexity */}
-              <Card className="flex flex-col items-center justify-center p-6 text-center">
-                <p className="text-xs text-muted uppercase tracking-wider mb-4 font-medium">Technical Complexity</p>
-                <CircularProgress value={analysis.technical_complexity * 10} size={100} strokeWidth={8} className="text-secondary">
-                  <span className="text-xl font-bold text-foreground">{analysis.technical_complexity}/10</span>
-                </CircularProgress>
-                <p className="text-xs text-muted mt-3">Algorithms, dependencies & logic depth</p>
-              </Card>
+              <div 
+                className="w-full h-[230px] perspective-1000 group cursor-pointer"
+                onClick={() => toggleFlip('complexity')}
+              >
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['complexity'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                  
+                  {/* Front Side */}
+                  <div className="absolute inset-0 w-full h-full backface-hidden">
+                    <Card className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                      <p className="text-xs text-muted uppercase tracking-wider mb-4 font-medium">Technical Complexity</p>
+                      <CircularProgress value={analysis.technical_complexity * 10} size={100} strokeWidth={8} className="text-secondary">
+                        <span className="text-xl font-bold text-foreground">{analysis.technical_complexity}/10</span>
+                      </CircularProgress>
+                      <p className="text-xs text-muted mt-3">Algorithms, dependencies & logic depth</p>
+                    </Card>
+                  </div>
+
+                  {/* Back Side */}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      style={{ backgroundImage: `url('/images/complexity_chip.png')` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <Cpu className="h-4 w-4 text-secondary animate-pulse" /> Code Complexity Insights
+                      </h3>
+                      <p className="text-[11px] text-muted leading-relaxed">
+                        Scored at <strong className="text-secondary">{analysis.technical_complexity}/10</strong>. Assesses business logic modularity, algorithmic depth, security safety, and package hygiene.
+                      </p>
+                      <span className="text-[9px] text-secondary flex items-center gap-1">
+                        Click card to flip back
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
 
               {/* Career Relevance */}
-              <Card className="flex flex-col justify-center p-6">
-                <p className="text-xs text-muted uppercase tracking-wider mb-4 font-medium text-center md:text-left">Career Relevance</p>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm font-semibold">
-                    <span className="text-muted">Job Match Score</span>
-                    <span className="text-accent">{analysis.career_relevance}%</span>
+              <div 
+                className="w-full h-[230px] perspective-1000 group cursor-pointer"
+                onClick={() => toggleFlip('relevance')}
+              >
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['relevance'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                  
+                  {/* Front Side */}
+                  <div className="absolute inset-0 w-full h-full backface-hidden">
+                    <Card className="w-full h-full flex flex-col justify-center p-6">
+                      <p className="text-xs text-muted uppercase tracking-wider mb-4 font-medium text-center md:text-left">Career Relevance</p>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-sm font-semibold">
+                          <span className="text-muted">Job Match Score</span>
+                          <span className="text-accent">{analysis.career_relevance}%</span>
+                        </div>
+                        <Progress value={analysis.career_relevance} className="h-3" />
+                        <p className="text-xs text-muted">Alignment with target role criteria</p>
+                      </div>
+                    </Card>
                   </div>
-                  <Progress value={analysis.career_relevance} className="h-3" />
-                  <p className="text-xs text-muted">Alignment with target role criteria</p>
+
+                  {/* Back Side */}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      style={{ backgroundImage: `url('/images/career_growth.png')` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="relative z-10 space-y-2 text-left">
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <TrendingUp className="h-4 w-4 text-accent animate-pulse" /> Career Fit Analytics
+                      </h3>
+                      <p className="text-[11px] text-muted leading-relaxed">
+                        Rated at <strong className="text-accent">{analysis.career_relevance}%</strong> match. Reflects direct alignment against required skills lists posted by tier-1 tech recruiters.
+                      </p>
+                      <span className="text-[9px] text-accent flex items-center gap-1">
+                        Click card to flip back
+                      </span>
+                    </div>
+                  </div>
+
                 </div>
-              </Card>
+              </div>
 
             </div>
 
