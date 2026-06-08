@@ -327,18 +327,33 @@ function LandingPageContent() {
 
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             {/* Left Column */}
-            <div className="lg:col-span-7 text-center lg:text-left flex flex-col items-center lg:items-start space-y-8">
+            <div className="lg:col-span-7 text-center lg:text-left flex flex-col items-center lg:items-start space-y-8 relative">
+              {/* Decorative background visual graphic behind text for rich UI depth */}
+              <div className="absolute -left-16 -top-16 w-40 h-40 opacity-[0.08] blur-[2px] animate-float-slow pointer-events-none z-0">
+                <img src="/images/skill_synergy.png" className="w-full h-full object-contain" alt="" />
+              </div>
+
+              {/* Decorative background milestone graphic in the whitespace towards the right */}
+              <div className="absolute right-0 bottom-4 w-28 h-28 opacity-15 blur-[0.5px] animate-float-delay pointer-events-none z-0 hidden sm:block">
+                <img src="/images/career_milestone.png" className="w-full h-full object-contain" alt="" />
+              </div>
+
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-primary text-sm font-medium animate-fadeIn">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-primary text-sm font-medium animate-fadeIn z-10">
                 <Sparkles className="h-4 w-4" />
                 AI-Powered Career Intelligence
               </div>
 
               {/* Heading */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-tight w-full">
-                <span className="text-foreground">Accelerate Your</span>{" "}
-                <span className="gradient-text pb-1 pr-1 inline-block blink-cursor">{typedText || "Tech Career"}</span>{" "}
-                <span className="text-foreground">with AI</span>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-[1.2] w-full flex flex-col items-center lg:items-start space-y-2 z-10">
+                <span className="text-foreground block">Accelerate Your</span>
+                <span className="relative inline-block w-fit">
+                  <span className="gradient-text pb-1 pr-2 inline-block blink-cursor">
+                    {typedText || "\u00A0"}
+                  </span>
+                  <span className="absolute bottom-1 left-0 w-full h-[4px] bg-gradient-to-r from-primary via-secondary to-accent rounded-full opacity-80 shadow-[0_0_10px_rgba(6,182,212,0.5)]" />
+                </span>
+                <span className="text-foreground block">with AI</span>
               </h1>
 
               {/* Subtitle */}
