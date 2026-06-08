@@ -96,9 +96,24 @@ function LandingPageContent() {
   // Open login dialog from URL param
   useEffect(() => {
     if (searchParams?.get("login") === "true") {
+      setIsRegisterMode(false);
       setShowLoginDialog(true);
     }
   }, [searchParams]);
+
+  const handleCloseDialog = () => {
+    setShowLoginDialog(false);
+    clearError();
+    setFormError("");
+    setOtpStep("email");
+    setOtpCode("");
+    setDebugOtp("");
+    setIsMentorMode(false);
+    setCompanyName("");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
 
   // Animated counter
   const [counts, setCounts] = useState({ skills: 0, projects: 0, mentors: 0 });
@@ -635,29 +650,11 @@ function LandingPageContent() {
       {/* Login/Register Dialog */}
       <Dialog
         open={showLoginDialog}
-        onClose={() => {
-          setShowLoginDialog(false);
-          clearError();
-          setFormError("");
-          setOtpStep("email");
-          setOtpCode("");
-          setDebugOtp("");
-          setIsMentorMode(false);
-          setCompanyName("");
-        }}
+        onClose={handleCloseDialog}
         size="sm"
       >
         <DialogHeader
-          onClose={() => {
-            setShowLoginDialog(false);
-            clearError();
-            setFormError("");
-            setOtpStep("email");
-            setOtpCode("");
-            setDebugOtp("");
-            setIsMentorMode(false);
-            setCompanyName("");
-          }}
+          onClose={handleCloseDialog}
         >
           <DialogTitle>
             {isRegisterMode ? "Create Account" : "Welcome Back"}
