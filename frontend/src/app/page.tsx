@@ -347,11 +347,8 @@ function LandingPageContent() {
               {/* Heading */}
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-[1.2] w-full flex flex-col items-center lg:items-start space-y-2 z-10">
                 <span className="text-foreground block">Accelerate Your</span>
-                <span className="relative inline-block w-fit">
-                  <span className="gradient-text pb-1 pr-2 inline-block blink-cursor">
-                    {typedText || "\u00A0"}
-                  </span>
-                  <span className="absolute bottom-1 left-0 w-full h-[4px] bg-gradient-to-r from-primary via-secondary to-accent rounded-full opacity-80 shadow-[0_0_10px_rgba(6,182,212,0.5)]" />
+                <span className="gradient-text pb-1 pr-2 inline-block blink-cursor">
+                  {typedText || "\u00A0"}
                 </span>
                 <span className="text-foreground block">with AI</span>
               </h1>

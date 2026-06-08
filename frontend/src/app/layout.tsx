@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { CursorParticles } from "@/components/cursor-particles";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,7 +40,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} dark`}>
       <body className="font-sans bg-background text-foreground min-h-screen antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <CursorParticles />
+          {children}
+        </Providers>
       </body>
     </html>
   );
