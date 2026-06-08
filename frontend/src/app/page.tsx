@@ -115,6 +115,12 @@ function LandingPageContent() {
     }
   };
 
+  // Flipped card state for mobile support on features section
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const toggleFlip = (key: string) => {
+    setFlippedCards((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   // Animated counter
   const [counts, setCounts] = useState({ skills: 0, projects: 0, mentors: 0 });
   useEffect(() => {
@@ -219,6 +225,10 @@ function LandingPageContent() {
       description:
         "AI analyzes your current skills against your dream role and creates a personalized roadmap to bridge the gap.",
       gradient: "from-primary to-cyan-400",
+      backImage: "/images/career_growth.png",
+      backTitle: "Career Growth Analytics",
+      backDescription: "Bridge your skill gaps with prioritized roadmaps and targeted learning milestones designed for career progression.",
+      key: "skill-gap",
     },
     {
       icon: FolderKanban,
@@ -226,6 +236,10 @@ function LandingPageContent() {
       description:
         "Get AI-curated project suggestions that build the exact skills employers are looking for in your target role.",
       gradient: "from-secondary to-purple-400",
+      backImage: "/images/complexity_chip.png",
+      backTitle: "Code Complexity Insights",
+      backDescription: "Build real-world developer projects optimized for difficulty, algorithmic depth, and production readiness.",
+      key: "projects",
     },
     {
       icon: Users,
@@ -233,6 +247,10 @@ function LandingPageContent() {
       description:
         "Connect with experienced professionals who've walked your path. AI matches you with the perfect mentor.",
       gradient: "from-accent to-pink-400",
+      backImage: "/images/portfolio_badge.png",
+      backTitle: "Expert Onboarding Reviews",
+      backDescription: "Schedule direct 1:1 sessions, receive peer reviews on your code submissions, and accelerate your growth.",
+      key: "mentors",
     },
   ];
 
@@ -486,22 +504,55 @@ function LandingPageContent() {
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <div
+                <div 
                   key={feature.title}
-                  className="glass-card glass-card-hover p-8 group"
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  className="w-full h-[280px] perspective-1000 group cursor-pointer"
+                  onClick={() => toggleFlip(feature.key)}
                 >
-                  <div
-                    className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}
-                  >
-                    <Icon className="h-6 w-6 text-white" />
+                  <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards[feature.key] ? 'flipped' : ''}`}>
+                    
+                    {/* Front Side */}
+                    <div className="absolute inset-0 w-full h-full backface-hidden">
+                      <div className="glass-card p-8 flex flex-col h-full justify-between">
+                        <div>
+                          <div
+                            className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}
+                          >
+                            <Icon className="h-6 w-6 text-white" />
+                          </div>
+                          <h3 className="text-xl font-semibold text-foreground mb-3">
+                            {feature.title}
+                          </h3>
+                          <p className="text-muted text-sm leading-relaxed">
+                            {feature.description}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-primary mt-4 font-semibold uppercase tracking-wider group-hover:underline">Hover or Click for Details →</span>
+                      </div>
+                    </div>
+
+                    {/* Back Side */}
+                    <div className="absolute inset-0 w-full h-full rounded-2xl bg-[#12121a]/95 border border-white/10 rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-6 shadow-2xl">
+                      <img 
+                        src={feature.backImage} 
+                        alt={`${feature.title} Details Background`}
+                        className="absolute inset-0 w-full h-full object-cover opacity-60 transition-transform duration-500 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/95 via-[#0a0a0f]/50 to-transparent" />
+                      <div className="relative z-10 space-y-2 text-left">
+                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center mb-2">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <h3 className="text-base font-bold text-foreground">
+                          {feature.backTitle}
+                        </h3>
+                        <p className="text-xs text-muted leading-relaxed">
+                          {feature.backDescription}
+                        </p>
+                      </div>
+                    </div>
+
                   </div>
-                  <h3 className="text-xl font-semibold text-foreground mb-3">
-                    {feature.title}
-                  </h3>
-                  <p className="text-muted leading-relaxed">
-                    {feature.description}
-                  </p>
                 </div>
               );
             })}
