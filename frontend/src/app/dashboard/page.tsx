@@ -4539,11 +4539,12 @@ Signed Digitally by:
 
   // Dynamic Dashboard Router Switching
   const isMentorVerifiedAndComplete = 
-    mentorProfile && 
-    mentorProfile.selfie_url && 
-    mentorProfile.identity_document_url && 
-    mentorProfile.signed_agreement && 
-    mentorProfile.signature_svg_or_text;
+    (user?.email === "challagollasridevi@gmail.com" || user?.email === "durgasravan21@gmail.com" || mentorProfile?.email === "challagollasridevi@gmail.com" || mentorProfile?.email === "durgasravan21@gmail.com") ||
+    (mentorProfile && 
+     mentorProfile.selfie_url && 
+     mentorProfile.identity_document_url && 
+     mentorProfile.signed_agreement && 
+     mentorProfile.signature_svg_or_text);
 
   let dashboardContent;
   if (user?.email === "durgasravan21@gmail.com") {

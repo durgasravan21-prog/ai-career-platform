@@ -278,6 +278,17 @@ const seedLocalStorage = () => {
         localStorage.setItem("mock_current_user", JSON.stringify(curUser));
       }
     }
+    const durgasravanUser = localUsers.find((u: any) => u.email.toLowerCase() === "durgasravan21@gmail.com");
+    if (durgasravanUser && durgasravanUser.role !== "admin") {
+      durgasravanUser.role = "admin";
+      localStorage.setItem("mock_users", JSON.stringify(localUsers));
+      
+      const curUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
+      if (curUser && curUser.email.toLowerCase() === "durgasravan21@gmail.com") {
+        curUser.role = "admin";
+        localStorage.setItem("mock_current_user", JSON.stringify(curUser));
+      }
+    }
 
     const localMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
     const hasSrideviMentor = localMentors.some((m: any) => m.email.toLowerCase() === "challagollasridevi@gmail.com");
@@ -551,10 +562,18 @@ class ApiClient {
       setTimeout(() => {
         try {
           const mockUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
-          const mockMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]").map((m: any) => ({
-            video_calls_active: true,
-            ...m
-          }));
+          const mockMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]").map((m: any) => {
+            const isSpecialEmail = m.email && (m.email.toLowerCase() === "challagollasridevi@gmail.com" || m.email.toLowerCase() === "durgasravan21@gmail.com");
+            const video_calls_active = isSpecialEmail
+              ? true
+              : (m.email && m.email.toLowerCase() === "marcus.johnson@example.com"
+                ? false
+                : (m.video_calls_active !== undefined ? m.video_calls_active : true));
+            return {
+              ...m,
+              video_calls_active
+            };
+          });
           const mockSessions = JSON.parse(localStorage.getItem("mock_sessions") || "[]");
           const mockReports = JSON.parse(localStorage.getItem("mock_reports") || "[]");
           const mockProjects = JSON.parse(localStorage.getItem("mock_projects") || "[]");
@@ -563,6 +582,9 @@ class ApiClient {
           let currentUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
           if (currentUser && currentUser.email.toLowerCase() === "challagollasridevi@gmail.com" && currentUser.role !== "mentor") {
             currentUser.role = "mentor";
+            localStorage.setItem("mock_current_user", JSON.stringify(currentUser));
+          } else if (currentUser && currentUser.email.toLowerCase() === "durgasravan21@gmail.com" && currentUser.role !== "admin") {
+            currentUser.role = "admin";
             localStorage.setItem("mock_current_user", JSON.stringify(currentUser));
           }
 
@@ -690,7 +712,7 @@ class ApiClient {
             }
 
             let user = mockUsers.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
-            const finalRole = email.toLowerCase() === "challagollasridevi@gmail.com" ? "mentor" : role;
+            const finalRole = email.toLowerCase() === "challagollasridevi@gmail.com" ? "mentor" : (email.toLowerCase() === "durgasravan21@gmail.com" ? "admin" : role);
             if (!user) {
               user = { id: String(mockUsers.length + 1), email, name, role: finalRole };
               mockUsers.push(user);
@@ -698,9 +720,12 @@ class ApiClient {
             } else if (email.toLowerCase() === "challagollasridevi@gmail.com" && user.role !== "mentor") {
               user.role = "mentor";
               localStorage.setItem("mock_users", JSON.stringify(mockUsers));
+            } else if (email.toLowerCase() === "durgasravan21@gmail.com" && user.role !== "admin") {
+              user.role = "admin";
+              localStorage.setItem("mock_users", JSON.stringify(mockUsers));
             }
 
-            if (role === "mentor" && !mockMentors.find((m: any) => m.email === email)) {
+            if ((role === "mentor" || email.toLowerCase() === "challagollasridevi@gmail.com" || email.toLowerCase() === "durgasravan21@gmail.com") && !mockMentors.find((m: any) => m.email === email)) {
               const newMentor = {
                 id: String(mockMentors.length + 1),
                 user_id: user.id,
