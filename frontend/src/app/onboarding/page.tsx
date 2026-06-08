@@ -406,7 +406,8 @@ export default function OnboardingPage() {
                 <Input
                   label="Password"
                   type="password"
-                  placeholder="At least 6 characters"
+                  placeholder=""
+                  helperText="Password must be at least 6 characters long."
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   error={

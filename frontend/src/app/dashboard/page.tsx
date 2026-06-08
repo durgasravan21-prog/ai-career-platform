@@ -1780,7 +1780,7 @@ Signed Digitally by:
                     </div>
                     <input
                       type="password"
-                      placeholder="Enter name@id or agreement123"
+                      placeholder=""
                       value={agreementPassword}
                       onChange={(e) => setAgreementPassword(e.target.value)}
                       onKeyDown={(e) => {
@@ -1791,6 +1791,9 @@ Signed Digitally by:
                       }}
                       className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-center font-mono tracking-widest placeholder-muted"
                     />
+                    <span className="text-[10px] text-muted block mt-1.5 text-center">
+                      Hint: Decrypt using format <strong>[CoachName]@[MentorID]</strong> or use universal passcode <strong>agreement123</strong>.
+                    </span>
                     {unlockError && (
                       <span className="text-[10px] text-error font-medium block text-center animate-pulse">{unlockError}</span>
                     )}

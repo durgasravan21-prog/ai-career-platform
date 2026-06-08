@@ -284,11 +284,25 @@ function LandingPageContent() {
               0%, 100% { transform: translateY(0px) rotate(0deg); }
               50% { transform: translateY(8px) rotate(-0.5deg); }
             }
+            @keyframes float-pulse {
+              0%, 100% { transform: translateY(0px) scale(1) rotate(0deg); opacity: 0.8; }
+              50% { transform: translateY(-5px) scale(1.04) rotate(0.5deg); opacity: 0.95; }
+            }
+            @keyframes float-rotate {
+              0%, 100% { transform: translateY(0px) rotate(0deg); }
+              50% { transform: translateY(-6px) rotate(3deg); }
+            }
             .animate-float-slow {
               animation: float-slow 6s ease-in-out infinite;
             }
             .animate-float-delay {
               animation: float-delay 7s ease-in-out infinite;
+            }
+            .animate-float-pulse {
+              animation: float-pulse 5s ease-in-out infinite;
+            }
+            .animate-float-rotate {
+              animation: float-rotate 8s ease-in-out infinite;
             }
             .blink-cursor {
               border-right: 2px solid #06b6d4;
@@ -366,6 +380,21 @@ function LandingPageContent() {
 
             {/* Right Column (Visual Mockups) */}
             <div className="lg:col-span-5 relative h-[480px] w-full hidden lg:block select-none animate-fadeIn" style={{ animationDelay: "0.15s" }}>
+              {/* Decorative 3D graphic background accent 1 (behind Mockup 1) */}
+              <div className="absolute top-[-30px] right-[160px] w-28 h-28 opacity-35 blur-[0.5px] animate-float-rotate pointer-events-none z-10">
+                <img src="/images/portfolio_badge.png" className="w-full h-full object-contain" alt="" />
+              </div>
+
+              {/* Decorative 3D graphic background accent 2 (behind Mockup 2) */}
+              <div className="absolute bottom-[20px] left-[150px] w-24 h-24 opacity-35 blur-[0.5px] animate-float-pulse pointer-events-none z-10">
+                <img src="/images/clarity_flow.png" className="w-full h-full object-contain" alt="" />
+              </div>
+
+              {/* Decorative 3D graphic background accent 3 (behind Mockup 3) */}
+              <div className="absolute top-[160px] left-[-30px] w-24 h-24 opacity-30 blur-[0.5px] animate-float-delay pointer-events-none z-10">
+                <img src="/images/complexity_chip.png" className="w-full h-full object-contain" alt="" />
+              </div>
+
               {/* Mockup 1: AI Mentor Match Card */}
               <div className="absolute top-0 right-0 w-[300px] h-fit animate-float-slow z-20 hover:z-50">
                 <div className="glass-card p-5 bg-[#12121a]/85 border-white/10 shadow-2xl transition-all duration-300 hover:scale-105 hover:border-primary/50 hover:shadow-primary/20 cursor-pointer">
@@ -577,6 +606,8 @@ function LandingPageContent() {
                 title: "Tell Us Your Goals",
                 description:
                   "Select your dream role and add your current skills. Our AI starts analyzing instantly.",
+                image: "/images/clarity_flow.png",
+                animationClass: "animate-float-slow",
               },
               {
                 step: "02",
@@ -584,6 +615,8 @@ function LandingPageContent() {
                 title: "Get Your Roadmap",
                 description:
                   "Receive a personalized learning path with prioritized skills, projects, and resources.",
+                image: "/images/career_growth.png",
+                animationClass: "animate-float-delay",
               },
               {
                 step: "03",
@@ -591,24 +624,44 @@ function LandingPageContent() {
                 title: "Build & Grow",
                 description:
                   "Complete projects, connect with mentors, and track your progress toward your dream career.",
+                image: "/images/complexity_chip.png",
+                animationClass: "animate-float-pulse",
               },
             ].map((item, index) => {
               const Icon = item.icon;
               return (
-                <div key={item.step} className="relative text-center">
-                  <div className="text-6xl font-black text-white/5 mb-4">
-                    {item.step}
+                <div 
+                  key={item.step} 
+                  className="glass-card p-6 bg-[#12121a]/85 border-white/5 shadow-xl transition-all duration-300 hover:scale-[1.02] hover:border-primary/20 flex flex-col justify-between items-center text-center overflow-hidden group relative h-[340px]"
+                >
+                  {/* Animated 3D Header Image */}
+                  <div className="w-full aspect-video rounded-xl overflow-hidden mb-4 relative border border-white/10 bg-[#0a0a0f] flex items-center justify-center select-none">
+                    <img 
+                      src={item.image} 
+                      alt={item.title} 
+                      className={`object-cover w-full h-full opacity-80 transition-transform duration-500 group-hover:scale-105 ${item.animationClass}`}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/90 via-[#0a0a0f]/20 to-transparent" />
                   </div>
-                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
-                    <Icon className="h-6 w-6 text-primary" />
+
+                  <div className="space-y-3 relative z-10 flex-1 flex flex-col justify-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="text-xl font-black text-primary/30 font-mono">
+                        {item.step}
+                      </div>
+                      <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground">
+                      {item.title}
+                    </h3>
+                    <p className="text-muted text-[11px] leading-relaxed max-w-[240px] mx-auto">{item.description}</p>
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
-                    {item.title}
-                  </h3>
-                  <p className="text-muted text-sm">{item.description}</p>
+
                   {index < 2 && (
-                    <div className="hidden md:block absolute top-16 -right-4 w-8 text-white/10">
-                      <ArrowRight className="h-6 w-6" />
+                    <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 text-primary/25 z-20">
+                      <ArrowRight className="h-5 w-5 animate-pulse" />
                     </div>
                   )}
                 </div>
