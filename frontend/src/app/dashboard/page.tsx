@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [recommendedProjects, setRecommendedProjects] = useState<Project[]>([]);
   const [mentorProfile, setMentorProfile] = useState<Mentor | null>(null);
   const [isTogglingVideoCalls, setIsTogglingVideoCalls] = useState(false);
+  const [adminViewMode, setAdminViewMode] = useState<"admin" | "mentor">("admin");
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -569,14 +570,15 @@ export default function DashboardPage() {
       setError("");
       try {
         if (user?.email === "durgasravan21@gmail.com") {
-          // Admin View: Fetch pending mentors, reports, active users, all mentors, and pending submissions
-          const [pending, reports, activeUsersList, mentorsList, pendingSub, allSessions] = await Promise.all([
+          // Admin View: Fetch pending mentors, reports, active users, all mentors, pending submissions, and the admin's mentor profile
+          const [pending, reports, activeUsersList, mentorsList, pendingSub, allSessions, adminMentorProfile] = await Promise.all([
             api.mentors.getPendingMentors(),
             api.mentors.getReports(),
             api.mentors.getActiveUsers(),
             api.mentors.getAll(),
             api.projects.getPendingSubmissions(),
             api.mentors.getMySessions(),
+            api.mentors.getAppStatus().catch(() => null)
           ]);
           setPendingMentors(pending || []);
           setMentorReports(reports || []);
@@ -590,6 +592,9 @@ export default function DashboardPage() {
           );
           setPendingSubmissions(pendingSub || []);
           setMentorSessions(allSessions || []);
+          if (adminMentorProfile) {
+            setMentorProfile(adminMentorProfile);
+          }
         } else {
           // Check if mentor profile exists
           let currentMentor: Mentor | null = null;
@@ -1027,9 +1032,14 @@ Signed Digitally by:
                 Welcome back, Administrator. Review pending applications, track user activity, configure rates, and audit digital agreements.
               </p>
             </div>
-            <Button variant="outline" onClick={() => router.push("/profile")} className="self-start">
-              <Settings className="h-4 w-4 mr-2" /> Admin Settings
-            </Button>
+            <div className="flex gap-2 self-start flex-wrap">
+              <Button onClick={() => setAdminViewMode("mentor")} className="bg-gradient-to-r from-primary to-secondary">
+                <Video className="h-4 w-4 mr-2" /> Switch to Coach View
+              </Button>
+              <Button variant="outline" onClick={() => router.push("/profile")}>
+                <Settings className="h-4 w-4 mr-2" /> Admin Settings
+              </Button>
+            </div>
           </div>
 
           {/* Success / Error Alerts */}
@@ -2638,8 +2648,12 @@ Signed Digitally by:
     const pendingBookings = mentorSessions.filter(
       (s) => s.status === "pending" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
     );
-    const upcomingBookings = mentorSessions.filter((s) => s.status === "confirmed");
-    const completedBookings = mentorSessions.filter((s) => s.status === "completed");
+    const upcomingBookings = mentorSessions.filter(
+      (s) => s.status === "confirmed" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
+    );
+    const completedBookings = mentorSessions.filter(
+      (s) => s.status === "completed" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
+    );
 
     // Calculate mentoring payout details (base rate * hours)
     const baseRate = mentorProfile?.hourly_rate ?? 0;
@@ -2819,9 +2833,16 @@ Signed Digitally by:
                 Manage student session requests, review peer submissions, and track your platform earnings.
               </p>
             </div>
-            <Button variant="outline" onClick={() => router.push("/profile")} className="self-start">
-              <Settings className="h-4 w-4 mr-2" /> Edit Availability & Rates
-            </Button>
+            <div className="flex gap-2 self-start flex-wrap">
+              {user?.email === "durgasravan21@gmail.com" && (
+                <Button onClick={() => setAdminViewMode("admin")} className="bg-gradient-to-r from-primary to-secondary">
+                  Switch to Admin View
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => router.push("/profile")}>
+                <Settings className="h-4 w-4 mr-2" /> Edit Availability & Rates
+              </Button>
+            </div>
           </div>
 
           {/* Mentor Verification Pending Alert */}
@@ -4548,7 +4569,11 @@ Signed Digitally by:
 
   let dashboardContent;
   if (user?.email === "durgasravan21@gmail.com") {
-    dashboardContent = renderAdminDashboard();
+    if (adminViewMode === "mentor") {
+      dashboardContent = renderMentorDashboard();
+    } else {
+      dashboardContent = renderAdminDashboard();
+    }
   } else if (user?.role === "mentor" || user?.email === "challagollasridevi@gmail.com") {
     if (isMentorVerifiedAndComplete) {
       dashboardContent = renderMentorDashboard();

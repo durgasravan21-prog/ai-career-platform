@@ -1577,6 +1577,8 @@ class ApiClient {
             const newSession = {
               id: mockSessions.length + 1,
               student_id: currentUser.id,
+              mentee_id: currentUser.id,
+              student_name: currentUser.name || currentUser.email.split("@")[0],
               mentor_id: body.mentor_id,
               project_id: body.project_id || null,
               scheduled_at: body.scheduled_at,
@@ -1600,13 +1602,21 @@ class ApiClient {
               return;
             }
 
+            const mentorProfile = mockMentors.find((m: any) => 
+              String(m.user_id) === String(currentUser.id) || 
+              (m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
+            );
+            const mentorProfileId = mentorProfile ? String(mentorProfile.id) : null;
+
             if (currentUser.email === "durgasravan21@gmail.com") {
               resolve(mockSessions as any);
               return;
             }
 
-            const userSessions = mockSessions.filter(
-              (s: any) => s.student_id === currentUser.id || String(s.mentor_id) === String(currentUser.id)
+            const userSessions = mockSessions.filter((s: any) => 
+              String(s.student_id) === String(currentUser.id) || 
+              String(s.mentor_id) === String(currentUser.id) ||
+              (mentorProfileId && String(s.mentor_id) === mentorProfileId)
             );
             resolve(userSessions as any);
             return;
