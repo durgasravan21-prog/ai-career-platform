@@ -335,11 +335,9 @@ function LandingPageContent() {
               </div>
 
               {/* Heading */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-tight w-full min-h-[160px] sm:min-h-[200px] lg:min-h-[240px]">
-                <span className="text-foreground">Accelerate Your</span>
-                <br />
-                <span className="gradient-text pb-1 pr-1 blink-cursor">{typedText || "\u00A0"}</span>
-                <br />
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-slideUp leading-tight w-full">
+                <span className="text-foreground">Accelerate Your</span>{" "}
+                <span className="gradient-text pb-1 pr-1 inline-block blink-cursor">{typedText || "Tech Career"}</span>{" "}
                 <span className="text-foreground">with AI</span>
               </h1>
 
@@ -390,7 +388,7 @@ function LandingPageContent() {
             </div>
 
             {/* Right Column (Visual Mockups) */}
-            <div className="lg:col-span-5 relative h-[480px] w-full hidden lg:block select-none animate-fadeIn" style={{ animationDelay: "0.15s" }}>
+            <div className="lg:col-span-5 relative h-[420px] sm:h-[480px] w-full mt-12 lg:mt-0 select-none animate-fadeIn max-w-[450px] lg:max-w-none mx-auto" style={{ animationDelay: "0.15s" }}>
               {/* Decorative 3D graphic background accent 1 (behind Mockup 1) */}
               <div className="absolute top-[-30px] right-[160px] w-28 h-28 opacity-35 blur-[0.5px] animate-float-rotate pointer-events-none z-10">
                 <img src="/images/portfolio_badge.png" className="w-full h-full object-contain" alt="" />
@@ -597,6 +595,146 @@ function LandingPageContent() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Platform Dashboard Preview Section */}
+      <section className="py-24 relative overflow-hidden border-t border-white/5 bg-surface/10">
+        {/* Background decorative gradient glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-12">
+          
+          <div className="space-y-4 max-w-3xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
+              A Complete <span className="gradient-text">Career Control Center</span>
+            </h2>
+            <p className="text-muted text-base">
+              Take a look inside the CareerAI workspace. Track your skills, audit projects against compiler benchmarks, and chat with matching mentors.
+            </p>
+          </div>
+
+          {/* Interactive Mock Browser Window */}
+          <div className="glass-card bg-[#12121a]/95 border-white/10 rounded-2xl overflow-hidden shadow-2xl max-w-5xl mx-auto text-left transition-all duration-500 hover:border-primary/30 hover:shadow-primary/5">
+            
+            {/* Browser Header Bar */}
+            <div className="bg-[#0a0a0f] border-b border-white/5 px-4 py-3 flex items-center justify-between">
+              <div className="flex gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-error/80" />
+                <span className="w-2.5 h-2.5 rounded-full bg-warning/80" />
+                <span className="w-2.5 h-2.5 rounded-full bg-success/80" />
+              </div>
+              <div className="bg-white/5 border border-white/5 rounded-lg px-8 py-1 text-xs text-muted font-mono select-none w-1/2 text-center truncate">
+                https://career-ai.platform/dashboard
+              </div>
+              <div className="w-12" />
+            </div>
+
+            {/* Browser Body Area */}
+            <div className="grid md:grid-cols-12 min-h-[440px]">
+              
+              {/* Mock Sidebar */}
+              <div className="md:col-span-3 border-r border-white/5 bg-[#0a0a0f]/50 p-4 space-y-6 hidden md:block">
+                <div className="flex items-center gap-2 px-2">
+                  <div className="w-5 h-5 rounded-md bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xs">C</div>
+                  <span className="text-xs font-bold text-foreground">CareerAI Platform</span>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <span className="text-[9px] text-muted block uppercase tracking-wider font-semibold px-2 mb-2">Workspace</span>
+                  <div className="px-3 py-2 bg-white/5 rounded-lg text-xs font-semibold text-primary flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Dashboard
+                  </div>
+                  <div className="px-3 py-2 text-xs font-medium text-muted hover:text-foreground hover:bg-white/5 rounded-lg transition-all flex items-center gap-2 cursor-pointer">
+                    <span className="w-1.5 h-1.5 rounded-full bg-transparent" /> Technical Projects
+                  </div>
+                  <div className="px-3 py-2 text-xs font-medium text-muted hover:text-foreground hover:bg-white/5 rounded-lg transition-all flex items-center gap-2 cursor-pointer">
+                    <span className="w-1.5 h-1.5 rounded-full bg-transparent" /> Mentors & Coaches
+                  </div>
+                  <div className="px-3 py-2 text-xs font-medium text-muted hover:text-foreground hover:bg-white/5 rounded-lg transition-all flex items-center gap-2 cursor-pointer">
+                    <span className="w-1.5 h-1.5 rounded-full bg-transparent" /> Resume Audit
+                  </div>
+                </div>
+              </div>
+
+              {/* Mock Dashboard Content */}
+              <div className="md:col-span-9 p-6 space-y-6 bg-[#12121a]/30">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">Welcome back, Alex!</h3>
+                    <p className="text-[11px] text-muted">Here is your progress toward becoming a <span className="text-primary font-semibold">Senior Full-Stack Developer</span>.</p>
+                  </div>
+                  <Badge className="bg-primary/20 text-primary border-primary/35 self-start sm:self-auto text-[9px]">Step 3 of 5</Badge>
+                </div>
+
+                <div className="grid sm:grid-cols-12 gap-6">
+                  
+                  {/* Left Column: Progress Card */}
+                  <div className="sm:col-span-5 glass-card p-5 bg-[#12121a]/85 border-white/5 space-y-4 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground">Roadmap Progress</h4>
+                      <p className="text-[10px] text-muted">Target role matches completed projects</p>
+                    </div>
+                    
+                    <div className="flex items-center justify-center py-2">
+                      <div className="relative w-24 h-24 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="48" cy="48" r="40" className="stroke-white/5 fill-none" strokeWidth="6" />
+                          <circle cx="48" cy="48" r="40" className="stroke-secondary fill-none" strokeWidth="6" strokeDasharray={2 * Math.PI * 40} strokeDashoffset={2 * Math.PI * 40 * (1 - 0.68)} strokeLinecap="round" />
+                        </svg>
+                        <span className="absolute text-base font-black text-foreground">68%</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-[9px] text-muted">
+                        <span>Missing Skill Gap</span>
+                        <span className="text-secondary font-bold">32% remaining</span>
+                      </div>
+                      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-secondary rounded-full" style={{ width: "68%" }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Missing Skills & Recommendations */}
+                  <div className="sm:col-span-7 space-y-4">
+                    
+                    {/* Missing Skills Card */}
+                    <div className="glass-card p-4 bg-[#12121a]/80 border-white/5 space-y-3">
+                      <h4 className="text-xs font-bold text-foreground">Priority Skill Gaps</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                          <span className="text-[11px] font-semibold text-foreground">System Architecture & Docker</span>
+                          <Badge className="bg-error/20 text-error border-error/30 text-[8px] px-2 py-0">High Priority</Badge>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                          <span className="text-[11px] font-semibold text-foreground">Redis Cache & Performance Optimization</span>
+                          <Badge className="bg-warning/20 text-warning border-warning/30 text-[8px] px-2 py-0">Medium Priority</Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Recommendation */}
+                    <div className="glass-card p-4 bg-[#12121a]/80 border-white/5 space-y-2">
+                      <h4 className="text-xs font-bold text-foreground">AI Recommended Project</h4>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-xs font-bold text-foreground block">Microservices API Gateway</span>
+                          <span className="text-[10px] text-muted">Build a resilient Dockerized gateway with rate-limiting.</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-success bg-success/10 border border-success/20 px-2 py-0.5 rounded-full whitespace-nowrap">+12% Match</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+          </div>
+          
         </div>
       </section>
 
