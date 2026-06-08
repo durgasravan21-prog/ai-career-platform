@@ -252,6 +252,17 @@ function LandingPageContent() {
       backDescription: "Schedule direct 1:1 sessions, receive peer reviews on your code submissions, and accelerate your growth.",
       key: "mentors",
     },
+    {
+      icon: Shield,
+      title: "Automated Resume Audit",
+      description:
+        "AI inspects your CV against target job requirements, giving actionable improvements to stand out to recruiters.",
+      gradient: "from-primary to-purple-500",
+      backImage: "/images/target_analysis.png",
+      backTitle: "Precision CV Audits",
+      backDescription: "Instantly scan and score your resume layout, skill matches, and project relevance dynamically.",
+      key: "resume-audit",
+    },
   ];
 
   const stats = [
@@ -529,7 +540,7 @@ function LandingPageContent() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
@@ -667,6 +678,120 @@ function LandingPageContent() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* Platform Synergy Showcase Section */}
+      <section className="py-24 relative overflow-hidden">
+        {/* Background gradient orb */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-12 gap-12 items-center">
+            
+            {/* Left Column: Rich Animated 3D Artwork Showcase */}
+            <div className="lg:col-span-6 flex justify-center items-center relative h-[420px] select-none">
+              
+              {/* Main Animated 3D Image Card */}
+              <div className="relative w-[320px] h-[320px] glass-card p-6 bg-[#12121a]/85 border-white/10 shadow-2xl flex flex-col justify-between items-center group cursor-pointer overflow-hidden z-20 hover:border-primary/50 transition-all duration-300">
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-secondary/10 opacity-60" />
+                
+                {/* Glowing Background Circle */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-primary/20 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500" />
+                
+                <div className="w-full h-full relative z-10 flex items-center justify-center">
+                  <img 
+                    src="/images/skill_synergy.png" 
+                    alt="Skill Synergy" 
+                    className="w-full h-full object-contain animate-float-slow group-hover:scale-105 transition-transform duration-500" 
+                  />
+                </div>
+                
+                <div className="relative z-10 text-center space-y-1">
+                  <span className="text-xs font-black uppercase tracking-widest text-primary">AI Skill Mapping</span>
+                  <p className="text-[10px] text-muted">Synergistic connection pathways optimized by deep models</p>
+                </div>
+              </div>
+              
+              {/* Secondary Animated Floating Image 1 (Milestone) */}
+              <div className="absolute -top-4 -right-2 w-28 h-28 glass-card p-2 bg-[#12121a]/90 border-white/10 shadow-xl flex items-center justify-center animate-float-delay hover:z-30 cursor-pointer">
+                <img 
+                  src="/images/career_milestone.png" 
+                  alt="Career Milestone" 
+                  className="w-full h-full object-contain hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+
+              {/* Secondary Animated Floating Image 2 (Analysis Scan) */}
+              <div className="absolute -bottom-4 -left-2 w-28 h-28 glass-card p-2 bg-[#12121a]/90 border-white/10 shadow-xl flex items-center justify-center animate-float-pulse hover:z-30 cursor-pointer">
+                <img 
+                  src="/images/target_analysis.png" 
+                  alt="Target Analysis" 
+                  className="w-full h-full object-contain hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+            </div>
+
+            {/* Right Column: Content */}
+            <div className="lg:col-span-6 space-y-8 text-left">
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary/10 border border-secondary/20 rounded-full text-secondary text-xs font-semibold">
+                  <Zap className="h-3.5 w-3.5" />
+                  Engineering Career Accelerations
+                </div>
+                <h2 className="text-3xl sm:text-4xl font-bold text-foreground leading-tight">
+                  Maximize Your Potential with <br className="hidden sm:inline" />
+                  <span className="gradient-text">Interactive AI Core Analytics</span>
+                </h2>
+                <p className="text-muted text-sm leading-relaxed">
+                  CareerAI is built on modern neural mappings that align your actual repositories and completed milestones directly with industrial job demands. Learn what counts, verify with experts, and scale.
+                </p>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-white/5 border border-white/5 rounded-xl hover:border-primary/20 transition-all duration-300">
+                  <h4 className="text-sm font-bold text-foreground mb-1.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary" />
+                    INR Passion Coaching
+                  </h4>
+                  <p className="text-[11px] text-muted">
+                    No credit card blockages. Learn from industry leaders for free or clear INR micro-fees.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-white/5 border border-white/5 rounded-xl hover:border-secondary/20 transition-all duration-300">
+                  <h4 className="text-sm font-bold text-foreground mb-1.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-secondary" />
+                    Real-time CV Audit
+                  </h4>
+                  <p className="text-[11px] text-muted">
+                    Instant scan checks on your resume draft alignment for technical positions.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-white/5 border border-white/5 rounded-xl hover:border-accent/20 transition-all duration-300">
+                  <h4 className="text-sm font-bold text-foreground mb-1.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-accent" />
+                    GitHub Source Audits
+                  </h4>
+                  <p className="text-[11px] text-muted">
+                    Connect your GitHub repo to check structure, algorithm complexity and clean standards.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-white/5 border border-white/5 rounded-xl hover:border-success/20 transition-all duration-300">
+                  <h4 className="text-sm font-bold text-foreground mb-1.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-success" />
+                    Verified Onboardings
+                  </h4>
+                  <p className="text-[11px] text-muted">
+                    Ensure administrative security with facial verification checks and password-secured contracts.
+                  </p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -841,11 +966,12 @@ function LandingPageContent() {
                 </div>
                 <Input
                   label="One-Time Password (OTP)"
-                  placeholder="123456"
+                  placeholder=""
                   maxLength={6}
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   className="text-center text-xl font-bold tracking-[0.5em]"
+                  helperText={`Hint: Enter the 6-digit code. (Testing code is ${debugOtp || "123456"})`}
                 />
                 <button
                   type="button"
