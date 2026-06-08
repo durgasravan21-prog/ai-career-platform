@@ -258,15 +258,50 @@ const MOCK_MENTORS = [
       { day_of_week: 4, start_time: "14:00", end_time: "20:00" },
       { day_of_week: 0, start_time: "09:00", end_time: "14:00" }
     ]
+  },
+  {
+    id: "9",
+    mentor_id: "MNT-009",
+    user_id: "9",
+    mentor_name: "durgasravan21",
+    name: "durgasravan21",
+    email: "durgasravan21@gmail.com",
+    bio: "Administrator & Principal Mentor. Specializes in software architecture, project intelligence, and career guidance.",
+    expertise: ["Full-Stack", "JavaScript", "Software Architecture", "AI Career Strategy"],
+    rating: 5.0,
+    total_sessions: 0,
+    total_reviews: 0,
+    hourly_rate: 0.0,
+    original_price: 0.0,
+    has_premium_subscription: true,
+    currency: "USD",
+    is_active: true,
+    verification_status: "verified",
+    experience_years: 10,
+    linkedin_url: "https://linkedin.com/in/durgasravan21",
+    github_url: "https://github.com/durgasravan21-prog/ai-career-platform",
+    mobile_number: "+1 555-019-9999",
+    video_calls_active: true,
+    availability: [
+      { day_of_week: 0, start_time: "09:00", end_time: "17:00" },
+      { day_of_week: 1, start_time: "09:00", end_time: "17:00" },
+      { day_of_week: 2, start_time: "09:00", end_time: "17:00" },
+      { day_of_week: 3, start_time: "09:00", end_time: "17:00" },
+      { day_of_week: 4, start_time: "09:00", end_time: "17:00" },
+      { day_of_week: 5, start_time: "09:00", end_time: "17:00" },
+      { day_of_week: 6, start_time: "09:00", end_time: "17:00" }
+    ]
   }
 ];
 
 const seedLocalStorage = () => {
   if (typeof window === "undefined") return;
 
-  // Ensure challagollasridevi@gmail.com is always mapped correctly to avoid stale student local state
+  // Ensure challagollasridevi@gmail.com and durgasravan21@gmail.com are always mapped correctly
   try {
-    const localUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
+    let localUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
+    
+    // 1. Migrate Sridevi User
     const srideviUser = localUsers.find((u: any) => u.email.toLowerCase() === "challagollasridevi@gmail.com");
     if (srideviUser && srideviUser.role !== "mentor") {
       srideviUser.role = "mentor";
@@ -278,19 +313,29 @@ const seedLocalStorage = () => {
         localStorage.setItem("mock_current_user", JSON.stringify(curUser));
       }
     }
+    
+    // 2. Migrate durgasravan21 User
     const durgasravanUser = localUsers.find((u: any) => u.email.toLowerCase() === "durgasravan21@gmail.com");
-    if (durgasravanUser && durgasravanUser.role !== "admin") {
+    if (!durgasravanUser) {
+      const newUser = { id: "9", email: "durgasravan21@gmail.com", name: "durgasravan21", role: "admin" };
+      localUsers.push(newUser);
+      localStorage.setItem("mock_users", JSON.stringify(localUsers));
+    } else if (durgasravanUser.role !== "admin" || String(durgasravanUser.id) !== "9") {
       durgasravanUser.role = "admin";
+      durgasravanUser.id = "9";
       localStorage.setItem("mock_users", JSON.stringify(localUsers));
       
       const curUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
       if (curUser && curUser.email.toLowerCase() === "durgasravan21@gmail.com") {
         curUser.role = "admin";
+        curUser.id = "9";
         localStorage.setItem("mock_current_user", JSON.stringify(curUser));
       }
     }
 
+    // 3. Migrate Mentors List
     const localMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+    
     const hasSrideviMentor = localMentors.some((m: any) => m.email.toLowerCase() === "challagollasridevi@gmail.com");
     if (!hasSrideviMentor) {
       const srideviMentor = MOCK_MENTORS.find(m => m.email.toLowerCase() === "challagollasridevi@gmail.com");
@@ -299,8 +344,37 @@ const seedLocalStorage = () => {
         localStorage.setItem("mock_mentors", JSON.stringify(localMentors));
       }
     }
+    
+    const hasDurgasravanMentor = localMentors.some((m: any) => m.email.toLowerCase() === "durgasravan21@gmail.com");
+    if (!hasDurgasravanMentor) {
+      const durgasravanMentor = MOCK_MENTORS.find(m => m.email.toLowerCase() === "durgasravan21@gmail.com");
+      if (durgasravanMentor) {
+        localMentors.push(durgasravanMentor);
+        localStorage.setItem("mock_mentors", JSON.stringify(localMentors));
+      }
+    } else {
+      const mProfile = localMentors.find((m: any) => m.email.toLowerCase() === "durgasravan21@gmail.com");
+      if (mProfile && (String(mProfile.id) !== "9" || String(mProfile.user_id) !== "9")) {
+        mProfile.id = "9";
+        mProfile.user_id = "9";
+        localStorage.setItem("mock_mentors", JSON.stringify(localMentors));
+      }
+    }
+
+    // 4. Migrate Existing Mock Sessions to use the correct mentor_id of 9
+    const localSessions = JSON.parse(localStorage.getItem("mock_sessions") || "[]");
+    let sessionsChanged = false;
+    localSessions.forEach((s: any) => {
+      if (s.mentor_name && (s.mentor_name.toLowerCase().includes("durgasravan") || s.mentor_name.toLowerCase().includes("durgasravn")) && String(s.mentor_id) !== "9") {
+        s.mentor_id = "9";
+        sessionsChanged = true;
+      }
+    });
+    if (sessionsChanged) {
+      localStorage.setItem("mock_sessions", JSON.stringify(localSessions));
+    }
   } catch (e) {
-    console.error("Failed to migrate sridevi profile:", e);
+    console.error("Failed to migrate mock profile structures:", e);
   }
 
   try {
