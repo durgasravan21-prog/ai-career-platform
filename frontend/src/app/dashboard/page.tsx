@@ -78,7 +78,7 @@ export default function DashboardPage() {
   const [mentorReports, setMentorReports] = useState<any[]>([]);
 
   // Admin Dashboard States
-  const [adminActiveTab, setAdminActiveTab] = useState<"reviews" | "users" | "performance" | "pricing" | "agreements">("reviews");
+  const [adminActiveTab, setAdminActiveTab] = useState<"reviews" | "users" | "sessions" | "performance" | "pricing" | "agreements">("reviews");
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
   const [allMentors, setAllMentors] = useState<Mentor[]>([]);
   const [editingMentorPricing, setEditingMentorPricing] = useState<string | null>(null);
@@ -1123,6 +1123,17 @@ Signed Digitally by:
               Active Users & Projects ({activeUsers.length})
             </button>
             <button
+              onClick={() => setAdminActiveTab("sessions")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "sessions"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Video Call Sessions ({mentorSessions.length})
+            </button>
+            <button
               onClick={() => setAdminActiveTab("performance")}
               className={cn(
                 "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
@@ -1627,66 +1638,85 @@ Signed Digitally by:
                   </table>
                 </div>
               </Card>
-
-              {/* One-on-One Session Details */}
-              <Card className="p-6">
-                <CardTitle className="mb-6 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-accent" />
-                  All Booked One-on-One Sessions ({mentorSessions.length})
-                </CardTitle>
-
-                <div className="overflow-x-auto rounded-xl border border-white/10">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
-                        <th className="p-4">Session ID</th>
-                        <th className="p-4">Student ID</th>
-                        <th className="p-4">Coach / Mentor</th>
-                        <th className="p-4">Scheduled Date & Time</th>
-                        <th className="p-4 text-center">Duration</th>
-                        <th className="p-4 text-center">Price / Cost</th>
-                        <th className="p-4 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {mentorSessions.map((session) => (
-                        <tr key={session.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
-                          <td className="p-4 font-mono text-[10px] text-muted">#SESS-{session.id}</td>
-                          <td className="p-4 font-semibold text-muted">Student #{(session as any).student_id || session.mentee_id}</td>
-                          <td className="p-4 font-semibold text-foreground">{session.mentor_name || `Coach #${session.mentor_id}`}</td>
-                          <td className="p-4 text-muted">
-                            {new Date(session.scheduled_at).toLocaleDateString()} at{" "}
-                            {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td className="p-4 text-center font-semibold">{session.duration_minutes} min</td>
-                          <td className="p-4 text-center text-success font-semibold">
-                            {formatDualCurrency(session.price || (session.amount_cents ? session.amount_cents / 100 : 0))}
-                          </td>
-                          <td className="p-4 text-center">
-                            <Badge
-                              className={cn(
-                                "capitalize text-[10px]",
-                                session.status === "confirmed" && "bg-success/20 text-success border-success/30",
-                                session.status === "pending" && "bg-warning/20 text-warning border-warning/30",
-                                session.status === "completed" && "bg-primary/20 text-primary border-primary/30",
-                                session.status === "cancelled" && "bg-error/20 text-error border-error/30"
-                              )}
-                            >
-                              {session.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                      {mentorSessions.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-muted italic">No booked mentoring sessions on the platform.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
             </div>
+          )}
+
+          {/* TAB 3: VIDEO CALL SESSIONS */}
+          {adminActiveTab === "sessions" && (
+            <Card className="p-6 animate-fadeIn">
+              <CardTitle className="mb-6 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-accent" />
+                All Booked One-on-One Sessions & Video Calls ({mentorSessions.length})
+              </CardTitle>
+
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                      <th className="p-4">Session ID</th>
+                      <th className="p-4">Student</th>
+                      <th className="p-4">Coach / Mentor</th>
+                      <th className="p-4">Scheduled Date & Time</th>
+                      <th className="p-4 text-center">Duration</th>
+                      <th className="p-4 text-center">Price / Cost</th>
+                      <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {mentorSessions.map((session) => (
+                      <tr key={session.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                        <td className="p-4 font-mono text-[10px] text-muted">#SESS-{session.id}</td>
+                        <td className="p-4 font-semibold text-muted">Student #{(session as any).student_id || session.mentee_id}</td>
+                        <td className="p-4 font-semibold text-foreground">{session.mentor_name || `Coach #${session.mentor_id}`}</td>
+                        <td className="p-4 text-muted">
+                          {new Date(session.scheduled_at).toLocaleDateString()} at{" "}
+                          {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="p-4 text-center font-semibold">{session.duration_minutes} min</td>
+                        <td className="p-4 text-center text-success font-semibold">
+                          {formatDualCurrency(session.price || (session.amount_cents ? session.amount_cents / 100 : 0))}
+                        </td>
+                        <td className="p-4 text-center">
+                          <Badge
+                            className={cn(
+                              "capitalize text-[10px]",
+                              session.status === "confirmed" && "bg-success/20 text-success border-success/30",
+                              session.status === "pending" && "bg-warning/20 text-warning border-warning/30",
+                              session.status === "completed" && "bg-primary/20 text-primary border-primary/30",
+                              session.status === "cancelled" && "bg-error/20 text-error border-error/30"
+                            )}
+                          >
+                            {session.status}
+                          </Badge>
+                        </td>
+                        <td className="p-4 text-center">
+                          {session.status === "confirmed" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveVideoSession(session);
+                                setIsVideoCallOpen(true);
+                              }}
+                              className="bg-success/20 hover:bg-success/30 text-success border border-success/30 py-1 px-3 rounded-lg font-bold transition-all inline-flex items-center gap-1.5 text-[10px] active:scale-95"
+                            >
+                              <Video className="h-3.5 w-3.5" /> Join Call
+                            </button>
+                          ) : (
+                            <span className="text-muted text-[10px] italic">Not Active</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {mentorSessions.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-muted italic">No booked mentoring sessions on the platform.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           )}
 
           {/* TAB 4: PRICING CONTROL */}
