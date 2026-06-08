@@ -44,6 +44,9 @@ import {
   DollarSign,
   Award,
   ShieldAlert,
+  Shield,
+  Lock,
+  ShieldCheck,
   Calendar,
   Star,
   Loader2,
@@ -64,6 +67,7 @@ export default function DashboardPage() {
   const [roadmap, setRoadmap] = useState<RoadmapResult | null>(null);
   const [recommendedProjects, setRecommendedProjects] = useState<Project[]>([]);
   const [mentorProfile, setMentorProfile] = useState<Mentor | null>(null);
+  const [isTogglingVideoCalls, setIsTogglingVideoCalls] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -85,10 +89,45 @@ export default function DashboardPage() {
 
   // Report Modal States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportType, setReportType] = useState<"mentor" | "student">("mentor");
   const [reportTargetMentorId, setReportTargetMentorId] = useState("");
   const [reportTargetMentorName, setReportTargetMentorName] = useState("");
+  const [reportTargetStudentId, setReportTargetStudentId] = useState("");
+  const [reportTargetStudentName, setReportTargetStudentName] = useState("");
   const [reportReason, setReportReason] = useState("");
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [reportFileBase64, setReportFileBase64] = useState<string>("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const handleReportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReportFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReportFileBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setReportFile(null);
+      setReportFileBase64("");
+    }
+  };
+
+  const handleToggleVideoCalls = async () => {
+    setIsTogglingVideoCalls(true);
+    setError("");
+    setSuccess("");
+    try {
+      const updatedProfile = await api.mentors.toggleVideoCalls();
+      setMentorProfile(updatedProfile);
+      setSuccess(`Video call status toggled successfully to ${updatedProfile.video_calls_active !== false ? "active" : "inactive"}.`);
+    } catch (err: any) {
+      setError(err?.message || "Failed to toggle video calls status.");
+    } finally {
+      setIsTogglingVideoCalls(false);
+    }
+  };
 
   // Session Review States
   const [reviewingSession, setReviewingSession] = useState<any | null>(null);
@@ -898,22 +937,42 @@ Signed Digitally by:
   };
 
   const handleOpenReportModal = (mentorId: string | number, mentorName: string) => {
+    setReportType("mentor");
     setReportTargetMentorId(String(mentorId));
     setReportTargetMentorName(mentorName);
     setReportReason("");
+    setReportFile(null);
+    setReportFileBase64("");
+    setIsReportModalOpen(true);
+  };
+
+  const handleOpenReportStudentModal = (studentId: string | number, studentName: string) => {
+    setReportType("student");
+    setReportTargetStudentId(String(studentId));
+    setReportTargetStudentName(studentName);
+    setReportReason("");
+    setReportFile(null);
+    setReportFileBase64("");
     setIsReportModalOpen(true);
   };
 
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportReason.trim() || !reportTargetMentorId) return;
+    if (!reportReason.trim() || !reportFileBase64) return;
     setIsSubmittingReport(true);
     setError("");
     setSuccess("");
     try {
-      await api.mentors.reportMentor(reportTargetMentorId, reportReason.trim());
+      if (reportType === "mentor") {
+        if (!reportTargetMentorId) return;
+        await api.mentors.reportMentor(reportTargetMentorId, reportReason.trim(), reportFileBase64);
+        setSuccess(`Report on coach ${reportTargetMentorName} submitted successfully with proof screenshot.`);
+      } else {
+        if (!reportTargetStudentId) return;
+        await api.mentors.reportStudent(reportTargetStudentId, reportReason.trim(), reportFileBase64);
+        setSuccess(`Report on student ${reportTargetStudentName} submitted successfully with proof screenshot.`);
+      }
       setIsReportModalOpen(false);
-      setSuccess(`Report on coach ${reportTargetMentorName} submitted successfully for review.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       const apiErr = err as ApiError;
@@ -1242,58 +1301,97 @@ Signed Digitally by:
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {mentorReports.map((report) => (
-                      <div
-                        key={report.id}
-                        className="p-5 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center"
-                      >
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold text-foreground">
-                              Reported Mentor: {report.mentor_name || `Mentor #${report.mentor_id}`}
-                            </span>
-                            <Badge
-                              className={
-                                report.status === "pending"
-                                  ? "bg-error/20 text-error border-error/30"
-                                  : "bg-success/20 text-success border-success/30"
-                              }
-                            >
-                              {report.status}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted">
-                            Submitted by Student: <span className="text-foreground">{report.student_name || `Student #${report.student_id}`}</span> on{" "}
-                            {new Date(report.created_at).toLocaleDateString()}
-                          </p>
-                          <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-xs text-muted-foreground italic mt-2">
-                            &ldquo;{report.reason}&rdquo;
-                          </div>
-                        </div>
+                    {mentorReports.map((report) => {
+                      const isReportedByMentor = report.reported_by === "mentor";
+                      const screenshotFullUrl = report.screenshot_url 
+                        ? (report.screenshot_url.startsWith("http") 
+                            ? report.screenshot_url 
+                            : `${apiBaseUrl}${report.screenshot_url}`)
+                        : null;
 
-                        <div className="flex gap-2 self-stretch md:self-auto justify-end">
-                          {report.status === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => handleAdminApprove(report.mentor_id, "suspended")}
-                                className="bg-error hover:bg-error/80 text-white font-bold"
+                      return (
+                        <div
+                          key={report.id}
+                          className="p-5 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center"
+                        >
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-foreground">
+                                {isReportedByMentor ? (
+                                  <>Reported Student: {report.student_name || `Student #${report.student_id}`}</>
+                                ) : (
+                                  <>Reported Coach: {report.mentor_name || `Coach #${report.mentor_id}`}</>
+                                )}
+                              </span>
+                              <Badge
+                                className={
+                                  report.status === "pending"
+                                    ? "bg-error/20 text-error border-error/30"
+                                    : "bg-success/20 text-success border-success/30"
+                                }
                               >
-                                <XCircle className="h-3.5 w-3.5 mr-1" /> Suspend Mentor
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleResolveReport(report.id)}
-                                className="border-success/30 text-success hover:bg-success/10 font-bold"
-                              >
-                                <Check className="h-3.5 w-3.5 mr-1" /> Resolve
-                              </Button>
-                            </>
-                          )}
+                                {report.status}
+                              </Badge>
+                              <Badge variant="outline" className="border-white/10 text-muted-foreground text-[10px]">
+                                {isReportedByMentor ? "Filed by Coach" : "Filed by Student"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted">
+                              {isReportedByMentor ? (
+                                <>
+                                  Submitted by Coach: <span className="text-foreground">{report.mentor_name || `Coach #${report.mentor_id}`}</span> on{" "}
+                                </>
+                              ) : (
+                                <>
+                                  Submitted by Student: <span className="text-foreground">{report.student_name || `Student #${report.student_id}`}</span> on{" "}
+                                </>
+                              )}
+                              {new Date(report.created_at).toLocaleDateString()}
+                            </p>
+                            <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-xs text-muted-foreground italic mt-2">
+                              &ldquo;{report.reason}&rdquo;
+                            </div>
+
+                            {screenshotFullUrl && (
+                              <div className="mt-3 space-y-1">
+                                <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Screenshot Proof:</span>
+                                <div className="relative inline-block rounded-xl overflow-hidden border border-white/15 bg-black/40 hover:border-primary/50 transition-colors duration-200">
+                                  <a href={screenshotFullUrl} target="_blank" rel="noopener noreferrer" title="Click to view full screenshot">
+                                    <img
+                                      src={screenshotFullUrl}
+                                      alt="Screenshot proof"
+                                      className="object-cover max-h-36 rounded-xl hover:scale-105 transition-transform duration-300"
+                                    />
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2 self-stretch md:self-auto justify-end">
+                            {report.status === "pending" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAdminApprove(report.mentor_id, "suspended")}
+                                  className="bg-error hover:bg-error/80 text-white font-bold"
+                                >
+                                  <XCircle className="h-3.5 w-3.5 mr-1" /> Suspend Mentor
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleResolveReport(report.id)}
+                                  className="border-success/30 text-success hover:bg-success/10 font-bold"
+                                >
+                                  <Check className="h-3.5 w-3.5 mr-1" /> Resolve
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
@@ -3149,8 +3247,19 @@ Signed Digitally by:
                         className="p-3 bg-white/[0.01] border border-white/5 rounded-xl text-xs space-y-2"
                       >
                         <div className="flex justify-between items-start">
-                          <span className="font-semibold text-foreground">Student #{session.mentee_id}</span>
-                          <Badge variant="success">Scheduled</Badge>
+                          <span className="font-semibold text-foreground">
+                            {session.student_name ? `${session.student_name} (#${session.mentee_id})` : `Student #${session.mentee_id}`}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="success">Scheduled</Badge>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReportStudentModal((session as any).student_id || session.mentee_id, session.student_name || `Student #${session.mentee_id}`)}
+                              className="text-[10px] text-error hover:underline font-semibold"
+                            >
+                              Report
+                            </button>
+                          </div>
                         </div>
                         <div className="text-[10px] text-muted space-y-1">
                           <div className="flex items-center gap-1">
@@ -3215,6 +3324,29 @@ Signed Digitally by:
                   <div className="pt-2">
                     <span className="text-[10px] text-muted uppercase tracking-wider block">Bio Description</span>
                     <p className="text-xs text-muted mt-1 leading-relaxed line-clamp-4">{mentorProfile?.bio}</p>
+                  </div>
+
+                  {/* Video Call Availability Toggle */}
+                  <div className="pt-4 border-t border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Video Calls Active</span>
+                        <span className="text-[11px] text-muted block mt-0.5">Allow students to book video calls</span>
+                      </div>
+                      <button
+                        onClick={handleToggleVideoCalls}
+                        disabled={isTogglingVideoCalls}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                          mentorProfile?.video_calls_active !== false ? "bg-gradient-to-r from-primary to-secondary" : "bg-white/10"
+                        } ${isTogglingVideoCalls ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-foreground transition-transform ${
+                            mentorProfile?.video_calls_active !== false ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -4053,14 +4185,22 @@ Signed Digitally by:
           </div>
         </div>
 
-        {/* Report Coach Modal */}
+        {/* Report Coach / Student Modal */}
         {isReportModalOpen && (
           <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="w-full max-w-lg bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
               <div>
-                <h3 className="text-xl font-bold text-foreground">Report Coach</h3>
+                <h3 className="text-xl font-bold text-foreground">
+                  {reportType === "mentor" ? "Report Coach" : "Report Student"}
+                </h3>
                 <p className="text-xs text-muted mt-1">
-                  Submit a report regarding your experience or issues with coach <strong>{reportTargetMentorName}</strong>.
+                  Submit a report regarding your experience or issues with{" "}
+                  {reportType === "mentor" ? (
+                    <>coach <strong>{reportTargetMentorName}</strong></>
+                  ) : (
+                    <>student <strong>{reportTargetStudentName}</strong></>
+                  )}
+                  .
                 </p>
               </div>
 
@@ -4079,8 +4219,39 @@ Signed Digitally by:
                     onChange={(e) => setReportReason(e.target.value)}
                     className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-medium block">
+                    Upload Screenshot Proof: <span className="text-error font-bold">*Required</span>
+                  </label>
+                  <div className="relative border border-dashed border-white/10 hover:border-primary/50 bg-white/5 rounded-2xl p-4 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer group">
+                    <input
+                      type="file"
+                      required
+                      accept="image/*"
+                      onChange={handleReportFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <UploadCloud className="h-8 w-8 text-muted group-hover:text-primary mb-2 transition-colors duration-200" />
+                    {reportFile ? (
+                      <div className="text-xs font-semibold text-foreground truncate max-w-full">
+                        {reportFile.name} ({(reportFile.size / 1024).toFixed(1)} KB)
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold text-foreground">Click to upload screenshot</span>
+                        <span className="text-[10px] text-muted mt-1">PNG, JPG, JPEG up to 5MB</span>
+                      </>
+                    )}
+                  </div>
+                  {reportFileBase64 && (
+                    <div className="mt-2 relative rounded-xl overflow-hidden border border-white/10 max-h-32 bg-black/40 flex items-center justify-center">
+                      <img src={reportFileBase64} alt="Screenshot proof preview" className="object-contain max-h-28" />
+                    </div>
+                  )}
                   <span className="text-[10px] text-muted block">
-                    Your report will be reviewed confidentially by the platform administrator.
+                    Your report and screenshot proof will be reviewed confidentially by the platform administrator.
                   </span>
                 </div>
 
@@ -4095,7 +4266,7 @@ Signed Digitally by:
                   </Button>
                   <Button
                     type="submit"
-                    disabled={isSubmittingReport || !reportReason.trim()}
+                    disabled={isSubmittingReport || !reportReason.trim() || !reportFileBase64}
                     className="flex-1 bg-error hover:bg-error/80 text-white font-bold"
                   >
                     {isSubmittingReport ? "Submitting..." : "Submit Report"}
@@ -4182,6 +4353,10 @@ Signed Digitally by:
               <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-bold tracking-wider animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-error" />
                 REC 00:04
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[10px] font-bold uppercase tracking-wider">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                E2EE Secured
               </div>
               <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
                 <span className="text-primary">1-on-1 Mentoring Room</span>

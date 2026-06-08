@@ -551,7 +551,10 @@ class ApiClient {
       setTimeout(() => {
         try {
           const mockUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
-          const mockMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+          const mockMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]").map((m: any) => ({
+            video_calls_active: true,
+            ...m
+          }));
           const mockSessions = JSON.parse(localStorage.getItem("mock_sessions") || "[]");
           const mockReports = JSON.parse(localStorage.getItem("mock_reports") || "[]");
           const mockProjects = JSON.parse(localStorage.getItem("mock_projects") || "[]");
@@ -1378,6 +1381,26 @@ class ApiClient {
             return;
           }
 
+          // Toggle Video Calls Active for Coach
+          if (path === "/mentors/toggle-video-calls" && method === "POST") {
+            const updateMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]").map((m: any) => ({
+              video_calls_active: true,
+              ...m
+            }));
+            let m = updateMentors.find((x: any) => 
+              (currentUser && String(x.user_id) === String(currentUser.id)) ||
+              (currentUser && x.email && x.email.toLowerCase() === currentUser.email.toLowerCase())
+            );
+            if (m) {
+              m.video_calls_active = m.video_calls_active !== false ? false : true;
+              localStorage.setItem("mock_mentors", JSON.stringify(updateMentors));
+              resolve(m as any);
+            } else {
+              reject({ message: "Mentor profile not found", status: 404 });
+            }
+            return;
+          }
+
           // Admin Price Lock Update
           if (path.startsWith("/mentors/") && path.endsWith("/update-price") && method === "POST") {
             const parts = path.split("/");
@@ -1519,6 +1542,13 @@ class ApiClient {
             }
 
             const mentor = mockMentors.find((m: any) => m.id === String(body.mentor_id));
+            if (mentor && mentor.video_calls_active === false) {
+              reject({
+                message: "This mentor has disabled video calls and is not accepting bookings.",
+                status: 400
+              });
+              return;
+            }
             const newSession = {
               id: mockSessions.length + 1,
               student_id: currentUser.id,
@@ -1601,10 +1631,39 @@ class ApiClient {
               student_id: currentUser ? currentUser.id : "1",
               reason: body.reason,
               status: "pending",
+              reported_by: "student",
+              screenshot_url: body.screenshot_base64 ? "https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=500&q=80" : undefined,
               created_at: new Date().toISOString(),
               mentor_name: mentorObj ? mentorObj.name : `Coach #${mentorId}`,
               student_name: currentUser ? currentUser.name : "Student",
               mentor_email: mentorObj ? mentorObj.email : `coach@example.com`
+            };
+
+            mockReports.push(newReport);
+            localStorage.setItem("mock_reports", JSON.stringify(mockReports));
+            resolve(newReport as any);
+            return;
+          }
+
+          if (path.startsWith("/mentors/student/") && path.endsWith("/report") && method === "POST") {
+            const parts = path.split("/");
+            const studentId = parts[3];
+            const studentObj = mockUsers.find((u: any) => u.id === studentId) || { name: `Student #${studentId}` };
+            
+            const mentorProfileObj = mockMentors.find((m: any) => m.user_id === (currentUser ? currentUser.id : "1")) || { id: "1", name: currentUser?.name || "Coach" };
+
+            const newReport = {
+              id: String(mockReports.length + 1),
+              mentor_id: mentorProfileObj.id,
+              student_id: studentId,
+              reason: body.reason,
+              status: "pending",
+              reported_by: "mentor",
+              screenshot_url: body.screenshot_base64 ? "https://images.unsplash.com/photo-1557200134-90327ee9fafa?w=500&q=80" : undefined,
+              created_at: new Date().toISOString(),
+              mentor_name: mentorProfileObj.name || `Coach #${mentorProfileObj.id}`,
+              student_name: studentObj.name,
+              mentor_email: currentUser?.email || "coach@example.com"
             };
 
             mockReports.push(newReport);
@@ -2114,6 +2173,12 @@ class ApiClient {
       });
     },
 
+    toggleVideoCalls: async (): Promise<Mentor> => {
+      return this.fetchApi<Mentor>("/mentors/toggle-video-calls", {
+        method: "POST",
+      });
+    },
+
     getMySessions: async (): Promise<MentorSession[]> => {
       return this.fetchApi<MentorSession[]>("/mentors/sessions/me");
     },
@@ -2188,10 +2253,17 @@ class ApiClient {
       });
     },
 
-    reportMentor: async (mentorId: string, reason: string): Promise<MentorReport> => {
+    reportMentor: async (mentorId: string, reason: string, screenshotBase64: string): Promise<MentorReport> => {
       return this.fetchApi<MentorReport>(`/mentors/${mentorId}/report`, {
         method: "POST",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, screenshot_base64: screenshotBase64 }),
+      });
+    },
+
+    reportStudent: async (studentId: string, reason: string, screenshotBase64: string): Promise<MentorReport> => {
+      return this.fetchApi<MentorReport>(`/mentors/student/${studentId}/report`, {
+        method: "POST",
+        body: JSON.stringify({ reason, screenshot_base64: screenshotBase64 }),
       });
     },
 

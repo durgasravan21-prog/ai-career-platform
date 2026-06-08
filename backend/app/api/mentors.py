@@ -38,6 +38,7 @@ from app.schemas.mentor import (
     SessionResponse,
     VerifyCorporateRequest,
     ReportMentorRequest,
+    ReportStudentRequest,
     MentorReportResponse,
     VerifyDocumentsRequest,
 )
@@ -131,6 +132,7 @@ def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0, review_e
         rating=mentor.rating,
         total_sessions=mentor.total_sessions,
         is_active=mentor.is_active,
+        video_calls_active=mentor.video_calls_active,
         availability=[
             MentorAvailabilityResponse(
                 id=a.id,
@@ -301,6 +303,11 @@ async def book_session(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This mentor is currently not accepting sessions",
+        )
+    if not mentor.video_calls_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This mentor has disabled video calls and is not accepting bookings.",
         )
 
     # Cannot book session with yourself
@@ -504,10 +511,37 @@ async def get_my_sessions(
             stripe_payment_intent_id=s.stripe_payment_intent_id,
             created_at=s.created_at,
             mentor_name=s.mentor.user.name if s.mentor and s.mentor.user else None,
+            student_name=s.student.name if s.student else None,
             is_reviewed=len(s.reviews) > 0 if s.reviews else False,
         )
         for s in sessions
     ]
+
+
+@router.post(
+    "/mentors/toggle-video-calls",
+    response_model=MentorResponse,
+    summary="Toggle video calls active status for a coach",
+)
+async def toggle_video_calls(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MentorResponse:
+    result = await db.execute(
+        select(MentorProfile).where(MentorProfile.user_id == current_user.id)
+    )
+    mentor = result.scalar_one_or_none()
+    if mentor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Mentor profile not found.",
+        )
+
+    mentor.video_calls_active = not mentor.video_calls_active
+    await db.commit()
+    await db.refresh(mentor)
+    reviewed_count, review_earnings = await _get_mentor_review_stats(db, mentor.id)
+    return _mentor_to_response(mentor, reviewed_count=reviewed_count, review_earnings=review_earnings)
 
 
 # ─── Verification & Onboarding API Endpoints ───────────────────────
@@ -978,11 +1012,26 @@ async def report_mentor(
             detail="You cannot report yourself",
         )
 
+    if not body.screenshot_base64 or not body.screenshot_base64.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Screenshot proof is mandatory for submitting a report.",
+        )
+
+    screenshot_url = save_base64_file(body.screenshot_base64, "report_proof", current_user.id)
+    if not screenshot_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to save screenshot proof. Please upload a valid image file.",
+        )
+
     report = MentorReport(
         mentor_id=mentor_id,
         student_id=current_user.id,
         reason=body.reason,
         status="pending",
+        reported_by="student",
+        screenshot_url=screenshot_url,
         created_at=datetime.now(timezone.utc),
     )
     db.add(report)
@@ -995,9 +1044,93 @@ async def report_mentor(
         student_id=report.student_id,
         reason=report.reason,
         status=report.status,
+        reported_by=report.reported_by,
+        screenshot_url=report.screenshot_url,
         created_at=report.created_at,
         mentor_name=mentor.user.name if mentor.user else "Mentor",
         student_name=current_user.name,
+    )
+
+
+@router.post(
+    "/mentors/student/{student_id}/report",
+    response_model=MentorReportResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a student (by mentor)",
+)
+async def report_student(
+    student_id: int,
+    body: ReportStudentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MentorReportResponse:
+    # Check if current user has a mentor profile
+    result = await db.execute(
+        select(MentorProfile).where(MentorProfile.user_id == current_user.id)
+    )
+    mentor = result.scalar_one_or_none()
+    if mentor is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only registered coaches/mentors can report a student.",
+        )
+
+    # Check if student exists
+    from app.models.user import User as UserModel
+    student_result = await db.execute(
+        select(UserModel).where(UserModel.id == student_id)
+    )
+    student_user = student_result.scalar_one_or_none()
+    if student_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student with id {student_id} not found",
+        )
+
+    # Cannot report yourself
+    if student_user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot report yourself",
+        )
+
+    if not body.screenshot_base64 or not body.screenshot_base64.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Screenshot proof is mandatory for submitting a report.",
+        )
+
+    screenshot_url = save_base64_file(body.screenshot_base64, "report_proof", current_user.id)
+    if not screenshot_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to save screenshot proof. Please upload a valid image file.",
+        )
+
+    report = MentorReport(
+        mentor_id=mentor.id,
+        student_id=student_id,
+        reason=body.reason,
+        status="pending",
+        reported_by="mentor",
+        screenshot_url=screenshot_url,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(report)
+    await db.flush()
+    await db.refresh(report)
+
+    return MentorReportResponse(
+        id=report.id,
+        mentor_id=report.mentor_id,
+        student_id=report.student_id,
+        reason=report.reason,
+        status=report.status,
+        reported_by=report.reported_by,
+        screenshot_url=report.screenshot_url,
+        created_at=report.created_at,
+        mentor_name=current_user.name,
+        student_name=student_user.name,
     )
 
 
@@ -1037,6 +1170,8 @@ async def get_admin_reports(
                 student_id=r.student_id,
                 reason=r.reason,
                 status=r.status,
+                reported_by=r.reported_by,
+                screenshot_url=r.screenshot_url,
                 created_at=r.created_at,
                 mentor_name=mentor_name,
                 student_name=student_name,
@@ -1087,6 +1222,8 @@ async def resolve_mentor_report(
         student_id=report.student_id,
         reason=report.reason,
         status=report.status,
+        reported_by=report.reported_by,
+        screenshot_url=report.screenshot_url,
         created_at=report.created_at,
         mentor_name=mentor_name,
         student_name=student_name,

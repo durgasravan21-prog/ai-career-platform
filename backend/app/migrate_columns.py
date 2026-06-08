@@ -21,6 +21,12 @@ def run_migration():
     except Exception as e:
         print("Notice: rejected_at column already exists or could not be added:", e)
 
+    try:
+        cursor.execute("ALTER TABLE mentor_profiles ADD COLUMN video_calls_active BOOLEAN DEFAULT TRUE")
+        print("Success: Added video_calls_active column to mentor_profiles")
+    except Exception as e:
+        print("Notice: video_calls_active column already exists or could not be added:", e)
+
     # 3. Create mentor_reports table if not exists
     try:
         cursor.execute("""
@@ -30,6 +36,8 @@ def run_migration():
             student_id INTEGER NOT NULL,
             reason TEXT NOT NULL,
             status VARCHAR(50) NOT NULL DEFAULT 'pending',
+            reported_by VARCHAR(50) NOT NULL DEFAULT 'student',
+            screenshot_url VARCHAR(500) NULL,
             created_at DATETIME NOT NULL,
             FOREIGN KEY (mentor_id) REFERENCES mentor_profiles (id) ON DELETE CASCADE,
             FOREIGN KEY (student_id) REFERENCES users (id) ON DELETE CASCADE
@@ -38,6 +46,19 @@ def run_migration():
         print("Success: Created or verified mentor_reports table")
     except Exception as e:
         print("Error: Failed to create mentor_reports table:", e)
+
+    # 4. Add reported_by and screenshot_url to mentor_reports if not exists
+    try:
+        cursor.execute("ALTER TABLE mentor_reports ADD COLUMN reported_by VARCHAR(50) DEFAULT 'student'")
+        print("Success: Added reported_by column to mentor_reports")
+    except Exception as e:
+        print("Notice: reported_by column already exists or could not be added:", e)
+
+    try:
+        cursor.execute("ALTER TABLE mentor_reports ADD COLUMN screenshot_url VARCHAR(500)")
+        print("Success: Added screenshot_url column to mentor_reports")
+    except Exception as e:
+        print("Notice: screenshot_url column already exists or could not be added:", e)
 
     conn.commit()
     conn.close()

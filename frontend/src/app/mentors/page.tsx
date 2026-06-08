@@ -30,6 +30,13 @@ import {
   Github,
   Mail,
   Phone,
+  Shield,
+  Lock,
+  UploadCloud,
+  Video,
+  VideoOff,
+  X,
+  XCircle,
 } from "lucide-react";
 
 export default function MentorsPage() {
@@ -56,6 +63,7 @@ export default function MentorsPage() {
   const [minRating, setMinRating] = useState<number>(0);
   const [minExperience, setMinExperience] = useState<string>("all");
   const [selectedDay, setSelectedDay] = useState<string>("all");
+  const [onlineSessionsOnly, setOnlineSessionsOnly] = useState(false);
 
   // Modal controls
   const [bookingMentor, setBookingMentor] = useState<Mentor | null>(null);
@@ -80,25 +88,44 @@ export default function MentorsPage() {
   const [reportTargetMentorId, setReportTargetMentorId] = useState("");
   const [reportTargetMentorName, setReportTargetMentorName] = useState("");
   const [reportReason, setReportReason] = useState("");
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [reportFileBase64, setReportFileBase64] = useState<string>("");
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  const handleReportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReportFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReportFileBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setReportFile(null);
+      setReportFileBase64("");
+    }
+  };
 
   const handleOpenReportModal = (mentorId: string | number, mentorName: string) => {
     setReportTargetMentorId(String(mentorId));
     setReportTargetMentorName(mentorName);
     setReportReason("");
+    setReportFile(null);
+    setReportFileBase64("");
     setIsReportModalOpen(true);
   };
 
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportReason.trim() || !reportTargetMentorId) return;
+    if (!reportReason.trim() || !reportTargetMentorId || !reportFileBase64) return;
     setIsSubmittingReport(true);
     setError("");
     setSuccess("");
     try {
-      await api.mentors.reportMentor(reportTargetMentorId, reportReason.trim());
+      await api.mentors.reportMentor(reportTargetMentorId, reportReason.trim(), reportFileBase64);
       setIsReportModalOpen(false);
-      setSuccess(`Report on coach ${reportTargetMentorName} submitted successfully for review.`);
+      setSuccess(`Report on coach ${reportTargetMentorName} submitted successfully with proof screenshot.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       const apiErr = err as ApiError;
@@ -310,7 +337,9 @@ export default function MentorsPage() {
       }
     }
 
-    return matchesSearch && matchesExpertise && matchesPrice && matchesRating && matchesExperience && matchesTime;
+    const matchesOnlineStatus = !onlineSessionsOnly || mentor.video_calls_active !== false;
+
+    return matchesSearch && matchesExpertise && matchesPrice && matchesRating && matchesExperience && matchesTime && matchesOnlineStatus;
   });
 
   // Unique expertise list for filtering
@@ -415,7 +444,14 @@ export default function MentorsPage() {
                           {match.mentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground">{match.mentor.mentor_name}</h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-foreground">{match.mentor.mentor_name}</h4>
+                            {match.mentor.video_calls_active === false && (
+                              <Badge variant="default" className="bg-error/20 text-error border-error/30 text-[10px] py-0.5 font-bold">
+                                🚫 Inactive
+                              </Badge>
+                            )}
+                          </div>
                           {match.mentor.hourly_rate === 0 ? (
                             <p className="text-xs text-success">Free (Passion Service)</p>
                           ) : (
@@ -460,7 +496,7 @@ export default function MentorsPage() {
               
               {/* Sidebar Filters */}
               <div className="lg:col-span-1 space-y-6">
-                <Card className="p-6 space-y-6 sticky top-24">
+                <Card className="p-6 space-y-6 sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
                   <CardTitle className="text-base">Filters</CardTitle>
                   
                   {/* Search */}
@@ -556,6 +592,22 @@ export default function MentorsPage() {
                       <option value="0">Sunday</option>
                     </select>
                   </div>
+
+                  {/* Online Sessions Only */}
+                  <div className="space-y-2 pt-4 border-t border-white/5">
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={onlineSessionsOnly}
+                        onChange={(e) => setOnlineSessionsOnly(e.target.checked)}
+                        className="w-4.5 h-4.5 rounded border-border bg-surface text-primary focus:ring-primary accent-primary"
+                      />
+                      <span className="text-xs text-muted font-medium">Online Sessions Only</span>
+                    </label>
+                    <p className="text-[10px] text-muted-foreground pl-7">
+                      Only show mentors currently active to take video calls.
+                    </p>
+                  </div>
                 </Card>
               </div>
 
@@ -589,6 +641,11 @@ export default function MentorsPage() {
                                   <span className="text-[10px] bg-white/5 text-muted/60 border border-white/10 px-1.5 py-0.5 rounded-md font-mono">
                                     {mentor.mentor_id}
                                   </span>
+                                )}
+                                {mentor.video_calls_active === false && (
+                                  <Badge variant="default" className="bg-error/20 text-error border-error/30 text-[10px] py-0.5 font-bold">
+                                    🚫 Inactive
+                                  </Badge>
                                 )}
                                 {mentor.has_premium_subscription && (
                                   <Badge variant="default" className="bg-accent/20 text-accent border-accent/30 text-[10px] py-0.5 font-bold">
@@ -1036,15 +1093,54 @@ export default function MentorsPage() {
 
                     <form onSubmit={handleBookSession} className="space-y-4">
                       
+                      {/* Meeting Format */}
+                      <div className="space-y-2 bg-white/5 border border-white/10 rounded-2xl p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted font-medium">Meeting Format</span>
+                          {bookingMentor.video_calls_active !== false ? (
+                            <div className="flex items-center gap-1 bg-success/15 border border-success/30 px-2 py-0.5 rounded-full text-[10px] font-bold text-success">
+                              <Shield className="h-3 w-3" /> E2EE
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 bg-error/15 border border-error/30 px-2 py-0.5 rounded-full text-[10px] font-bold text-error">
+                              <AlertCircle className="h-3 w-3" /> Inactive
+                            </div>
+                          )}
+                        </div>
+                        {bookingMentor.video_calls_active !== false ? (
+                          <>
+                            <div className="flex items-center gap-2 mt-1 text-foreground text-sm font-semibold">
+                              <Video className="h-4 w-4 text-primary animate-pulse" />
+                              <span>Premium Video Call</span>
+                              <span className="text-xs text-muted font-normal">(Only option available)</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              This session is secured with end-to-end encryption to protect your privacy.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 mt-1 text-error text-sm font-semibold">
+                              <VideoOff className="h-4 w-4 text-error animate-bounce" />
+                              <span>Video Calls Unavailable</span>
+                            </div>
+                            <p className="text-[10px] text-error mt-0.5">
+                              This coach has temporarily disabled video call bookings.
+                            </p>
+                          </>
+                        )}
+                      </div>
+
                       {/* Date */}
                       <div className="space-y-2">
                         <label className="text-xs text-muted font-medium">Date</label>
                         <input
                           type="date"
                           required
+                          disabled={bookingMentor.video_calls_active === false}
                           value={selectedDate}
                           onChange={(e) => setSelectedDate(e.target.value)}
-                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
 
@@ -1054,9 +1150,10 @@ export default function MentorsPage() {
                         <input
                           type="time"
                           required
+                          disabled={bookingMentor.video_calls_active === false}
                           value={selectedTime}
                           onChange={(e) => setSelectedTime(e.target.value)}
-                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
 
@@ -1064,9 +1161,10 @@ export default function MentorsPage() {
                       <div className="space-y-2">
                         <label className="text-xs text-muted font-medium">Focus Project (Optional)</label>
                         <select
+                          disabled={bookingMentor.video_calls_active === false}
                           value={selectedProject}
                           onChange={(e) => setSelectedProject(e.target.value)}
-                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <option value="">General Career Mentoring</option>
                           {projects.map(p => (
@@ -1079,11 +1177,12 @@ export default function MentorsPage() {
                       <div className="space-y-2">
                         <label className="text-xs text-muted font-medium">Notes / Questions (Optional)</label>
                         <textarea
-                          placeholder="Briefly explain what you would like to discuss..."
+                          placeholder={bookingMentor.video_calls_active !== false ? "Briefly explain what you would like to discuss..." : "Bookings are currently disabled."}
+                          disabled={bookingMentor.video_calls_active === false}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           rows={3}
-                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
 
@@ -1109,8 +1208,13 @@ export default function MentorsPage() {
                         <Button type="button" variant="outline" onClick={() => setBookingMentor(null)} className="flex-1">
                           Cancel
                         </Button>
-                        <Button type="submit" disabled={isBooking} isLoading={isBooking} className="flex-1">
-                          Confirm Booking
+                        <Button
+                          type="submit"
+                          disabled={isBooking || bookingMentor.video_calls_active === false}
+                          isLoading={isBooking}
+                          className="flex-1"
+                        >
+                          {bookingMentor.video_calls_active !== false ? "Confirm Booking" : "Bookings Unavailable"}
                         </Button>
                       </div>
 
@@ -1204,8 +1308,39 @@ export default function MentorsPage() {
                     onChange={(e) => setReportReason(e.target.value)}
                     className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-medium block">
+                    Upload Screenshot Proof: <span className="text-error font-bold">*Required</span>
+                  </label>
+                  <div className="relative border border-dashed border-white/10 hover:border-primary/50 bg-white/5 rounded-2xl p-4 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer group">
+                    <input
+                      type="file"
+                      required
+                      accept="image/*"
+                      onChange={handleReportFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <UploadCloud className="h-8 w-8 text-muted group-hover:text-primary mb-2 transition-colors duration-200" />
+                    {reportFile ? (
+                      <div className="text-xs font-semibold text-foreground truncate max-w-full">
+                        {reportFile.name} ({(reportFile.size / 1024).toFixed(1)} KB)
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold text-foreground">Click to upload screenshot</span>
+                        <span className="text-[10px] text-muted mt-1">PNG, JPG, JPEG up to 5MB</span>
+                      </>
+                    )}
+                  </div>
+                  {reportFileBase64 && (
+                    <div className="mt-2 relative rounded-xl overflow-hidden border border-white/10 max-h-32 bg-black/40 flex items-center justify-center">
+                      <img src={reportFileBase64} alt="Screenshot proof preview" className="object-contain max-h-28" />
+                    </div>
+                  )}
                   <span className="text-[10px] text-muted block">
-                    Your report will be reviewed confidentially by the platform administrator.
+                    Your report and screenshot proof will be reviewed confidentially by the platform administrator.
                   </span>
                 </div>
 
@@ -1220,7 +1355,7 @@ export default function MentorsPage() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={isSubmittingReport || !reportReason.trim()}
+                    disabled={isSubmittingReport || !reportReason.trim() || !reportFileBase64}
                     className="flex-1 bg-error hover:bg-error/80 text-white font-bold"
                   >
                     {isSubmittingReport ? "Submitting..." : "Submit Report"}

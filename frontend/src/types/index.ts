@@ -243,6 +243,7 @@ export interface Mentor {
   currency: string;
   availability: MentorAvailability[];
   is_active: boolean;
+  video_calls_active?: boolean;
   match_score?: number;
   match_reasoning?: string;
   created_at: string;
@@ -305,6 +306,7 @@ export interface MentorSession {
   amount_cents: number;
   review?: Review;
   is_reviewed?: boolean;
+  student_name?: string;
   created_at: string;
 }
 
@@ -353,6 +355,8 @@ export interface MentorReport {
   student_id: string;
   reason: string;
   status: "pending" | "resolved";
+  reported_by?: "student" | "mentor";
+  screenshot_url?: string;
   created_at: string;
   mentor_name?: string;
   student_name?: string;

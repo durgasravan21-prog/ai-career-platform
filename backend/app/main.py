@@ -61,6 +61,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Added has_premium_subscription column to mentor_profiles.")
         except Exception:
             pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN video_calls_active BOOLEAN DEFAULT TRUE"))
+            logger.info("Added video_calls_active column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN reported_by VARCHAR(50) DEFAULT 'student'"))
+            logger.info("Added reported_by column to mentor_reports.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN screenshot_url VARCHAR(500)"))
+            logger.info("Added screenshot_url column to mentor_reports.")
+        except Exception:
+            pass
     logger.info("Database tables ensured.")
     yield
     logger.info("Shutting down...")

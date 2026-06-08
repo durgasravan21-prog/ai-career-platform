@@ -35,6 +35,7 @@ class MentorResponse(BaseModel):
     rating: float
     total_sessions: int
     is_active: bool
+    video_calls_active: bool = True
     availability: list[MentorAvailabilityResponse] = []
     
     # Verification and Agreement fields
@@ -131,6 +132,7 @@ class SessionResponse(BaseModel):
     stripe_payment_intent_id: Optional[str] = None
     created_at: datetime
     mentor_name: Optional[str] = None
+    student_name: Optional[str] = None
     is_reviewed: bool = False
 
 
@@ -158,6 +160,14 @@ class ReportMentorRequest(BaseModel):
     """Request schema for submitting a mentor report."""
 
     reason: str = Field(..., min_length=5, max_length=2000)
+    screenshot_base64: str
+
+
+class ReportStudentRequest(BaseModel):
+    """Request schema for submitting a student report by a mentor."""
+
+    reason: str = Field(..., min_length=5, max_length=2000)
+    screenshot_base64: str
 
 
 class MentorReportResponse(BaseModel):
@@ -170,6 +180,8 @@ class MentorReportResponse(BaseModel):
     student_id: int
     reason: str
     status: str
+    reported_by: str = "student"
+    screenshot_url: Optional[str] = None
     created_at: datetime
     mentor_name: Optional[str] = None
     student_name: Optional[str] = None

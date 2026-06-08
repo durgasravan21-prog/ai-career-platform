@@ -72,6 +72,7 @@ class MentorProfile(Base):
     original_price: Mapped[float | None] = mapped_column(Float, default=None, nullable=True)
     price_edited_by_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     has_premium_subscription: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    video_calls_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -225,6 +226,8 @@ class MentorReport(Base):
     )
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False) # pending, resolved
+    reported_by: Mapped[str] = mapped_column(String(50), default="student", nullable=False) # student, mentor
+    screenshot_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
