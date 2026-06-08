@@ -1033,47 +1033,122 @@ class ApiClient {
             }
 
             if (path.endsWith("/analyze") || path.endsWith("/analysis")) {
-              let savedUrl = "https://github.com/you/repo";
+              let savedUrl = "";
+              let isNewAnalysis = false;
+              
               if (path.endsWith("/analyze") && body && body.github_url) {
                 savedUrl = body.github_url;
                 localStorage.setItem(`mock_user_project_url_${projectId}`, savedUrl);
+                isNewAnalysis = true;
               } else {
-                const stored = localStorage.getItem(`mock_user_project_url_${projectId}`);
-                if (stored) {
-                  savedUrl = stored;
+                savedUrl = localStorage.getItem(`mock_user_project_url_${projectId}`) || "";
+              }
+
+              // Check if we already have a saved mock analysis for this URL
+              const existingAnalysisStr = localStorage.getItem(`mock_analysis_${projectId}`);
+              let existingAnalysis = null;
+              if (existingAnalysisStr) {
+                try {
+                  existingAnalysis = JSON.parse(existingAnalysisStr);
+                } catch (e) {
+                  // ignore
                 }
               }
 
-              const customSuggestions = JSON.parse(localStorage.getItem(`mock_suggestions_${projectId}`) || "[]");
-              const mappedCustom = customSuggestions.map((s: any) => ({
-                feature_name: s.feature_name,
-                description: s.description || "Custom improvement added by Admin/Mentor",
-                difficulty: s.difficulty || "medium",
-                estimated_hours: Number(s.estimated_hours || 4),
-                career_impact_score: Number(s.career_impact_score || 85),
-                companies_that_value: Array.isArray(s.companies_that_value) ? s.companies_that_value : [s.companies_that_value || "Tech Corp"]
-              }));
+              // If it's a new analysis request or no existing analysis exists, generate one dynamically
+              if (isNewAnalysis || !existingAnalysis || existingAnalysis.github_url !== savedUrl) {
+                const urlLower = (savedUrl || "").toLowerCase();
+                
+                // Simple deterministic hash based on URL to create varied scores
+                let hash = 0;
+                for (let i = 0; i < urlLower.length; i++) {
+                  hash = (hash << 5) - hash + urlLower.charCodeAt(i);
+                  hash |= 0;
+                }
+                hash = Math.abs(hash);
 
-              const defaultUpgrades = [
-                { feature_name: "Docker Containers", description: "Containerize the application for unified deployments", career_impact_score: 95, estimated_hours: 4, companies_that_value: ["Google", "Stripe"], difficulty: "easy" },
-                { feature_name: "Redis Caching Layer", description: "Use Redis caching to accelerate key API queries", career_impact_score: 85, estimated_hours: 6, companies_that_value: ["Uber", "Meta"], difficulty: "medium" }
-              ];
+                const problem_clarity = (hash % 4) + 6; // 6 to 9
+                const technical_complexity = (hash % 5) + 5; // 5 to 9
+                const career_relevance = (hash % 25) + 70; // 70 to 94
+                
+                let grade = "B";
+                const avgScore = (problem_clarity + technical_complexity + (career_relevance / 10)) / 3;
+                if (avgScore >= 8) grade = "A";
+                else if (avgScore >= 6.8) grade = "B";
+                else if (avgScore >= 5.5) grade = "C";
+                else grade = "D";
 
-              resolve({
-                id: `analysis_${projectId}`,
-                project_id: String(projectId),
-                github_url: savedUrl,
-                problem_clarity: 8,
-                technical_complexity: 7,
-                career_relevance: 90,
-                portfolio_grade: "A",
-                missing_improvements: [
-                  "Load secret keys and config settings from a dotenv (.env) file. Do not save them in your code.",
-                  "Write simple unit tests to check if your functions work correctly."
-                ],
-                upgrade_suggestions: [...defaultUpgrades, ...mappedCustom],
-                analyzed_at: new Date().toISOString()
-              } as any);
+                let missing_improvements: string[] = [];
+                let upgrade_suggestions: any[] = [];
+
+                if (urlLower.includes("react") || urlLower.includes("next") || urlLower.includes("frontend") || urlLower.includes("portfolio")) {
+                  missing_improvements = [
+                    "Optimize image loading and static assets to improve Core Web Vitals.",
+                    "Add structured SEO meta tags and JSON-LD schema markup for better indexing.",
+                    "Write frontend component and integration tests (e.g., using Jest or Cypress).",
+                    "Implement a global error boundary to handle UI runtime crashes gracefully."
+                  ];
+                  upgrade_suggestions = [
+                    { feature_name: "PWA Support", description: "Configure Service Workers and a web app manifest to enable offline mode and installability.", career_impact_score: 82, estimated_hours: 6, companies_that_value: ["Twitter", "Pinterest"], difficulty: "medium" },
+                    { feature_name: "Framer Motion Animations", description: "Add premium micro-interactions and transitions to wow visitors and enhance user flow.", career_impact_score: 75, estimated_hours: 4, companies_that_value: ["Apple", "Stripe"], difficulty: "easy" }
+                  ];
+                } else if (urlLower.includes("python") || urlLower.includes("django") || urlLower.includes("fastapi") || urlLower.includes("backend") || urlLower.includes("api")) {
+                  missing_improvements = [
+                    "Set up database migration tracking using tools like Alembic or Django migrations.",
+                    "Add API rate limiting, CORS safeguards, and robust security headers.",
+                    "Implement structured JSON logging with correlation IDs for API tracing.",
+                    "Write integration tests for main API endpoints with a test database."
+                  ];
+                  upgrade_suggestions = [
+                    { feature_name: "Redis Caching Layer", description: "Integrate a Redis cache for hot database queries to decrease response times.", career_impact_score: 90, estimated_hours: 5, companies_that_value: ["Netflix", "Uber"], difficulty: "medium" },
+                    { feature_name: "Celery Background Tasks", description: "Offload heavy computations or email triggers to a distributed Celery task worker.", career_impact_score: 92, estimated_hours: 8, companies_that_value: ["Instagram", "Airbnb"], difficulty: "hard" }
+                  ];
+                } else {
+                  // General fallback
+                  missing_improvements = [
+                    "Load secret keys and config settings from a dotenv (.env) file. Do not save them in code.",
+                    "Write simple unit tests to check if your core functions work correctly.",
+                    "Set up a simple CI/CD workflow (like GitHub Actions) to run tests automatically.",
+                    "Include setup instructions and API descriptions in the README.md file."
+                  ];
+                  upgrade_suggestions = [
+                    { feature_name: "Docker Deployment", description: "Create a multi-stage Dockerfile to containerize and run the application anywhere.", career_impact_score: 88, estimated_hours: 4, companies_that_value: ["Google", "HashiCorp"], difficulty: "easy" },
+                    { feature_name: "Sentry Error Monitoring", description: "Integrate Sentry to monitor errors in real time and capture stack traces.", career_impact_score: 80, estimated_hours: 3, companies_that_value: ["Slack", "Spotify"], difficulty: "easy" }
+                  ];
+                }
+
+                // Append any manual suggestions added via mentor dashboard
+                const customSuggestions = JSON.parse(localStorage.getItem(`mock_suggestions_${projectId}`) || "[]");
+                const mappedCustom = customSuggestions.map((s: any) => ({
+                  feature_name: s.feature_name,
+                  description: s.description || "Custom improvement added by Admin/Mentor",
+                  difficulty: s.difficulty || "medium",
+                  estimated_hours: Number(s.estimated_hours || 4),
+                  career_impact_score: Number(s.career_impact_score || 85),
+                  companies_that_value: Array.isArray(s.companies_that_value) ? s.companies_that_value : [s.companies_that_value || "Tech Corp"]
+                }));
+
+                const analysisResult = {
+                  id: `analysis_${projectId}`,
+                  project_id: String(projectId),
+                  github_url: savedUrl || "https://github.com/you/repo",
+                  problem_clarity,
+                  technical_complexity,
+                  career_relevance,
+                  portfolio_grade: grade,
+                  missing_improvements,
+                  upgrade_suggestions: [...upgrade_suggestions, ...mappedCustom],
+                  reasoning: `This repository has been evaluated by our simulated AI Agent. It is parsed as a ${urlLower.includes("react") || urlLower.includes("next") ? "Frontend" : urlLower.includes("python") || urlLower.includes("api") ? "Backend" : "Software"} codebase. The codebase complexity is scored at ${technical_complexity}/10 with a portfolio grade of ${grade}. Implementing the suggested improvements will make it stand out to engineering hiring managers.`,
+                  analyzed_at: new Date().toISOString()
+                };
+
+                localStorage.setItem(`mock_analysis_${projectId}`, JSON.stringify(analysisResult));
+                resolve(analysisResult as any);
+                return;
+              }
+
+              // Return the existing saved analysis
+              resolve(existingAnalysis as any);
               return;
             }
 

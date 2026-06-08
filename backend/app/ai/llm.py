@@ -51,8 +51,8 @@ async def call_llm_json(
     # ─── Option A: GEMINI (Prefered) ──────────────────────────────────
     if gemini_key:
         try:
-            logger.info("Calling Gemini 2.0 Flash API...")
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+            logger.info("Calling Gemini 2.5 Flash API...")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
             
             parts = [{"text": prompt}]
             if cleaned_images:
