@@ -334,7 +334,7 @@ function LandingPageContent() {
             {/* Right Column (Visual Mockups) */}
             <div className="lg:col-span-5 relative h-[480px] w-full hidden lg:block select-none animate-fadeIn" style={{ animationDelay: "0.15s" }}>
               {/* Mockup 1: AI Mentor Match Card */}
-              <div className="absolute top-0 right-0 w-[300px] animate-float-slow z-20 hover:z-50">
+              <div className="absolute top-0 right-0 w-[300px] h-fit animate-float-slow z-20 hover:z-50">
                 <div className="glass-card p-5 bg-[#12121a]/85 border-white/10 shadow-2xl transition-all duration-300 hover:scale-105 hover:border-primary/50 hover:shadow-primary/20 cursor-pointer">
                   <div className="flex items-center justify-between mb-4">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/20 border border-primary/35 text-primary text-[10px] font-bold">
@@ -371,7 +371,7 @@ function LandingPageContent() {
               </div>
 
               {/* Mockup 2: Skill Gap Circular Progress */}
-              <div className="absolute bottom-4 left-0 w-[240px] animate-float-delay z-30 hover:z-50">
+              <div className="absolute bottom-4 left-0 w-[240px] h-fit animate-float-delay z-30 hover:z-50">
                 <div className="glass-card p-5 bg-[#12121a]/90 border-white/10 shadow-2xl transition-all duration-300 hover:scale-105 hover:border-secondary/50 hover:shadow-secondary/20 cursor-pointer">
                   <h4 className="text-xs font-bold text-foreground mb-4 flex items-center gap-1.5">
                     <Target className="h-4 w-4 text-primary" />
@@ -402,7 +402,7 @@ function LandingPageContent() {
               </div>
 
               {/* Mockup 3: GitHub Complexity Analysis */}
-              <div className="absolute top-1/2 left-1/3 transform -translate-x-1/2 -translate-y-1/2 w-[220px] z-10 hover:z-50">
+              <div className="absolute top-1/2 left-1/3 transform -translate-x-1/2 -translate-y-1/2 w-[220px] h-fit z-10 hover:z-50">
                 <div className="glass-card p-4 bg-[#12121a]/80 border-white/5 shadow-xl transition-all duration-300 hover:scale-105 hover:border-accent/50 hover:shadow-accent/20 cursor-pointer">
                   <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
                     <span className="text-[9px] text-muted font-bold block uppercase tracking-wider">GitHub Analyzer</span>
