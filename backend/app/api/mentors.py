@@ -473,7 +473,7 @@ async def get_my_sessions(
     db: AsyncSession = Depends(get_db),
 ) -> list[SessionResponse]:
     """Return all mentoring sessions for the current user (as student or mentor)."""
-    if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         result = await db.execute(select(MentorSession))
         sessions = list(result.scalars().all())
     else:
@@ -631,8 +631,8 @@ async def apply_as_mentor(
     }
 
     if mentor is None:
-        verification_status = "verified" if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else "pending"
-        is_active = True if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else False
+        verification_status = "verified" if current_user.email.lower() in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else "pending"
+        is_active = True if current_user.email.lower() in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else False
         mentor = MentorProfile(
             user_id=current_user.id,
             bio=body.bio,
@@ -643,7 +643,7 @@ async def apply_as_mentor(
             github_url=body.github_url,
             corporate_email=body.corporate_email,
             company_name=body.company_name,
-            corporate_email_verified=True if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else False,
+            corporate_email_verified=True if current_user.email.lower() in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else False,
             selfie_url=selfie_url,
             identity_document_url=id_doc_url,
             signed_agreement=body.signed_agreement,
@@ -657,7 +657,7 @@ async def apply_as_mentor(
         mentor.expertise = expertise_dict
         
         # Preserve verification status if already verified, otherwise reset to pending
-        if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+        if current_user.email.lower() in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
             mentor.verification_status = "verified"
             mentor.is_active = True
         elif mentor.verification_status != "verified":
@@ -762,7 +762,7 @@ async def verify_corporate(
         )
     
     expected_token = f"VERIFY_{current_user.id}_99"
-    if body.token != expected_token or body.email != mentor.corporate_email:
+    if body.token != expected_token or body.email.lower() != (mentor.corporate_email or "").lower():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid corporate email or verification token.",
@@ -784,7 +784,7 @@ async def admin_approve_mentor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorResponse:
-    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can approve or reject mentor applications.",
@@ -826,7 +826,7 @@ async def list_pending_mentors(
     db: AsyncSession = Depends(get_db),
 ) -> list[MentorResponse]:
     """Return all pending mentors for admin review. Only accessible by admins."""
-    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can view pending applications.",
@@ -859,7 +859,7 @@ async def admin_update_pricing(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorResponse:
-    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can update mentor pricing.",
@@ -894,7 +894,7 @@ async def admin_toggle_premium(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorResponse:
-    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can toggle mentor premium status.",
@@ -1143,7 +1143,7 @@ async def get_admin_reports(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MentorReportResponse]:
-    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can view mentor reports.",
@@ -1190,7 +1190,7 @@ async def resolve_mentor_report(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorReportResponse:
-    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can resolve mentor reports.",

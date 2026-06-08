@@ -168,7 +168,7 @@ class MentorSession(Base):
 
     # Relationships
     student: Mapped["User"] = relationship("User", lazy="selectin")  # noqa: F821
-    mentor: Mapped[MentorProfile] = relationship("MentorProfile", back_populates="sessions")
+    mentor: Mapped[MentorProfile] = relationship("MentorProfile", back_populates="sessions", lazy="selectin")
     project: Mapped["Project | None"] = relationship("Project", lazy="selectin")  # noqa: F821
     reviews: Mapped[list[Review]] = relationship(
         "Review", back_populates="session", lazy="selectin"

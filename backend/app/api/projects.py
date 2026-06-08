@@ -449,7 +449,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     """Create a new project template. Restricted to verified mentors."""
-    isAdmin = current_user.email == "durgasravan21@gmail.com"
+    isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
     if not isAdmin:
         result = await db.execute(
             select(MentorProfile).where(
@@ -509,7 +509,7 @@ async def get_pending_submissions(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Get all project submissions with status 'submitted'. Restricted to verified mentors."""
-    isAdmin = current_user.email == "durgasravan21@gmail.com"
+    isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
     if not isAdmin:
         result = await db.execute(
             select(MentorProfile).where(
@@ -559,7 +559,7 @@ async def review_submission(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Submit a peer review for a user project submission. Restricted to verified mentors."""
-    isAdmin = current_user.email == "durgasravan21@gmail.com"
+    isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
     mentor_id = None
     if not isAdmin:
         result = await db.execute(
