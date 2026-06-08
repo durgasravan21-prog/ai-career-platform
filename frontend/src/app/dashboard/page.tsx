@@ -551,7 +551,7 @@ export default function DashboardPage() {
     if (!authLoading) {
       if (!isAuthenticated) {
         router.push("/?login=true");
-      } else if (user && user.role !== "mentor" && user.email !== "durgasravan21@gmail.com") {
+      } else if (user && user.role !== "mentor" && user.email.toLowerCase() !== "durgasravan21@gmail.com") {
         const targetRoleId = user.profile?.target_role_id;
         const skills = user.profile?.skills || [];
         if (!targetRoleId || skills.length === 0) {
@@ -569,7 +569,7 @@ export default function DashboardPage() {
       setIsLoadingData(true);
       setError("");
       try {
-        if (user?.email === "durgasravan21@gmail.com") {
+        if (user?.email?.toLowerCase() === "durgasravan21@gmail.com") {
           // Admin View: Fetch pending mentors, reports, active users, all mentors, pending submissions, and the admin's mentor profile
           const [pending, reports, activeUsersList, mentorsList, pendingSub, allSessions, adminMentorProfile] = await Promise.all([
             api.mentors.getPendingMentors(),
@@ -2864,7 +2864,7 @@ Signed Digitally by:
               </p>
             </div>
             <div className="flex gap-2 self-start flex-wrap">
-              {user?.email === "durgasravan21@gmail.com" && (
+              {user?.email?.toLowerCase() === "durgasravan21@gmail.com" && (
                 <Button onClick={() => setAdminViewMode("admin")} className="bg-gradient-to-r from-primary to-secondary">
                   Switch to Admin View
                 </Button>
@@ -4388,7 +4388,7 @@ Signed Digitally by:
   const renderVideoCallModal = () => {
     if (!activeVideoSession) return null;
 
-    const peerName = user?.email === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified")
+    const peerName = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified")
       ? (activeVideoSession.student_name || "Student")
       : (activeVideoSession.mentor_name || "Coach");
 
@@ -4510,11 +4510,11 @@ Signed Digitally by:
                     content = log.substring(7).trim();
                     bubbleStyle = "bg-warning/10 text-warning border-warning/20 border";
                   } else if (isMentor) {
-                    sender = user?.email === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? "You" : peerName;
+                    sender = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? "You" : peerName;
                     content = log.substring(7).trim();
                     bubbleStyle = "bg-secondary/15 text-[#e2e8f0] border-secondary/30 border";
                   } else if (isStudent) {
-                    sender = user?.email === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? peerName : "You";
+                    sender = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? peerName : "You";
                     content = log.substring(8).trim();
                     bubbleStyle = "bg-primary/15 text-[#e2e8f0] border-primary/30 border";
                   }
@@ -4590,7 +4590,7 @@ Signed Digitally by:
 
   // Dynamic Dashboard Router Switching
   const isMentorVerifiedAndComplete = 
-    (user?.email === "challagollasridevi@gmail.com" || user?.email === "durgasravan21@gmail.com" || mentorProfile?.email === "challagollasridevi@gmail.com" || mentorProfile?.email === "durgasravan21@gmail.com") ||
+    (user?.email?.toLowerCase() === "challagollasridevi@gmail.com" || user?.email?.toLowerCase() === "durgasravan21@gmail.com" || mentorProfile?.email?.toLowerCase() === "challagollasridevi@gmail.com" || mentorProfile?.email?.toLowerCase() === "durgasravan21@gmail.com") ||
     (mentorProfile && 
      mentorProfile.selfie_url && 
      mentorProfile.identity_document_url && 
@@ -4598,13 +4598,13 @@ Signed Digitally by:
      mentorProfile.signature_svg_or_text);
 
   let dashboardContent;
-  if (user?.email === "durgasravan21@gmail.com") {
+  if (user?.email?.toLowerCase() === "durgasravan21@gmail.com") {
     if (adminViewMode === "mentor") {
       dashboardContent = renderMentorDashboard();
     } else {
       dashboardContent = renderAdminDashboard();
     }
-  } else if (user?.role === "mentor" || user?.email === "challagollasridevi@gmail.com") {
+  } else if (user?.role === "mentor" || user?.email?.toLowerCase() === "challagollasridevi@gmail.com") {
     if (isMentorVerifiedAndComplete) {
       dashboardContent = renderMentorDashboard();
     } else {

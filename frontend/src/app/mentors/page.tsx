@@ -42,7 +42,7 @@ import {
 export default function MentorsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.email === "durgasravan21@gmail.com";
+  const isAdmin = user?.role === "admin" || user?.email?.toLowerCase() === "durgasravan21@gmail.com";
   // States
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [sessions, setSessions] = useState<MentorSession[]>([]);

@@ -1682,7 +1682,7 @@ class ApiClient {
             );
             const mentorProfileId = mentorProfile ? String(mentorProfile.id) : null;
 
-            if (currentUser.email === "durgasravan21@gmail.com") {
+            if (currentUser.email.toLowerCase() === "durgasravan21@gmail.com") {
               resolve(mockSessions as any);
               return;
             }

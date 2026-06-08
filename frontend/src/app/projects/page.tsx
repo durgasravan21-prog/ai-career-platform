@@ -64,7 +64,7 @@ export default function ProjectsPage() {
   const isMentorOrAdmin =
     user?.role === "mentor" ||
     user?.role === "admin" ||
-    user?.email === "durgasravan21@gmail.com";
+    user?.email?.toLowerCase() === "durgasravan21@gmail.com";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);

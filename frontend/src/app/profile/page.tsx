@@ -223,7 +223,7 @@ export default function ProfilePage() {
       
       // Update mentor pricing and availability if they are a mentor, admin, or filled in coaching data
       const hasCoachingData = mentorCompany.trim() || mentorExpertise.length > 0 || mentorAvailability.length > 0 || mentorHourlyRate !== "50";
-      if (mentorProfile || user?.email === "durgasravan21@gmail.com" || hasCoachingData) {
+      if (mentorProfile || user?.email?.toLowerCase() === "durgasravan21@gmail.com" || hasCoachingData) {
         const availabilityPayload = mentorAvailability.map(slot => {
           const start = slot.start_time || "09:00";
           const end = slot.end_time || "17:00";
