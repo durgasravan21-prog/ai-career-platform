@@ -1033,6 +1033,17 @@ class ApiClient {
             }
 
             if (path.endsWith("/analyze") || path.endsWith("/analysis")) {
+              let savedUrl = "https://github.com/you/repo";
+              if (path.endsWith("/analyze") && body && body.github_url) {
+                savedUrl = body.github_url;
+                localStorage.setItem(`mock_user_project_url_${projectId}`, savedUrl);
+              } else {
+                const stored = localStorage.getItem(`mock_user_project_url_${projectId}`);
+                if (stored) {
+                  savedUrl = stored;
+                }
+              }
+
               const customSuggestions = JSON.parse(localStorage.getItem(`mock_suggestions_${projectId}`) || "[]");
               const mappedCustom = customSuggestions.map((s: any) => ({
                 feature_name: s.feature_name,
@@ -1051,7 +1062,7 @@ class ApiClient {
               resolve({
                 id: `analysis_${projectId}`,
                 project_id: String(projectId),
-                github_url: "https://github.com/you/repo",
+                github_url: savedUrl,
                 problem_clarity: 8,
                 technical_complexity: 7,
                 career_relevance: 90,

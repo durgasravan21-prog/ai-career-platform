@@ -89,7 +89,9 @@ export default function ProjectAnalysisPage() {
         ]);
         setProject(projData);
         setAnalysis(analysisData);
-        if (projData.github_url) {
+        if (analysisData && analysisData.github_url) {
+          setGithubUrl(analysisData.github_url);
+        } else if (projData.github_url) {
           setGithubUrl(projData.github_url);
         }
       } catch (err) {

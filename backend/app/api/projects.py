@@ -316,14 +316,36 @@ async def analyze_github(
 ) -> ProjectAnalysisResponse:
     """Analyze a GitHub repository and return quality assessment.
 
-    1. Fetches repository metadata (mock).
-    2. Runs the AI project analyzer.
-    3. Returns scores and recommendations.
+    1. Fetches repository metadata.
+    2. Runs the AI project auditor.
+    3. Saves or updates the UserProject entry for persistence.
     """
+    project_id = body.project_id or 1
+    
+    # Update or create UserProject for repository persistence
+    up_result = await db.execute(
+        select(UserProject).where(
+            UserProject.user_id == current_user.id,
+            UserProject.project_id == project_id
+        )
+    )
+    user_project = up_result.scalar_one_or_none()
+    if user_project is None:
+        user_project = UserProject(
+            user_id=current_user.id,
+            project_id=project_id,
+            status=UserProjectStatus.in_progress,
+            github_url=body.github_url
+        )
+        db.add(user_project)
+    else:
+        user_project.github_url = body.github_url
+    await db.flush()
+
     metadata = await fetch_repo_metadata(body.github_url)
     analysis = await analyze_project(
         metadata.to_dict(),
-        project_id=body.project_id or 1,
+        project_id=project_id,
         github_url=body.github_url,
     )
     return analysis
@@ -365,35 +387,53 @@ async def get_analysis(
             detail=f"Project with id {project_id} not found",
         )
 
-    # Synthesize realistic metadata based on project info for a beautiful presentation
-    diff_readme = 5
-    diff_val = project.difficulty.value if hasattr(project.difficulty, "value") else project.difficulty
-    if diff_val == "beginner":
-        diff_readme = 8
-        file_count = 12
-        commit_activity = 10
-    elif diff_val == "intermediate":
-        diff_readme = 6
-        file_count = 28
-        commit_activity = 25
-    else:
-        diff_readme = 4
-        file_count = 55
-        commit_activity = 42
-
-    mock_metadata = {
-        "languages": list(project.tech_stack.keys()) if isinstance(project.tech_stack, dict) else ["React", "TypeScript"],
-        "file_count": file_count,
-        "readme_score": diff_readme,
-        "commit_activity": commit_activity,
-        "stars": 4,
-    }
-
-    analysis = await analyze_project(
-        mock_metadata,
-        project_id=project_id,
-        github_url=project.github_url or "https://github.com/example/portfolio-project",
+    # Check if user has a saved github_url for this project
+    up_result = await db.execute(
+        select(UserProject).where(
+            UserProject.user_id == current_user.id,
+            UserProject.project_id == project_id
+        )
     )
+    user_project = up_result.scalar_one_or_none()
+    saved_url = user_project.github_url if user_project else None
+
+    if saved_url:
+        metadata = await fetch_repo_metadata(saved_url)
+        analysis = await analyze_project(
+            metadata.to_dict(),
+            project_id=project_id,
+            github_url=saved_url,
+        )
+    else:
+        # Synthesize realistic metadata based on project info for a beautiful presentation
+        diff_readme = 5
+        diff_val = project.difficulty.value if hasattr(project.difficulty, "value") else project.difficulty
+        if diff_val == "beginner":
+            diff_readme = 8
+            file_count = 12
+            commit_activity = 10
+        elif diff_val == "intermediate":
+            diff_readme = 6
+            file_count = 28
+            commit_activity = 25
+        else:
+            diff_readme = 4
+            file_count = 55
+            commit_activity = 42
+
+        mock_metadata = {
+            "languages": list(project.tech_stack.keys()) if isinstance(project.tech_stack, dict) else ["React", "TypeScript"],
+            "file_count": file_count,
+            "readme_score": diff_readme,
+            "commit_activity": commit_activity,
+            "stars": 4,
+        }
+
+        analysis = await analyze_project(
+            mock_metadata,
+            project_id=project_id,
+            github_url=project.github_url or "https://github.com/example/portfolio-project",
+        )
     return analysis
 
 
