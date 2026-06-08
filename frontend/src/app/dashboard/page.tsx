@@ -1667,7 +1667,9 @@ Signed Digitally by:
                     {mentorSessions.map((session) => (
                       <tr key={session.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
                         <td className="p-4 font-mono text-[10px] text-muted">#SESS-{session.id}</td>
-                        <td className="p-4 font-semibold text-muted">Student #{(session as any).student_id || session.mentee_id}</td>
+                        <td className="p-4 font-semibold text-muted">
+                          {session.student_name || `Student #${(session as any).student_id || session.mentee_id}`}
+                        </td>
                         <td className="p-4 font-semibold text-foreground">{session.mentor_name || `Coach #${session.mentor_id}`}</td>
                         <td className="p-4 text-muted">
                           {new Date(session.scheduled_at).toLocaleDateString()} at{" "}
@@ -1691,7 +1693,7 @@ Signed Digitally by:
                           </Badge>
                         </td>
                         <td className="p-4 text-center">
-                          {session.status === "confirmed" ? (
+                          {session.status === "confirmed" || session.status === "pending" ? (
                             <button
                               type="button"
                               onClick={() => {

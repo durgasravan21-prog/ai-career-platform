@@ -363,11 +363,7 @@ def seed_projects(session: Session, skill_ids: dict[str, int]) -> None:
 
 
 def seed_mentors(session: Session) -> None:
-    """Seed 3 sample mentor profiles with availability."""
-    existing = session.execute(select(MentorProfile)).scalars().all()
-    if existing:
-        return
-
+    """Seed sample mentor profiles with availability."""
     mentors_data = [
         {
             "name": "Sarah Chen",
@@ -413,46 +409,94 @@ def seed_mentors(session: Session) -> None:
                 {"day": 4, "start": "16:00", "end": "19:00"},  # Friday
             ],
         },
+        {
+            "name": "Durga sravan Challagolla",
+            "email": "challagollasridevi@gmail.com",
+            "password": "mentor123456",
+            "expertise": {"areas": ["Full-Stack", "React", "Node.js", "Python", "SQL", "JavaScript"]},
+            "hourly_rate": 0.0,
+            "bio": "Full-Stack Engineer with 5+ years of experience. Focuses on full-stack web applications, database architecture, and project-based student mentoring.",
+            "rating": 5.0,
+            "total_sessions": 12,
+            "availability": [
+                {"day": 0, "start": "09:00", "end": "17:00"},
+                {"day": 1, "start": "09:00", "end": "17:00"},
+                {"day": 2, "start": "09:00", "end": "17:00"},
+                {"day": 3, "start": "09:00", "end": "17:00"},
+                {"day": 4, "start": "09:00", "end": "17:00"},
+                {"day": 5, "start": "09:00", "end": "17:00"},
+                {"day": 6, "start": "09:00", "end": "17:00"},
+            ],
+        },
+        {
+            "name": "durgasravan21",
+            "email": "durgasravan21@gmail.com",
+            "password": "mentor123456",
+            "expertise": {"areas": ["Full-Stack", "JavaScript", "Software Architecture", "AI Career Strategy"]},
+            "hourly_rate": 0.0,
+            "bio": "Administrator & Principal Mentor. Specialises in software architecture, project intelligence, and career guidance.",
+            "rating": 5.0,
+            "total_sessions": 0,
+            "availability": [
+                {"day": 0, "start": "09:00", "end": "17:00"},
+                {"day": 1, "start": "09:00", "end": "17:00"},
+                {"day": 2, "start": "09:00", "end": "17:00"},
+                {"day": 3, "start": "09:00", "end": "17:00"},
+                {"day": 4, "start": "09:00", "end": "17:00"},
+                {"day": 5, "start": "09:00", "end": "17:00"},
+                {"day": 6, "start": "09:00", "end": "17:00"},
+            ],
+        },
     ]
 
     for mdata in mentors_data:
-        # Create user account for mentor
-        user = User(
-            email=mdata["email"],
-            name=mdata["name"],
-            hashed_password=hash_password(mdata["password"]),
-            is_active=True,
-        )
-        session.add(user)
-        session.flush()
-
-        # Create user profile
-        profile = UserProfile(user_id=user.id, bio=mdata["bio"], current_role="Mentor")
-        session.add(profile)
-
-        # Create mentor profile
-        mentor = MentorProfile(
-            user_id=user.id,
-            expertise=mdata["expertise"],
-            hourly_rate=mdata["hourly_rate"],
-            bio=mdata["bio"],
-            rating=mdata["rating"],
-            total_sessions=mdata["total_sessions"],
-            is_active=True,
-            verification_status="verified",
-        )
-        session.add(mentor)
-        session.flush()
-
-        # Create availability slots
-        for slot in mdata["availability"]:
-            avail = MentorAvailability(
-                mentor_id=mentor.id,
-                day_of_week=slot["day"],
-                start_time=time.fromisoformat(slot["start"]),
-                end_time=time.fromisoformat(slot["end"]),
+        # Check if user already exists
+        user_result = session.execute(select(User).where(User.email == mdata["email"].lower()))
+        user = user_result.scalar_one_or_none()
+        if not user:
+            # Create user account for mentor
+            user = User(
+                email=mdata["email"].lower(),
+                name=mdata["name"],
+                hashed_password=hash_password(mdata["password"]),
+                is_active=True,
             )
-            session.add(avail)
+            session.add(user)
+            session.flush()
+
+        # Check if user profile exists
+        profile_result = session.execute(select(UserProfile).where(UserProfile.user_id == user.id))
+        profile = profile_result.scalar_one_or_none()
+        if not profile:
+            profile = UserProfile(user_id=user.id, bio=mdata["bio"], current_role="Mentor")
+            session.add(profile)
+
+        # Check if mentor profile exists
+        mentor_result = session.execute(select(MentorProfile).where(MentorProfile.user_id == user.id))
+        mentor = mentor_result.scalar_one_or_none()
+        if not mentor:
+            mentor = MentorProfile(
+                user_id=user.id,
+                expertise=mdata["expertise"],
+                hourly_rate=mdata["hourly_rate"],
+                bio=mdata["bio"],
+                rating=mdata["rating"],
+                total_sessions=mdata["total_sessions"],
+                is_active=True,
+                verification_status="verified",
+            )
+            session.add(mentor)
+            session.flush()
+
+            # Create availability slots
+            for slot in mdata["availability"]:
+                avail = MentorAvailability(
+                    mentor_id=mentor.id,
+                    day_of_week=slot["day"],
+                    start_time=time.fromisoformat(slot["start"]),
+                    end_time=time.fromisoformat(slot["end"]),
+                )
+                session.add(avail)
 
 
 def run_seed() -> None:
