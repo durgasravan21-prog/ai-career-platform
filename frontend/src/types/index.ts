@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  role?: string;
   created_at: string;
   updated_at?: string;
   profile?: UserProfile;
@@ -260,7 +261,11 @@ export interface Mentor {
   verified_at?: string;
   rejected_at?: string;
   reviewed_count?: number;
+  review_earnings?: number;
   experience_years?: number;
+  mentor_id?: string;
+  original_price?: number;
+  has_premium_subscription?: boolean;
 }
 
 export interface ApplyMentorPayload {

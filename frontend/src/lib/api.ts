@@ -44,6 +44,7 @@ const MOCK_PROJECTS = [
 const MOCK_MENTORS = [
   {
     id: "1",
+    mentor_id: "MNT-001",
     user_id: "1",
     mentor_name: "Sarah Chen",
     name: "Sarah Chen",
@@ -54,10 +55,15 @@ const MOCK_MENTORS = [
     total_sessions: 142,
     total_reviews: 94,
     hourly_rate: 75.0,
+    original_price: 100.0,
+    has_premium_subscription: true,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 8,
+    linkedin_url: "https://linkedin.com/in/sarah-chen",
+    github_url: "https://github.com/sarah-chen",
+    mobile_number: "+1 555-019-2834",
     availability: [
       { day_of_week: 1, start_time: "09:00", end_time: "17:00" },
       { day_of_week: 3, start_time: "09:00", end_time: "17:00" },
@@ -66,6 +72,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "2",
+    mentor_id: "MNT-002",
     user_id: "2",
     mentor_name: "Marcus Johnson",
     name: "Marcus Johnson",
@@ -76,10 +83,15 @@ const MOCK_MENTORS = [
     total_sessions: 218,
     total_reviews: 148,
     hourly_rate: 95.0,
+    original_price: 120.0,
+    has_premium_subscription: false,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 12,
+    linkedin_url: "https://linkedin.com/in/marcus-johnson",
+    github_url: "https://github.com/marcus-johnson",
+    mobile_number: "+1 555-014-9872",
     availability: [
       { day_of_week: 2, start_time: "10:00", end_time: "18:00" },
       { day_of_week: 4, start_time: "10:00", end_time: "18:00" }
@@ -87,6 +99,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "3",
+    mentor_id: "MNT-003",
     user_id: "3",
     mentor_name: "Dr. Priya Patel",
     name: "Dr. Priya Patel",
@@ -97,10 +110,15 @@ const MOCK_MENTORS = [
     total_sessions: 89,
     total_reviews: 67,
     hourly_rate: 110.0,
+    original_price: 150.0,
+    has_premium_subscription: true,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 15,
+    linkedin_url: "https://linkedin.com/in/priya-patel",
+    github_url: "https://github.com/priya-patel",
+    mobile_number: "+1 555-017-3849",
     availability: [
       { day_of_week: 3, start_time: "14:00", end_time: "20:00" },
       { day_of_week: 6, start_time: "09:00", end_time: "13:00" }
@@ -108,6 +126,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "4",
+    mentor_id: "MNT-004",
     user_id: "4",
     mentor_name: "Durga sravan Challagolla",
     name: "Durga sravan Challagolla",
@@ -118,10 +137,15 @@ const MOCK_MENTORS = [
     total_sessions: 12,
     total_reviews: 8,
     hourly_rate: 0.0,
+    original_price: 0.0,
+    has_premium_subscription: false,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 5,
+    linkedin_url: "https://linkedin.com/in/durga-sravan",
+    github_url: "https://github.com/durga-sravan",
+    mobile_number: "+1 555-012-3456",
     availability: [
       { day_of_week: 0, start_time: "09:00", end_time: "17:00" },
       { day_of_week: 6, start_time: "09:00", end_time: "17:00" }
@@ -129,6 +153,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "5",
+    mentor_id: "MNT-005",
     user_id: "5",
     mentor_name: "Alex Rivera",
     name: "Alex Rivera",
@@ -139,10 +164,15 @@ const MOCK_MENTORS = [
     total_sessions: 64,
     total_reviews: 42,
     hourly_rate: 85.0,
+    original_price: 110.0,
+    has_premium_subscription: false,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 9,
+    linkedin_url: "https://linkedin.com/in/alex-rivera",
+    github_url: "https://github.com/alex-rivera",
+    mobile_number: "+1 555-016-7281",
     availability: [
       { day_of_week: 1, start_time: "13:00", end_time: "18:00" },
       { day_of_week: 4, start_time: "13:00", end_time: "18:00" }
@@ -150,6 +180,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "6",
+    mentor_id: "MNT-006",
     user_id: "6",
     mentor_name: "Yuki Tanaka",
     name: "Yuki Tanaka",
@@ -160,10 +191,15 @@ const MOCK_MENTORS = [
     total_sessions: 31,
     total_reviews: 20,
     hourly_rate: 70.0,
+    original_price: 90.0,
+    has_premium_subscription: false,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 7,
+    linkedin_url: "https://linkedin.com/in/yuki-tanaka",
+    github_url: "https://github.com/yuki-tanaka",
+    mobile_number: "+1 555-018-9384",
     availability: [
       { day_of_week: 2, start_time: "09:00", end_time: "15:00" },
       { day_of_week: 5, start_time: "09:00", end_time: "15:00" }
@@ -171,6 +207,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "7",
+    mentor_id: "MNT-007",
     user_id: "7",
     mentor_name: "Emily Watson",
     name: "Emily Watson",
@@ -181,10 +218,15 @@ const MOCK_MENTORS = [
     total_sessions: 95,
     total_reviews: 73,
     hourly_rate: 90.0,
+    original_price: 120.0,
+    has_premium_subscription: false,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 10,
+    linkedin_url: "https://linkedin.com/in/emily-watson",
+    github_url: "https://github.com/emily-watson",
+    mobile_number: "+1 555-011-8273",
     availability: [
       { day_of_week: 3, start_time: "10:00", end_time: "17:00" },
       { day_of_week: 6, start_time: "10:00", end_time: "14:00" }
@@ -192,6 +234,7 @@ const MOCK_MENTORS = [
   },
   {
     id: "8",
+    mentor_id: "MNT-008",
     user_id: "8",
     mentor_name: "Carlos Mendez",
     name: "Carlos Mendez",
@@ -202,10 +245,15 @@ const MOCK_MENTORS = [
     total_sessions: 48,
     total_reviews: 35,
     hourly_rate: 105.0,
+    original_price: 130.0,
+    has_premium_subscription: false,
     currency: "USD",
     is_active: true,
     verification_status: "verified",
     experience_years: 11,
+    linkedin_url: "https://linkedin.com/in/carlos-mendez",
+    github_url: "https://github.com/carlos-mendez",
+    mobile_number: "+1 555-013-6475",
     availability: [
       { day_of_week: 4, start_time: "14:00", end_time: "20:00" },
       { day_of_week: 0, start_time: "09:00", end_time: "14:00" }
@@ -215,7 +263,52 @@ const MOCK_MENTORS = [
 
 const seedLocalStorage = () => {
   if (typeof window === "undefined") return;
-  if (!localStorage.getItem("mock_initialized")) {
+
+  // Ensure challagollasridevi@gmail.com is always mapped correctly to avoid stale student local state
+  try {
+    const localUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
+    const srideviUser = localUsers.find((u: any) => u.email.toLowerCase() === "challagollasridevi@gmail.com");
+    if (srideviUser && srideviUser.role !== "mentor") {
+      srideviUser.role = "mentor";
+      localStorage.setItem("mock_users", JSON.stringify(localUsers));
+      
+      const curUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
+      if (curUser && curUser.email.toLowerCase() === "challagollasridevi@gmail.com") {
+        curUser.role = "mentor";
+        localStorage.setItem("mock_current_user", JSON.stringify(curUser));
+      }
+    }
+
+    const localMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+    const hasSrideviMentor = localMentors.some((m: any) => m.email.toLowerCase() === "challagollasridevi@gmail.com");
+    if (!hasSrideviMentor) {
+      const srideviMentor = MOCK_MENTORS.find(m => m.email.toLowerCase() === "challagollasridevi@gmail.com");
+      if (srideviMentor) {
+        localMentors.push(srideviMentor);
+        localStorage.setItem("mock_mentors", JSON.stringify(localMentors));
+      }
+    }
+  } catch (e) {
+    console.error("Failed to migrate sridevi profile:", e);
+  }
+
+  try {
+    const storedProjs = localStorage.getItem("mock_user_projects");
+    if (storedProjs && storedProjs.includes("github.com/alex-rivera")) {
+      const parsedProjs = JSON.parse(storedProjs);
+      parsedProjs.forEach((p: any) => {
+        if (p.github_url && p.github_url.includes("github.com/alex-rivera")) {
+          p.github_url = "https://github.com/durgasravan21-prog/ai-career-platform";
+        }
+      });
+      localStorage.setItem("mock_user_projects", JSON.stringify(parsedProjs));
+    }
+  } catch (e) {
+    console.error("Failed to migrate mock user projects github url:", e);
+  }
+
+  const isMigrated = localStorage.getItem("mock_initialized") && localStorage.getItem("mock_user_projects");
+  if (!isMigrated) {
     localStorage.setItem("mock_initialized", "true");
     
     const users = [
@@ -246,25 +339,97 @@ const seedLocalStorage = () => {
     
     localStorage.setItem("mock_sessions", JSON.stringify([]));
     localStorage.setItem("mock_reports", JSON.stringify([]));
+
+    const userProjects = [
+      {
+        id: "sub_1",
+        user_id: "5",
+        user_name: "Alex Rivera",
+        user_email: "alex.rivera@example.com",
+        project_id: 2,
+        project_title: "Real-time Chat Application",
+        github_url: "https://github.com/durgasravan21-prog/ai-career-platform",
+        demo_url: "https://realtime-chat.demo.app",
+        description: "A real-time chat app built with socket.io, Node, and React. Supports private and group rooms.",
+        status: "submitted",
+        submitted_at: "2026-06-05T14:30:00Z",
+        review_score: null,
+        review_feedback: null
+      },
+      {
+        id: "sub_2",
+        user_id: "6",
+        user_name: "Yuki Tanaka",
+        user_email: "yuki.tanaka@example.com",
+        project_id: 3,
+        project_title: "Machine Learning Pipeline",
+        github_url: "https://github.com/durgasravan21-prog/ai-career-platform",
+        demo_url: "https://ml-pipeline.demo.app",
+        description: "An end-to-end ML pipeline with data cleaning, feature engineering, model training, and prediction API.",
+        status: "submitted",
+        submitted_at: "2026-06-06T09:15:00Z",
+        review_score: null,
+        review_feedback: null
+      },
+      {
+        id: "sub_3",
+        user_id: "7",
+        user_name: "Emily Watson",
+        user_email: "emily.watson@example.com",
+        project_id: 4,
+        project_title: "CI/CD Pipeline Dashboard",
+        github_url: "https://github.com/durgasravan21-prog/ai-career-platform",
+        demo_url: "https://pipeline-dashboard.demo.app",
+        description: "A pipeline visualization dashboard built with React and D3, showing build metrics, run times, and stages.",
+        status: "submitted",
+        submitted_at: "2026-06-07T08:00:00Z",
+        review_score: null,
+        review_feedback: null
+      }
+    ];
+    localStorage.setItem("mock_user_projects", JSON.stringify(userProjects));
+  } else {
+    // If already initialized, ensure we overwrite mock_mentors to load any new properties/mentors we added
+    const currentMockMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+    const hasMentorId = currentMockMentors.length > 0 && currentMockMentors[0].mentor_id;
+    if (!hasMentorId) {
+      localStorage.setItem("mock_mentors", JSON.stringify(MOCK_MENTORS));
+    }
   }
+};
+
+export const addMockNotification = (userId: string | number, title: string, message: string, type: string = "info") => {
+  if (typeof window === "undefined") return;
+  const key = `mock_notifications_${userId}`;
+  const notifications = JSON.parse(localStorage.getItem(key) || "[]");
+  notifications.unshift({
+    id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    title,
+    message,
+    type,
+    read: false,
+    created_at: new Date().toISOString()
+  });
+  localStorage.setItem(key, JSON.stringify(notifications));
+  window.dispatchEvent(new Event("mock_notifications_updated"));
 };
 
 // ─── Core fetch wrapper ─────────────────────────────────────
 class ApiClient {
   private getToken(): string | null {
     if (typeof window === "undefined") return null;
-    return localStorage.getItem("auth_token");
+    return sessionStorage.getItem("auth_token");
   }
 
   private setToken(token: string): void {
     if (typeof window !== "undefined") {
-      localStorage.setItem("auth_token", token);
+      sessionStorage.setItem("auth_token", token);
     }
   }
 
   private removeToken(): void {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("auth_token");
+      sessionStorage.removeItem("auth_token");
     }
   }
 
@@ -393,6 +558,10 @@ class ApiClient {
           const mockRoles = JSON.parse(localStorage.getItem("mock_roles") || "[]");
           
           let currentUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
+          if (currentUser && currentUser.email.toLowerCase() === "challagollasridevi@gmail.com" && currentUser.role !== "mentor") {
+            currentUser.role = "mentor";
+            localStorage.setItem("mock_current_user", JSON.stringify(currentUser));
+          }
 
           const MOCK_SKILLS = [
             { id: "1", name: "JavaScript", category: "frontend" },
@@ -517,10 +686,14 @@ class ApiClient {
               return;
             }
 
-            let user = mockUsers.find((u: any) => u.email.toLowerCase() === email);
+            let user = mockUsers.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+            const finalRole = email.toLowerCase() === "challagollasridevi@gmail.com" ? "mentor" : role;
             if (!user) {
-              user = { id: String(mockUsers.length + 1), email, name, role };
+              user = { id: String(mockUsers.length + 1), email, name, role: finalRole };
               mockUsers.push(user);
+              localStorage.setItem("mock_users", JSON.stringify(mockUsers));
+            } else if (email.toLowerCase() === "challagollasridevi@gmail.com" && user.role !== "mentor") {
+              user.role = "mentor";
               localStorage.setItem("mock_users", JSON.stringify(mockUsers));
             }
 
@@ -566,6 +739,13 @@ class ApiClient {
               reject({ message: "Not authenticated", status: 401 });
               return;
             }
+            const profile = JSON.parse(localStorage.getItem(`mock_profile_${currentUser.id}`) || "null");
+            const skills = JSON.parse(localStorage.getItem(`mock_skills_${currentUser.id}`) || "[]");
+            currentUser.profile = {
+              ...(profile || {}),
+              skills: skills,
+              target_role_id: profile?.target_role_id
+            };
             resolve(currentUser as any);
             return;
           }
@@ -593,6 +773,18 @@ class ApiClient {
               localStorage.setItem(`mock_profile_${currentUser.id}`, JSON.stringify(profile));
             }
 
+            const rawSkills = JSON.parse(localStorage.getItem(`mock_skills_${currentUser.id}`) || "[]");
+            const mappedSkills = rawSkills.map((us: any) => {
+              const skillObj = MOCK_SKILLS.find((s: any) => String(s.id) === String(us.skill_id));
+              return {
+                id: Math.random().toString(36).substr(2, 9),
+                skill_id: us.skill_id,
+                proficiency_level: us.proficiency || us.proficiency_level || "intermediate",
+                years_experience: us.years_experience || 0,
+                skill: skillObj || { id: us.skill_id, name: `Skill #${us.skill_id}`, category: "other" }
+              };
+            });
+
             if (method === "PUT") {
               const updatedProfile = { ...profile, ...body };
               localStorage.setItem(`mock_profile_${currentUser.id}`, JSON.stringify(updatedProfile));
@@ -605,11 +797,17 @@ class ApiClient {
                   localStorage.setItem("mock_users", JSON.stringify(mockUsers));
                 }
               }
-              resolve(updatedProfile as any);
+              resolve({
+                ...updatedProfile,
+                skills: mappedSkills
+              } as any);
               return;
             }
 
-            resolve(profile as any);
+            resolve({
+              ...profile,
+              skills: mappedSkills
+            } as any);
             return;
           }
 
@@ -720,6 +918,23 @@ class ApiClient {
 
           // ─── PROJECTS ───
           if (path === "/projects") {
+            if (method === "POST") {
+              const newProject = {
+                id: String(mockProjects.length + 1),
+                title: body.title,
+                description: body.description,
+                difficulty: body.difficulty,
+                tech_stack: Array.isArray(body.tech_stack) ? body.tech_stack : [],
+                estimated_hours: Number(body.estimated_hours || 40),
+                career_relevance_score: 95.0,
+                created_at: new Date().toISOString()
+              };
+              const updatedProjects = [...mockProjects, newProject];
+              localStorage.setItem("mock_projects", JSON.stringify(updatedProjects));
+              resolve(newProject as any);
+              return;
+            }
+            
             let filtered = [...mockProjects];
             
             // Search filter
@@ -797,29 +1012,61 @@ class ApiClient {
             return;
           }
 
-          if (path.startsWith("/projects/")) {
+          if (path.startsWith("/projects/") && !path.startsWith("/projects/submit") && !path.startsWith("/projects/submissions/")) {
             const parts = path.split("/");
             const projectId = parseInt(parts[2]);
 
-            if (path.endsWith("/analyze")) {
+            if (path.endsWith("/suggestions") && method === "POST") {
+              const custom = JSON.parse(localStorage.getItem(`mock_suggestions_${projectId}`) || "[]");
+              const newSug = {
+                feature_name: body.feature_name,
+                description: body.description || "Custom improvement added by Advisor",
+                difficulty: body.difficulty || "medium",
+                estimated_hours: Number(body.estimated_hours || 4),
+                career_impact_score: Number(body.career_impact_score || 80),
+                companies_that_value: Array.isArray(body.companies_that_value) ? body.companies_that_value : [body.companies_that_value || "Tech Corp"]
+              };
+              custom.push(newSug);
+              localStorage.setItem(`mock_suggestions_${projectId}`, JSON.stringify(custom));
+              resolve(newSug as any);
+              return;
+            }
+
+            if (path.endsWith("/analyze") || path.endsWith("/analysis")) {
+              const customSuggestions = JSON.parse(localStorage.getItem(`mock_suggestions_${projectId}`) || "[]");
+              const mappedCustom = customSuggestions.map((s: any) => ({
+                feature_name: s.feature_name,
+                description: s.description || "Custom improvement added by Admin/Mentor",
+                difficulty: s.difficulty || "medium",
+                estimated_hours: Number(s.estimated_hours || 4),
+                career_impact_score: Number(s.career_impact_score || 85),
+                companies_that_value: Array.isArray(s.companies_that_value) ? s.companies_that_value : [s.companies_that_value || "Tech Corp"]
+              }));
+
+              const defaultUpgrades = [
+                { feature_name: "Docker Containers", description: "Containerize the application for unified deployments", career_impact_score: 95, estimated_hours: 4, companies_that_value: ["Google", "Stripe"], difficulty: "easy" },
+                { feature_name: "Redis Caching Layer", description: "Use Redis caching to accelerate key API queries", career_impact_score: 85, estimated_hours: 6, companies_that_value: ["Uber", "Meta"], difficulty: "medium" }
+              ];
+
               resolve({
+                id: `analysis_${projectId}`,
+                project_id: String(projectId),
+                github_url: "https://github.com/you/repo",
                 problem_clarity: 8,
                 technical_complexity: 7,
                 career_relevance: 90,
                 portfolio_grade: "A",
                 missing_improvements: [
-                  "Ensure environment variables are loaded securely from dotenv rather than hardcoded.",
-                  "Add unit test suites to verify server controller endpoints."
+                  "Load secret keys and config settings from a dotenv (.env) file. Do not save them in your code.",
+                  "Write simple unit tests to check if your functions work correctly."
                 ],
-                upgrade_suggestions: [
-                  { feature_name: "Docker Containerization", impact_score: 95, estimated_hours: 4, companies_valuing: ["Google", "Stripe"] },
-                  { feature_name: "Redis Session Caching", impact_score: 85, estimated_hours: 6, companies_valuing: ["Uber", "Meta"] }
-                ]
+                upgrade_suggestions: [...defaultUpgrades, ...mappedCustom],
+                analyzed_at: new Date().toISOString()
               } as any);
               return;
             }
 
-            const p = mockProjects.find((x: any) => x.id === projectId);
+            const p = mockProjects.find((x: any) => String(x.id) === String(projectId));
             if (p) {
               resolve(p as any);
             } else {
@@ -834,10 +1081,40 @@ class ApiClient {
               const variance = (Math.random() * 0.4) - 0.2;
               const newRating = Math.max(4.0, Math.min(5.0, m.rating + variance));
               const finalRating = Math.round(newRating * 10) / 10;
+              
+              let reviewedCount = m.reviewed_count || 0;
+              let reviewEarnings = m.review_earnings || 0;
+              if (currentUser && (String(m.user_id) === String(currentUser.id) || (m.email && m.email.toLowerCase() === currentUser.email.toLowerCase()))) {
+                const userProjs = JSON.parse(localStorage.getItem("mock_user_projects") || "[]");
+                const reviewedProjects = userProjs.filter((p: any) => p.status === "reviewed");
+                reviewedCount = reviewedProjects.length;
+                reviewEarnings = 0;
+                reviewedProjects.forEach((p: any) => {
+                  const proj = mockProjects.find((x: any) => String(x.id) === String(p.project_id));
+                  const diff = proj ? proj.difficulty.toLowerCase() : "beginner";
+                  if (diff === "beginner") {
+                    reviewEarnings += 0.50;
+                  } else if (diff === "intermediate") {
+                    reviewEarnings += 0.75;
+                  } else if (diff === "advanced") {
+                    reviewEarnings += 1.00;
+                  } else {
+                    reviewEarnings += 0.50;
+                  }
+                });
+              } else {
+                if (!m.reviewed_count) {
+                  reviewedCount = Math.floor(Math.random() * 10) + 2;
+                }
+                reviewEarnings = reviewedCount * 0.75; // average
+              }
+
               return {
                 ...m,
                 rating: finalRating,
-                total_sessions: m.total_sessions + (Math.random() > 0.5 ? 1 : 0)
+                total_sessions: m.total_sessions + (Math.random() > 0.5 ? 1 : 0),
+                reviewed_count: reviewedCount,
+                review_earnings: reviewEarnings
               };
             });
 
@@ -851,12 +1128,253 @@ class ApiClient {
               reject({ message: "Not authenticated", status: 401 });
               return;
             }
-            const m = mockMentors.find((x: any) => String(x.user_id) === String(currentUser.id));
+            let m = mockMentors.find((x: any) => String(x.user_id) === String(currentUser.id) || (x.email && x.email.toLowerCase() === currentUser.email.toLowerCase()));
             if (m) {
+              if (String(m.user_id) !== String(currentUser.id)) {
+                m.user_id = String(currentUser.id);
+                localStorage.setItem("mock_mentors", JSON.stringify(mockMentors));
+              }
+              const userProjs = JSON.parse(localStorage.getItem("mock_user_projects") || "[]");
+              const reviewedProjects = userProjs.filter((p: any) => p.status === "reviewed");
+              const reviewedCount = reviewedProjects.length;
+              let reviewEarnings = 0;
+              reviewedProjects.forEach((p: any) => {
+                const proj = mockProjects.find((x: any) => String(x.id) === String(p.project_id));
+                const diff = proj ? proj.difficulty.toLowerCase() : "beginner";
+                if (diff === "beginner") {
+                  reviewEarnings += 0.50;
+                } else if (diff === "intermediate") {
+                  reviewEarnings += 0.75;
+                } else if (diff === "advanced") {
+                  reviewEarnings += 1.00;
+                } else {
+                  reviewEarnings += 0.50;
+                }
+              });
+              m.reviewed_count = reviewedCount;
+              m.review_earnings = reviewEarnings;
               resolve(m as any);
             } else {
               reject({ message: "Mentor application not found", status: 404 });
             }
+            return;
+          }
+
+          if (path === "/mentors/verify-documents" && method === "POST") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            const validGovtTypes = ["passport", "driver_license", "national_id", "aadhaar", "state_id"];
+            if (!body.id_type || !validGovtTypes.includes(body.id_type.toLowerCase())) {
+              reject({ message: "Safety Violation: Only government-issued identity documents (Passport, Driver's License, National ID Card, Aadhaar Card, State ID) are accepted for safety purposes.", status: 400 });
+              return;
+            }
+            if (!body.selfie_base64 || !body.identity_document_base64 || body.selfie_base64.length < 200 || body.identity_document_base64.length < 200) {
+              reject({ message: "AI Verification Error: Webcam selfie photo and government ID document scan are required.", status: 400 });
+              return;
+            }
+
+            const cleanSelfie = body.selfie_base64.includes(",") ? body.selfie_base64.split(",")[1] : body.selfie_base64;
+            const cleanId = body.identity_document_base64.includes(",") ? body.identity_document_base64.split(",")[1] : body.identity_document_base64;
+            if (cleanSelfie === cleanId) {
+              reject({ message: "AI Biometric Verification Failed: Selfie photo and ID document image are identical. You must capture a real-time webcam selfie and upload a separate government-issued ID card.", status: 400 });
+              return;
+            }
+
+            const academicKeywords = ["marksheet", "12th", "10th", "grade", "certificate", "resume", "cv", "transcript", "degree", "result", "diploma", "report", "hsc", "ssc", "board"];
+            const nameLower = (body.id_filename || "").toLowerCase();
+            const isAcademic = academicKeywords.some(kw => nameLower.includes(kw));
+            if (isAcademic) {
+              reject({ message: `Safety Violation: Uploaded document '${body.id_filename}' recognized as academic transcript/marksheet. Government-issued ID required.`, status: 400 });
+              return;
+            }
+
+            resolve({
+              status: "passed",
+              valid_govt_id: true,
+              id_type: body.id_type,
+              similarity_score: 94.6,
+              ocr_check: "passed",
+              facial_comparison: "passed",
+              reason: "Identity verified successfully (Mock).",
+              logs: [
+                `🔍 AI Agent: Scanning government-issued features of ${body.id_type.toUpperCase()}...`,
+                "✓ AI Agent: Government seal, security watermark, and formatting validated.",
+                "✓ AI Agent: OCR check passed.",
+                "👤 AI Agent: Extracting facial biometrics from selfie snapshot...",
+                "📊 AI Agent: Facial similarity matches with 94.6% confidence.",
+                "🎉 AI Agent: Verification SUCCESS!"
+              ]
+            } as any);
+            return;
+          }
+
+          if (path === "/mentors/apply" && method === "POST") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            const validGovtTypes = ["passport", "driver_license", "national_id", "aadhaar", "state_id"];
+            if (!body.id_type || !validGovtTypes.includes(body.id_type.toLowerCase())) {
+              reject({ message: "Safety Violation: Only government-issued identity documents (Passport, Driver's License, National ID Card, Aadhaar Card, State ID) are accepted for safety purposes.", status: 400 });
+              return;
+            }
+            if (!body.selfie_base64 || !body.identity_document_base64 || body.selfie_base64.length < 200 || body.identity_document_base64.length < 200) {
+              reject({ message: "AI Verification Error: Webcam selfie photo and government ID document scan are required.", status: 400 });
+              return;
+            }
+
+            const updateMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+            let mentor = updateMentors.find((x: any) => String(x.user_id) === String(currentUser.id) || (x.email && x.email.toLowerCase() === currentUser.email.toLowerCase()));
+            if (mentor && String(mentor.user_id) !== String(currentUser.id)) {
+              mentor.user_id = String(currentUser.id);
+            }
+            
+            const expertiseArray = Array.isArray(body.expertise) ? body.expertise : [];
+            const availabilityArray = Array.isArray(body.availability) ? body.availability : [];
+            
+            if (mentor) {
+              mentor.bio = body.bio || mentor.bio;
+              if (!mentor.price_edited_by_admin) {
+                mentor.hourly_rate = body.hourly_rate !== undefined ? parseFloat(body.hourly_rate) : mentor.hourly_rate;
+              }
+              mentor.expertise = expertiseArray;
+              mentor.availability = availabilityArray;
+              mentor.company_name = body.company_name || mentor.company_name;
+              mentor.linkedin_url = body.linkedin_url || mentor.linkedin_url;
+              mentor.github_url = body.github_url || mentor.github_url;
+              mentor.corporate_email = body.corporate_email || mentor.corporate_email;
+              mentor.selfie_url = body.selfie_base64 || mentor.selfie_url;
+              mentor.identity_document_url = body.identity_document_base64 || mentor.identity_document_url;
+              mentor.id_type = body.id_type;
+              mentor.signed_agreement = body.signed_agreement !== undefined ? body.signed_agreement : mentor.signed_agreement;
+              mentor.signature_svg_or_text = body.signature_svg_or_text || mentor.signature_svg_or_text;
+              if (mentor.verification_status !== "verified") {
+                mentor.verification_status = "pending";
+              }
+            } else {
+              mentor = {
+                id: `mentor_${updateMentors.length + 1}`,
+                user_id: String(currentUser.id),
+                name: currentUser.name || currentUser.email.split("@")[0],
+                mentor_name: currentUser.name || currentUser.email.split("@")[0],
+                email: currentUser.email,
+                bio: body.bio,
+                hourly_rate: parseFloat(body.hourly_rate || "50"),
+                expertise: expertiseArray,
+                availability: availabilityArray,
+                company_name: body.company_name || "Self-Employed",
+                linkedin_url: body.linkedin_url || "",
+                github_url: body.github_url || "",
+                corporate_email: body.corporate_email || "",
+                corporate_email_verified: false,
+                verification_status: "pending",
+                is_active: false,
+                rating: 0,
+                total_sessions: 0,
+                total_reviews: 0,
+                mentor_id: `MNT-${String(updateMentors.length + 1).padStart(3, "0")}`,
+                original_price: parseFloat(body.hourly_rate || "50"),
+                has_premium_subscription: false,
+                selfie_url: body.selfie_base64 || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
+                identity_document_url: body.identity_document_base64 || "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&q=80&w=256",
+                id_type: body.id_type,
+                signed_agreement: body.signed_agreement !== undefined ? body.signed_agreement : false,
+                signature_svg_or_text: body.signature_svg_or_text || "",
+                created_at: new Date().toISOString()
+              };
+              updateMentors.push(mentor);
+            }
+            
+            localStorage.setItem("mock_mentors", JSON.stringify(updateMentors));
+            resolve(mentor as any);
+            return;
+          }
+
+          // Admin Price Lock Update
+          if (path.startsWith("/mentors/") && path.endsWith("/update-price") && method === "POST") {
+            const parts = path.split("/");
+            const mentorId = parts[2];
+            
+            const updateMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+            let m = updateMentors.find((x: any) => String(x.id) === String(mentorId));
+            if (m) {
+              m.hourly_rate = parseFloat(body.hourly_rate);
+              m.price_edited_by_admin = true;
+              localStorage.setItem("mock_mentors", JSON.stringify(updateMentors));
+              
+              // Send notification to the mentor
+              const targetUserId = m.user_id;
+              if (targetUserId) {
+                addMockNotification(
+                  targetUserId,
+                  "Hourly Rate Locked by Admin",
+                  `Your hourly rate was updated to $${body.hourly_rate} by the Admin and is now locked. Please contact support to request a change.`,
+                  "warning"
+                );
+              }
+              resolve(m as any);
+            } else {
+              reject({ message: "Mentor not found", status: 404 });
+            }
+            return;
+          }
+
+          // Coach Price Request Mail to Admin
+          if (path === "/mentors/price-request" && method === "POST") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            const localUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
+            const adminUser = localUsers.find((u: any) => u.role === "admin" || u.email.toLowerCase() === "durgasravan21@gmail.com");
+            const adminId = adminUser ? adminUser.id : "admin_id";
+            
+            addMockNotification(
+              adminId,
+              "Price Change Request Received",
+              `Coach ${currentUser.name || currentUser.email.split("@")[0]} (${currentUser.email}) requested a price change to $${body.requested_price}. Reason: ${body.reason}`,
+              "info"
+            );
+            
+            resolve({ message: "Mail request submitted to administrator successfully." } as any);
+            return;
+          }
+
+          // Notification endpoints
+          if (path === "/notifications" && method === "GET") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            const notifs = JSON.parse(localStorage.getItem(`mock_notifications_${currentUser.id}`) || "[]");
+            resolve(notifs as any);
+            return;
+          }
+
+          if (path === "/notifications/read" && method === "POST") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            const key = `mock_notifications_${currentUser.id}`;
+            const notifs = JSON.parse(localStorage.getItem(key) || "[]");
+            notifs.forEach((n: any) => n.read = true);
+            localStorage.setItem(key, JSON.stringify(notifs));
+            window.dispatchEvent(new Event("mock_notifications_updated"));
+            resolve({ success: true } as any);
+            return;
+          }
+
+          if (path === "/notifications/clear" && method === "POST") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            localStorage.setItem(`mock_notifications_${currentUser.id}`, "[]");
+            window.dispatchEvent(new Event("mock_notifications_updated"));
+            resolve({ success: true } as any);
             return;
           }
 
@@ -938,6 +1456,11 @@ class ApiClient {
           if (path === "/mentors/sessions/me") {
             if (!currentUser) {
               reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+
+            if (currentUser.email === "durgasravan21@gmail.com") {
+              resolve(mockSessions as any);
               return;
             }
 
@@ -1067,6 +1590,153 @@ class ApiClient {
             return;
           }
 
+          // ─── PROJECT SUBMISSION HANDLERS ───
+          if (path === "/projects/submit" && method === "POST") {
+            if (!currentUser) {
+              reject({ message: "Not authenticated", status: 401 });
+              return;
+            }
+            const projId = parseInt(body.project_id);
+            const matchingProj = mockProjects.find((p: any) => String(p.id) === String(projId));
+            const userProjs = JSON.parse(localStorage.getItem("mock_user_projects") || "[]");
+            
+            const newSubmission = {
+              id: `sub_${userProjs.length + 1}`,
+              user_id: String(currentUser.id),
+              user_name: currentUser.name || currentUser.email.split("@")[0],
+              user_email: currentUser.email,
+              project_id: projId,
+              project_title: matchingProj ? matchingProj.title : `Project #${projId}`,
+              github_url: body.github_url,
+              demo_url: body.demo_url || "",
+              description: body.description || "",
+              status: "submitted",
+              submitted_at: new Date().toISOString(),
+              review_score: null,
+              review_feedback: null
+            };
+            
+            userProjs.push(newSubmission);
+            localStorage.setItem("mock_user_projects", JSON.stringify(userProjs));
+            
+            resolve({
+              id: newSubmission.id,
+              project_id: String(projId),
+              github_url: body.github_url,
+              problem_clarity: 8 + Math.floor(Math.random() * 3),
+              technical_complexity: 7 + Math.floor(Math.random() * 3),
+              career_relevance: 85 + Math.floor(Math.random() * 15),
+              portfolio_grade: "A",
+              missing_improvements: [
+                "Load secret keys and config settings from a dotenv (.env) file. Do not save them in your code.",
+                "Check and validate all inputs in request bodies before saving them."
+              ],
+              upgrade_suggestions: [
+                { feature_name: "Redis Caching Layer", impact_score: 90, estimated_hours: 5, companies_valuing: ["Uber", "Robinhood"] },
+                { feature_name: "Docker Containers", impact_score: 95, estimated_hours: 3, companies_valuing: ["Netflix", "Stripe"] }
+              ],
+              analyzed_at: new Date().toISOString()
+            } as any);
+            return;
+          }
+
+          if (path === "/projects/submissions/pending") {
+            const userProjs = JSON.parse(localStorage.getItem("mock_user_projects") || "[]");
+            const pending = userProjs.filter((p: any) => p.status === "submitted");
+            resolve(pending as any);
+            return;
+          }
+
+          if (path.startsWith("/projects/submissions/") && path.endsWith("/review") && method === "POST") {
+            const parts = path.split("/");
+            const userProjId = parts[3];
+            const userProjs = JSON.parse(localStorage.getItem("mock_user_projects") || "[]");
+            const userProj = userProjs.find((p: any) => String(p.id) === String(userProjId));
+            if (userProj) {
+              userProj.review_score = body.review_score;
+              userProj.review_feedback = body.review_feedback;
+              userProj.status = "reviewed";
+              localStorage.setItem("mock_user_projects", JSON.stringify(userProjs));
+              resolve(userProj as any);
+            } else {
+              reject({ message: "Submission not found", status: 404 });
+            }
+            return;
+          }
+
+          // ─── ADMIN SPECIALIZED HANDLERS ───
+          if (path === "/admin/users/active") {
+            const users = JSON.parse(localStorage.getItem("mock_users") || "[]");
+            const userProjs = JSON.parse(localStorage.getItem("mock_user_projects") || "[]");
+            
+            const activeUsersList = users.map((u: any) => {
+              const profile = JSON.parse(localStorage.getItem(`mock_profile_${u.id}`) || "null");
+              const activeProj = userProjs.find((p: any) => String(p.user_id) === String(u.id) && p.status !== "reviewed");
+              
+              let dreamRole = "Full-Stack Developer";
+              if (profile && profile.target_role_id) {
+                const targetRole = mockRoles.find((r: any) => String(r.id) === String(profile.target_role_id));
+                if (targetRole) dreamRole = targetRole.title;
+              }
+              
+              return {
+                id: u.id,
+                name: u.name || u.email.split("@")[0],
+                email: u.email,
+                role: u.role,
+                dream_role: dreamRole,
+                skill_progress: profile?.completion_percentage || Math.floor(30 + Math.random() * 50),
+                active_project: activeProj ? activeProj.project_title : "None",
+                status: Math.random() > 0.5 ? "Active Now" : "Idle"
+              };
+            });
+            resolve(activeUsersList as any);
+            return;
+          }
+
+          if (path.startsWith("/admin/mentors/") && path.endsWith("/update-pricing") && method === "POST") {
+            const parts = path.split("/");
+            const mId = parts[3];
+            const updateMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+            const mentor = updateMentors.find((m: any) => String(m.id) === String(mId));
+            if (mentor) {
+              mentor.hourly_rate = parseFloat(body.hourly_rate);
+              mentor.original_price = parseFloat(body.original_price);
+              mentor.price_edited_by_admin = true;
+              localStorage.setItem("mock_mentors", JSON.stringify(updateMentors));
+              
+              // Send notification to the mentor
+              const targetUserId = mentor.user_id;
+              if (targetUserId) {
+                addMockNotification(
+                  targetUserId,
+                  "Hourly Rate Locked by Admin",
+                  `Your hourly rate was updated to $${body.hourly_rate} by the Admin and is now locked. Please contact support to request a change.`,
+                  "warning"
+                );
+              }
+              resolve(mentor as any);
+            } else {
+              reject({ message: "Mentor not found", status: 404 });
+            }
+            return;
+          }
+
+          if (path.startsWith("/admin/mentors/") && path.endsWith("/toggle-premium") && method === "POST") {
+            const parts = path.split("/");
+            const mId = parts[3];
+            const updateMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
+            const mentor = updateMentors.find((m: any) => String(m.id) === String(mId));
+            if (mentor) {
+              mentor.has_premium_subscription = !mentor.has_premium_subscription;
+              localStorage.setItem("mock_mentors", JSON.stringify(updateMentors));
+              resolve(mentor as any);
+            } else {
+              reject({ message: "Mentor not found", status: 404 });
+            }
+            return;
+          }
+
           reject({ message: `Mock handler not implemented for endpoint ${endpoint} (path: ${path})`, status: 404 });
         } catch (e: any) {
           reject({ message: e.message || "Mock engine error", status: 500 });
@@ -1112,7 +1782,22 @@ class ApiClient {
     },
 
     getMe: async (): Promise<User> => {
-      return this.fetchApi<User>("/auth/me");
+      const user = await this.fetchApi<User>("/auth/me");
+      try {
+        const profile = await this.user.getProfile();
+        user.profile = profile;
+      } catch (e) {
+        try {
+          const profile = JSON.parse(localStorage.getItem(`mock_profile_${user.id}`) || "null");
+          const skills = JSON.parse(localStorage.getItem(`mock_skills_${user.id}`) || "[]");
+          user.profile = {
+            ...(profile || {}),
+            skills: skills,
+            target_role_id: profile?.target_role_id
+          };
+        } catch (err) {}
+      }
+      return user;
     },
 
     logout: (): void => {
@@ -1249,6 +1934,13 @@ class ApiClient {
       return this.fetchApi<ProjectAnalysis>(`/projects/${id}/analysis`);
     },
 
+    addSuggestion: async (id: string, suggestion: any): Promise<any> => {
+      return this.fetchApi<any>(`/projects/${id}/suggestions`, {
+        method: "POST",
+        body: JSON.stringify(suggestion),
+      });
+    },
+
     create: async (payload: any): Promise<Project> => {
       const res = await this.fetchApi<Project>("/projects", {
         method: "POST",
@@ -1273,6 +1965,19 @@ class ApiClient {
           review_feedback: feedback,
         }),
       });
+    },
+  };
+
+  // ─── Notifications ──────────────────────────────────────────
+  notifications = {
+    getAll: async (): Promise<any[]> => {
+      return this.fetchApi<any[]>("/notifications");
+    },
+    markAllRead: async (): Promise<any> => {
+      return this.fetchApi<any>("/notifications/read", { method: "POST" });
+    },
+    clearAll: async (): Promise<any> => {
+      return this.fetchApi<any>("/notifications/clear", { method: "POST" });
     },
   };
 
@@ -1327,6 +2032,20 @@ class ApiClient {
       return this.fetchApi<MentorSession[]>("/mentors/sessions/me");
     },
 
+    adminUpdatePrice: async (id: string | number, rate: number): Promise<any> => {
+      return this.fetchApi<any>(`/admin/mentors/${id}/update-pricing`, {
+        method: "POST",
+        body: JSON.stringify({ hourly_rate: rate, original_price: rate * 1.3 }),
+      });
+    },
+
+    requestPriceChange: async (payload: { requested_price: number; reason: string }): Promise<any> => {
+      return this.fetchApi<any>("/mentors/price-request", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+
     submitReview: async (data: ReviewPayload): Promise<Review> => {
       return this.fetchApi<Review>("/mentors/reviews", {
         method: "POST",
@@ -1336,6 +2055,19 @@ class ApiClient {
 
     apply: async (data: any): Promise<Mentor> => {
       return this.fetchApi<Mentor>("/mentors/apply", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    verifyDocuments: async (data: {
+      selfie_base64: string;
+      identity_document_base64: string;
+      id_type: string;
+      selfie_filename?: string;
+      id_filename?: string;
+    }): Promise<any> => {
+      return this.fetchApi<any>("/mentors/verify-documents", {
         method: "POST",
         body: JSON.stringify(data),
       });
@@ -1385,6 +2117,23 @@ class ApiClient {
       return this.fetchApi<MentorReport>(`/admin/reports/${reportId}/resolve`, {
         method: "POST",
       });
+    },
+
+    updatePricing: async (mentorId: string, rate: number, original: number): Promise<Mentor> => {
+      return this.fetchApi<Mentor>(`/admin/mentors/${mentorId}/update-pricing`, {
+        method: "POST",
+        body: JSON.stringify({ hourly_rate: rate, original_price: original }),
+      });
+    },
+
+    togglePremium: async (mentorId: string): Promise<Mentor> => {
+      return this.fetchApi<Mentor>(`/admin/mentors/${mentorId}/toggle-premium`, {
+        method: "POST",
+      });
+    },
+
+    getActiveUsers: async (): Promise<any[]> => {
+      return this.fetchApi<any[]>("/admin/users/active");
     },
   };
 }

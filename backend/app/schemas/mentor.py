@@ -50,6 +50,10 @@ class MentorResponse(BaseModel):
     selfie_url: Optional[str] = None
     identity_document_url: Optional[str] = None
     reviewed_count: int = 0
+    review_earnings: float = 0.0
+    original_price: Optional[float] = None
+    price_edited_by_admin: bool = False
+    has_premium_subscription: bool = False
 
 
 class ApplyMentorRequest(BaseModel):
@@ -64,6 +68,9 @@ class ApplyMentorRequest(BaseModel):
     company_name: Optional[str] = None
     selfie_base64: Optional[str] = None  # Base64 string of captured webcam selfie
     identity_document_base64: Optional[str] = None  # Base64 string of passport/ID card
+    id_type: Optional[str] = None  # Government ID Type: passport, driver_license, national_id, aadhaar, state_id
+    selfie_filename: Optional[str] = None
+    id_filename: Optional[str] = None
     signed_agreement: bool
     signature_svg_or_text: Optional[str] = None
     availability: list[dict] = []  # list of {"day_of_week": int, "start_time": str, "end_time": str}
@@ -166,4 +173,15 @@ class MentorReportResponse(BaseModel):
     created_at: datetime
     mentor_name: Optional[str] = None
     student_name: Optional[str] = None
+
+
+class VerifyDocumentsRequest(BaseModel):
+    """Payload to perform AI document & biometric face verification."""
+
+    selfie_base64: str
+    identity_document_base64: str
+    id_type: str
+    selfie_filename: Optional[str] = None
+    id_filename: Optional[str] = None
+
 

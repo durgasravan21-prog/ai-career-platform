@@ -1,18 +1,19 @@
-"""Skill-gap analysis AI engine (MOCK implementation).
+"""Skill-gap analysis AI engine.
 
-Produces realistic career-coaching content without calling any external LLM.
+Produces realistic career-coaching content and roadmaps using LLM APIs.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.schemas.career import SkillGapItem, SkillGapResult
+from app.ai.llm import call_llm_json, get_api_keys
 
+logger = logging.getLogger(__name__)
 
-# ── Realistic learning suggestions keyed by skill name ────────────────
+# Realistic learning suggestions keyed by skill name (for fallback)
 _LEARNING_MAP: dict[str, str] = {
     "React": (
         "Start with React fundamentals on react.dev — complete the Tic-Tac-Toe tutorial, "
@@ -108,24 +109,71 @@ async def analyze_skill_gap(
     target_role: dict[str, Any],
     db: AsyncSession,
 ) -> SkillGapResult:
-    """Analyze the gap between a user's current skills and a target role.
-
-    This is a **mock** implementation that returns realistic, deterministic
-    career-coaching data based on the role and skill names.
-
-    Args:
-        current_skills: List of dicts with keys: skill_name, proficiency_level.
-        target_role: Dict with keys: title, required_skills (list of dicts with
-                     skill_name, proficiency_needed, priority).
-        db: Async database session (unused in mock, kept for interface parity).
-
-    Returns:
-        A complete SkillGapResult with actionable recommendations.
-    """
+    """Analyze the gap between a user's current skills and a target role using an AI Agent."""
     role_title: str = target_role.get("title", "Software Engineer")
     required_skills: list[dict[str, Any]] = target_role.get("required_skills", [])
 
-    # Build a lookup of the user's current skills
+    gemini_key, openai_key = get_api_keys()
+
+    if gemini_key or openai_key:
+        try:
+            logger.info("Using real AI Skill Gap / Roadmap Agent...")
+            prompt = (
+                f"You are an AI Tech Career Coach and Roadmap Architect.\n"
+                f"Analyze the skill gap between the student's current profile and the target role: \"{role_title}\".\n"
+                f"Student Current Skills: {current_skills}\n"
+                f"Target Role Required Skills: {required_skills}\n\n"
+                f"Identify the missing skills or areas that require higher proficiency. "
+                f"Return a JSON object containing a detailed gap analysis matching this schema:\n"
+                f"{{\n"
+                f"  \"current_match_percentage\": 62.5,\n"
+                f"  \"missing_skills\": [\n"
+                f"    {{\n"
+                f"      \"skill_name\": \"Docker\",\n"
+                f"      \"current_level\": \"beginner\",\n"
+                f"      \"required_level\": \"intermediate\",\n"
+                f"      \"priority\": 1,\n"
+                f"      \"learning_suggestion\": \"Learn multi-stage Dockerfiles and containerize local projects...\"\n"
+                f"    }}\n"
+                f"  ],\n"
+                f"  \"priority_order\": [\"Docker\", \"Kubernetes\"],\n"
+                f"  \"suggested_projects\": [\n"
+                f"    \"Containerize and deploy a 3-tier microservice architecture using Docker Compose and Kubernetes\"\n"
+                f"  ],\n"
+                f"  \"learning_suggestions\": [\n"
+                f"    \"Focus on highest-priority gaps first.\",\n"
+                f"    \"Build small practical projects for each new tool learned.\"\n"
+                f"  ],\n"
+                f"  \"estimated_months\": 4\n"
+                f"}}"
+            )
+
+            result = await call_llm_json(prompt=prompt)
+            if "current_match_percentage" in result:
+                missing_items = []
+                for s in result.get("missing_skills", []):
+                    missing_items.append(
+                        SkillGapItem(
+                            skill_name=s.get("skill_name", "Skill"),
+                            current_level=s.get("current_level"),
+                            required_level=s.get("required_level", "intermediate"),
+                            priority=s.get("priority", 5),
+                            learning_suggestion=s.get("learning_suggestion", _DEFAULT_SUGGESTION),
+                        )
+                    )
+                return SkillGapResult(
+                    target_role=role_title,
+                    current_match_percentage=result.get("current_match_percentage", 50.0),
+                    missing_skills=missing_items,
+                    priority_order=result.get("priority_order", []),
+                    suggested_projects=result.get("suggested_projects", []),
+                    learning_suggestions=result.get("learning_suggestions", []),
+                    estimated_months=result.get("estimated_months", 3),
+                )
+        except Exception as e:
+            logger.error(f"Real AI Skill Gap Analysis failed: {e}. Falling back to simulation.")
+
+    # Fallback to local heuristic matching
     current_lookup: dict[str, str] = {
         s["skill_name"]: s.get("proficiency_level", "beginner")
         for s in current_skills
@@ -142,7 +190,6 @@ async def analyze_skill_gap(
         required_level = req.get("proficiency_needed", "intermediate")
         current_level = current_lookup.get(skill_name)
 
-        # Skill is missing or below required proficiency
         if current_level is None or proficiency_rank.get(
             current_level, 0
         ) < proficiency_rank.get(required_level, 2):
@@ -157,7 +204,6 @@ async def analyze_skill_gap(
             )
             priority_order.append(skill_name)
 
-    # Generate project suggestions based on missing skills
     _project_map: dict[str, str] = {
         "React": "Build a real-time dashboard with React, Redux Toolkit, and WebSockets",
         "TypeScript": "Create a type-safe REST client library published to npm",
@@ -182,12 +228,10 @@ async def analyze_skill_gap(
         )
         suggested_projects.append(project)
 
-    # Compute match percentage
     total_required = len(required_skills) if required_skills else 1
     matched = total_required - len(missing_items)
     match_pct = round((matched / total_required) * 100, 1)
 
-    # Broad learning suggestions
     learning_suggestions = [
         f"Focus on {priority_order[0]} first — it's the highest-priority gap for {role_title}."
         if priority_order

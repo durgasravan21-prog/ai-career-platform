@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # ── External APIs ─────────────────────────────────────────────────
     OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     GITHUB_TOKEN: str = ""
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""

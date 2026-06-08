@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token =
       typeof window !== "undefined"
-        ? localStorage.getItem("auth_token")
+        ? sessionStorage.getItem("auth_token")
         : null;
 
     if (token) {
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(userData);
         })
         .catch(() => {
-          localStorage.removeItem("auth_token");
+          sessionStorage.removeItem("auth_token");
           setUser(null);
         })
         .finally(() => {
@@ -57,6 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       setIsLoading(false);
     }
+  }, []);
+
+  // Auto reload page after 10 minutes (600,000 ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+    return () => clearTimeout(timer);
   }, []);
 
   // Listen for forced logout from API client (on 401)

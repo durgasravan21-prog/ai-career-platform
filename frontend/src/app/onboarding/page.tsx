@@ -65,7 +65,7 @@ const TOTAL_STEPS = 5;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { register, isAuthenticated, user } = useAuth();
+  const { register, isAuthenticated, user, refreshUser } = useAuth();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -271,10 +271,17 @@ export default function OnboardingPage() {
         await api.career.generateRoadmap(selectedRole.id);
       }
 
+      // Refresh user authentication context so local target_role_id and skills are updated
+      await refreshUser();
+
       router.push("/dashboard");
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || "Something went wrong. Redirecting to dashboard...");
+      // Refresh user context anyway to be safe
+      try {
+        await refreshUser();
+      } catch (e) {}
       // Still redirect after a short delay
       setTimeout(() => router.push("/dashboard"), 2000);
     } finally {

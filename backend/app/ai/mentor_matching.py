@@ -1,34 +1,58 @@
-"""AI-powered mentor matching engine (MOCK – Phase 3).
+"""AI-powered mentor matching engine.
 
 Ranks available mentors against a student's skills and career goal.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+from app.ai.llm import call_llm_json, get_api_keys
 
+logger = logging.getLogger(__name__)
 
 async def match_mentors(
     student_skills: list[dict[str, Any]],
     career_goal: str | None,
     available_mentors: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Match a student with the best available mentors.
+    """Match a student with the best available mentors using an AI agent."""
+    gemini_key, openai_key = get_api_keys()
 
-    This is a **mock** implementation that produces deterministic rankings
-    based on simple heuristic overlap between student needs and mentor
-    expertise, without calling any external AI service.
+    if gemini_key or openai_key:
+        try:
+            logger.info("Using real AI Mentor Matching Agent...")
+            prompt = (
+                f"You are an AI Mentor Matching and Connection Agent.\n"
+                f"Your task is to rank the available mentors based on a student's skills and career goal.\n"
+                f"Student Skills: {student_skills}\n"
+                f"Student Career Goal: \"{career_goal}\"\n\n"
+                f"Available Mentors:\n"
+            )
+            for m in available_mentors:
+                prompt += f"- ID: {m['id']} | Name: {m['name']} | Expertise: {m['expertise']} | Rating: {m['rating']} | Hourly Rate: ${m['hourly_rate']}\n"
+            
+            prompt += (
+                f"\nEvaluate and rank each mentor from best to worst fit. "
+                f"Return a JSON object containing a list of matched mentors under the key 'matches'. "
+                f"Each entry must contain 'mentor_id' (integer), 'match_score' (a float percentage between 0 and 100), "
+                f"and 'reasoning' (a brief professional explanation of why they fit or how they can help with the career goal).\n"
+                f"Return ONLY the raw JSON object matching this schema:\n"
+                f"{{\n"
+                f"  \"matches\": [\n"
+                f"    {{\"mentor_id\": 1, \"match_score\": 92.5, \"reasoning\": \"Detailed professional reason here.\"}}\n"
+                f"  ]\n"
+                f"}}"
+            )
+            
+            result = await call_llm_json(prompt=prompt)
+            if "matches" in result:
+                return result["matches"]
+        except Exception as e:
+            logger.error(f"Real AI Mentor Matching failed: {e}. Falling back to simulation.")
 
-    Args:
-        student_skills: List of dicts with 'skill_name' and 'proficiency_level'.
-        career_goal: Free-text career goal, e.g. "Become a Senior Backend Engineer".
-        available_mentors: List of mentor dicts with 'id', 'name', 'expertise'
-                          (list of strings), 'rating', 'hourly_rate'.
-
-    Returns:
-        List of dicts sorted by match_score descending, each containing:
-        - mentor_id, match_score (0-100), reasoning (str).
-    """
+    # Fallback/Simulation if API key is not available
+    logger.info("Using simulated AI mentor matching agent...")
     student_skill_names = {s.get("skill_name", "").lower() for s in student_skills}
     goal_lower = (career_goal or "").lower()
 
@@ -43,14 +67,14 @@ async def match_mentors(
 
         expertise_lower = [e.lower() for e in expertise]
 
-        # Overlap score: how many student skills the mentor can teach
+        # Overlap score
         overlap = len(student_skill_names & set(expertise_lower))
         overlap_score = min(40.0, overlap * 10.0)
 
-        # Rating bonus (0-30)
-        rating_score = rating * 6.0  # max 5 * 6 = 30
+        # Rating bonus
+        rating_score = rating * 6.0
 
-        # Goal relevance (0-20)
+        # Goal relevance
         goal_score = 0.0
         if goal_lower:
             for exp in expertise_lower:
@@ -58,13 +82,12 @@ async def match_mentors(
                     goal_score = 20.0
                     break
             if goal_score == 0.0:
-                # Partial match
                 goal_words = set(goal_lower.split())
                 exp_words = {w for e in expertise_lower for w in e.split()}
                 common = goal_words & exp_words
                 goal_score = min(15.0, len(common) * 5.0)
 
-        # Value score: slight preference for reasonably priced mentors (0-10)
+        # Value score
         if hourly_rate <= 50:
             value_score = 10.0
         elif hourly_rate <= 100:
@@ -76,7 +99,6 @@ async def match_mentors(
 
         total_score = round(min(100.0, overlap_score + rating_score + goal_score + value_score), 1)
 
-        # Generate reasoning
         reasoning_parts: list[str] = []
         if overlap > 0:
             reasoning_parts.append(

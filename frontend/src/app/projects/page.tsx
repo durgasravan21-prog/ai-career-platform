@@ -31,6 +31,8 @@ import {
   ChevronLeft,
   ChevronRight,
   GitBranch,
+  Plus,
+  CheckCircle2,
 } from "lucide-react";
 
 const difficulties = ["all", "beginner", "intermediate", "advanced"] as const;
@@ -57,7 +59,12 @@ const techStackOptions = [
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+
+  const isMentorOrAdmin =
+    user?.role === "mentor" ||
+    user?.role === "admin" ||
+    user?.email === "durgasravan21@gmail.com";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,12 +91,39 @@ export default function ProjectsPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  // Custom Suggestions states
+  const [customSuggestions, setCustomSuggestions] = useState<any[]>([]);
+  const [sugFeatureName, setSugFeatureName] = useState("");
+  const [sugDescription, setSugDescription] = useState("");
+  const [sugDifficulty, setSugDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [sugHours, setSugHours] = useState("4");
+  const [sugImpact, setSugImpact] = useState("80");
+  const [sugCompanies, setSugCompanies] = useState("");
+  const [sugLoading, setSugLoading] = useState(false);
+  const [sugError, setSugError] = useState("");
+  const [sugSuccess, setSugSuccess] = useState(false);
+
   // Auth guard
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/?login=true");
     }
   }, [authLoading, isAuthenticated, router]);
+
+  // Load custom suggestions when a project is selected
+  useEffect(() => {
+    if (selectedProject) {
+      const loadSuggestions = () => {
+        const custom = JSON.parse(
+          localStorage.getItem(`mock_suggestions_${selectedProject.id}`) || "[]"
+        );
+        setCustomSuggestions(custom);
+      };
+      loadSuggestions();
+    } else {
+      setCustomSuggestions([]);
+    }
+  }, [selectedProject]);
 
   // Fetch projects
   const fetchProjects = useCallback(async () => {
@@ -204,6 +238,119 @@ export default function ProjectsPage() {
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project);
     setShowDetailModal(true);
+  };
+
+  const getCoreFeatures = (project: Project): string[] => {
+    const title = project.title.toLowerCase();
+    if (title.includes("code review") || title.includes("review tool")) {
+      return [
+        "Abstract Syntax Tree (AST) Parsing & Analysis",
+        "Large Language Model Prompt Construction & Execution",
+        "Git Repository Webhook & Event Integration",
+        "Automated Line-by-Line Pull Request Annotations",
+        "Developer Quality & Security Compliance Reports"
+      ];
+    }
+    if (title.includes("chat")) {
+      return [
+        "Bidirectional WebSocket Connection & Room Management",
+        "Real-time Message Broadcasting & Delivery Confirmation",
+        "User Presence Tracking & Typing Status Updates",
+        "End-to-End Chat Encryption & Security Layer",
+        "Media Attachment & File Upload Management"
+      ];
+    }
+    if (title.includes("finance")) {
+      return [
+        "Bank Transaction Aggregation & Ledger Registry",
+        "Automated Merchant Category Code Classification",
+        "Dynamic Budget Planning & Spend Limit Alerts",
+        "Interactive Financial Visualization Graphs",
+        "Secure OAuth Credit Institution Authentication"
+      ];
+    }
+    if (title.includes("commerce") || title.includes("microservices")) {
+      return [
+        "Decoupled Microservice API Gateways & Service Discovery",
+        "Distributed Cart, Inventory, & Checkout Coordinators",
+        "Event-Driven Order Placement & Processing Pipeline",
+        "Secure Stripe API Checkout Flow Integration",
+        "Resilient Message Broker Notification Engine"
+      ];
+    }
+    if (title.includes("weather") || title.includes("predictions")) {
+      return [
+        "Real-time Meteorological API Data Ingestion",
+        "TensorFlow Weather Prediction Analytics Inference",
+        "Interactive Geographical Charts & Dynamic Layers",
+        "Historical Weather Data Caching Database",
+        "Extreme Weather Alert Notification Hub"
+      ];
+    }
+    if (title.includes("cli")) {
+      return [
+        "Highly Interactive Command Line Shell Interface",
+        "Efficient Local SQLite Schema Persistence",
+        "Device-to-Device Authentication & Sync Engine",
+        "Flexible Task Scheduling & Cron Reminders",
+        "Robust Markdown Task Export Utility"
+      ];
+    }
+    // Generic fallback based on tech stack
+    return [
+      `Complete ${project.tech_stack.slice(0, 2).join(" & ")} integration framework`,
+      "Secure JWT Authentication & Role-Based Access Controls",
+      "Modern, Responsive Glassmorphic User Dashboard",
+      "Optimized Relational Schema & Indices",
+      "Comprehensive Automated Testing Suite"
+    ];
+  };
+
+  const handleAddSuggestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProject || !sugFeatureName.trim()) return;
+
+    setSugLoading(true);
+    setSugError("");
+    setSugSuccess(false);
+
+    try {
+      const payload = {
+        feature_name: sugFeatureName.trim(),
+        description: sugDescription.trim() || undefined,
+        difficulty: sugDifficulty,
+        estimated_hours: Number(sugHours) || 4,
+        career_impact_score: Number(sugImpact) || 80,
+        companies_that_value: sugCompanies
+          ? sugCompanies.split(",").map((c) => c.trim()).filter(Boolean)
+          : ["Tech Corp"],
+      };
+
+      await api.projects.addSuggestion(selectedProject.id, payload);
+      
+      // Reload suggestions from localStorage
+      const custom = JSON.parse(
+        localStorage.getItem(`mock_suggestions_${selectedProject.id}`) || "[]"
+      );
+      setCustomSuggestions(custom);
+
+      // Reset form
+      setSugFeatureName("");
+      setSugDescription("");
+      setSugDifficulty("medium");
+      setSugHours("4");
+      setSugImpact("80");
+      setSugCompanies("");
+      setSugSuccess(true);
+      
+      // Auto-clear success message
+      setTimeout(() => setSugSuccess(false), 3000);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setSugError(apiErr.message || "Failed to add suggestion");
+    } finally {
+      setSugLoading(false);
+    }
   };
 
   const handleSubmitProject = async () => {
@@ -446,18 +593,20 @@ export default function ProjectsPage() {
                       <Clock className="h-3.5 w-3.5" />
                       {project.estimated_hours}h estimated
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedProject(project);
-                        setShowSubmitModal(true);
-                      }}
-                    >
-                      Submit
-                    </Button>
+                    {!isMentorOrAdmin && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProject(project);
+                          setShowSubmitModal(true);
+                        }}
+                      >
+                        Submit
+                      </Button>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -545,6 +694,156 @@ export default function ProjectsPage() {
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
+
+              {isMentorOrAdmin && (
+                <div className="border-t border-white/10 pt-6 space-y-6">
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      Core System Features
+                    </h4>
+                    <ul className="space-y-2 text-sm text-muted bg-white/5 p-4 rounded-xl border border-white/5">
+                      {getCoreFeatures(selectedProject).map((feature, idx) => (
+                        <li key={idx} className="flex items-start gap-2.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Suggestions List */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Proposed Custom Suggestions & Improvements
+                    </h4>
+                    {customSuggestions.length === 0 ? (
+                      <div className="text-xs text-muted bg-white/5 p-4 rounded-xl text-center border border-white/5 border-dashed">
+                        No custom improvements proposed yet for this project. Use the form below to add suggestions!
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                        {customSuggestions.map((sug, idx) => (
+                          <div key={idx} className="bg-white/5 border border-white/5 p-3 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-foreground">{sug.feature_name}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={sug.difficulty === "easy" ? "success" : sug.difficulty === "hard" ? "error" : "warning"} className="text-[10px] py-0 px-2 h-4">
+                                  {sug.difficulty}
+                                </Badge>
+                                <span className="text-[10px] text-muted">{sug.estimated_hours}h</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted line-clamp-2">{sug.description}</p>
+                            <div className="flex items-center justify-between text-[10px] text-muted pt-1 border-t border-white/5">
+                              <span>Impact: <strong className="text-primary">{sug.career_impact_score}</strong></span>
+                              <span className="truncate max-w-[200px]">Valued by: {sug.companies_that_value?.join(", ")}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Suggestion Form */}
+                  <div className="bg-white/5 border border-white/5 p-4 rounded-xl space-y-4">
+                    <h5 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-primary" />
+                      Propose an Improvement
+                    </h5>
+
+                    {sugSuccess && (
+                      <p className="text-xs text-success bg-success/10 border border-success/20 rounded-lg px-3 py-2">
+                        Improvement proposed successfully!
+                      </p>
+                    )}
+
+                    {sugError && (
+                      <p className="text-xs text-error bg-error/10 border border-error/20 rounded-lg px-3 py-2">
+                        {sugError}
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <Input
+                        label="Feature Name"
+                        placeholder="e.g., Auth0 Integration"
+                        value={sugFeatureName}
+                        onChange={(e) => setSugFeatureName(e.target.value)}
+                        required
+                        className="text-xs"
+                      />
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Difficulty
+                        </label>
+                        <select
+                          value={sugDifficulty}
+                          onChange={(e) => setSugDifficulty(e.target.value as any)}
+                          className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        >
+                          <option value="easy">Easy</option>
+                          <option value="medium">Medium</option>
+                          <option value="hard">Hard</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <TextArea
+                      label="Description"
+                      placeholder="Detail the technical additions, features to build..."
+                      value={sugDescription}
+                      onChange={(e) => setSugDescription(e.target.value)}
+                      rows={2}
+                      className="text-xs"
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <Input
+                        label="Est. Hours"
+                        type="number"
+                        min="1"
+                        value={sugHours}
+                        onChange={(e) => setSugHours(e.target.value)}
+                        required
+                        className="text-xs"
+                      />
+                      <Input
+                        label="Career Impact Score (1-100)"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={sugImpact}
+                        onChange={(e) => setSugImpact(e.target.value)}
+                        required
+                        className="text-xs"
+                      />
+                      <Input
+                        label="Target Companies"
+                        placeholder="e.g. Google, Stripe"
+                        value={sugCompanies}
+                        onChange={(e) => setSugCompanies(e.target.value)}
+                        className="text-xs"
+                        helperText="Comma separated"
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        type="button"
+                        onClick={handleAddSuggestion}
+                        disabled={!sugFeatureName.trim()}
+                        isLoading={sugLoading}
+                        size="sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add Improvement
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </DialogBody>
             <DialogFooter>
               <Button
@@ -563,15 +862,17 @@ export default function ProjectsPage() {
                 <GitBranch className="h-4 w-4 mr-1" />
                 Analyze Standards
               </Button>
-              <Button
-                onClick={() => {
-                  setShowDetailModal(false);
-                  setShowSubmitModal(true);
-                }}
-              >
-                <Sparkles className="h-4 w-4 mr-1" />
-                Submit My Work
-              </Button>
+              {!isMentorOrAdmin && (
+                <Button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setShowSubmitModal(true);
+                  }}
+                >
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  Submit My Work
+                </Button>
+              )}
             </DialogFooter>
           </>
         )}

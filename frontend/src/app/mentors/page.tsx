@@ -26,11 +26,16 @@ import {
   Bookmark,
   ChevronRight,
   BookOpen,
+  Linkedin,
+  Github,
+  Mail,
+  Phone,
 } from "lucide-react";
 
 export default function MentorsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.email === "durgasravan21@gmail.com";
   // States
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [sessions, setSessions] = useState<MentorSession[]>([]);
@@ -58,6 +63,12 @@ export default function MentorsPage() {
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Admin Price Edit states
+  const [adminEditPrice, setAdminEditPrice] = useState("");
+  const [adminPriceLoading, setAdminPriceLoading] = useState(false);
+  const [adminPriceSuccess, setAdminPriceSuccess] = useState(false);
+  const [adminPriceError, setAdminPriceError] = useState("");
 
   // Review states
   const [reviewingSession, setReviewingSession] = useState<MentorSession | null>(null);
@@ -126,6 +137,15 @@ export default function MentorsPage() {
     loadData();
   }, []);
 
+  // Update edit price state when modal is opened
+  useEffect(() => {
+    if (bookingMentor) {
+      setAdminEditPrice(String(bookingMentor.hourly_rate));
+      setAdminPriceSuccess(false);
+      setAdminPriceError("");
+    }
+  }, [bookingMentor]);
+
   // AI Matching Request
   const handleAiMatch = async () => {
     setIsMatching(true);
@@ -145,7 +165,34 @@ export default function MentorsPage() {
     }
   };
 
+  const handleAdminUpdatePrice = async () => {
+    if (!bookingMentor || !adminEditPrice) return;
+    setAdminPriceLoading(true);
+    setAdminPriceError("");
+    setAdminPriceSuccess(false);
+    try {
+      await api.mentors.adminUpdatePrice(bookingMentor.id, parseFloat(adminEditPrice));
+      setAdminPriceSuccess(true);
+      // Update local mentors list
+      const updated = mentors.map(m => {
+        if (String(m.id) === String(bookingMentor.id)) {
+          return { ...m, hourly_rate: parseFloat(adminEditPrice), price_edited_by_admin: true };
+        }
+        return m;
+      });
+      setMentors(updated);
+    } catch (err: any) {
+      setAdminPriceError(err.message || "Failed to update price");
+    } finally {
+      setAdminPriceLoading(false);
+    }
+  };
+
   const handleOpenBookingModal = (mentor: Mentor) => {
+    if (user?.role === "mentor") {
+      setError("Mentors are not allowed to book sessions.");
+      return;
+    }
     const unreviewed = sessions.find(s => s.status === "completed" && !s.is_reviewed);
     if (unreviewed) {
       setError(`Mandatory Feedback Required: You must submit a review for your completed session with Coach ${unreviewed.mentor_name || 'Expert'} before booking a new session.`);
@@ -375,10 +422,10 @@ export default function MentorsPage() {
                             <p className="text-xs text-muted flex flex-wrap items-center gap-1.5 mt-0.5">
                               <span>Hourly Rate:</span>
                               <span className="line-through opacity-60">
-                                {formatDualCurrency(getMentorPriceDetails(match.mentor.hourly_rate).originalRate)}
+                                {formatDualCurrency(getMentorPriceDetails(match.mentor.hourly_rate, match.mentor.original_price).originalRate)}
                               </span>
                               <span className="text-primary font-bold">
-                                {formatDualCurrency(getMentorPriceDetails(match.mentor.hourly_rate).currentRate)}
+                                {formatDualCurrency(getMentorPriceDetails(match.mentor.hourly_rate, match.mentor.original_price).currentRate)}
                               </span>
                             </p>
                           )}
@@ -389,6 +436,14 @@ export default function MentorsPage() {
                         <div className="text-center py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-primary font-semibold">
                           This is You
                         </div>
+                      ) : user?.role === "mentor" ? (
+                        <div className="text-center py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-muted font-semibold">
+                          Mentors cannot book sessions
+                        </div>
+                      ) : isAdmin ? (
+                        <Button size="sm" variant="outline" onClick={() => setBookingMentor(match.mentor)} className="w-full">
+                          View Profile
+                        </Button>
                       ) : (
                         <Button size="sm" onClick={() => handleOpenBookingModal(match.mentor)} className="w-full">
                           Book Session Now
@@ -528,8 +583,18 @@ export default function MentorsPage() {
                               {mentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <h4 className="font-bold text-foreground text-base">{mentor.mentor_name}</h4>
+                                {mentor.mentor_id && (
+                                  <span className="text-[10px] bg-white/5 text-muted/60 border border-white/10 px-1.5 py-0.5 rounded-md font-mono">
+                                    {mentor.mentor_id}
+                                  </span>
+                                )}
+                                {mentor.has_premium_subscription && (
+                                  <Badge variant="default" className="bg-accent/20 text-accent border-accent/30 text-[10px] py-0.5 font-bold">
+                                    🔥 Group Sessions
+                                  </Badge>
+                                )}
                                 {user && String(mentor.user_id) === String(user.id) && (
                                   <Badge variant="default" className="bg-primary/20 text-primary border-primary/30 text-[10px] py-0.5">This is You</Badge>
                                 )}
@@ -564,10 +629,10 @@ export default function MentorsPage() {
                             ) : (
                               <div className="flex flex-col items-start">
                                 <span className="text-[11px] text-muted/60 line-through leading-none mb-0.5">
-                                  {formatDualCurrency(getMentorPriceDetails(mentor.hourly_rate).originalRate)}
+                                  {formatDualCurrency(getMentorPriceDetails(mentor.hourly_rate, mentor.original_price).originalRate)}
                                 </span>
                                 <span className="text-sm font-bold text-primary leading-none">
-                                  {formatDualCurrency(getMentorPriceDetails(mentor.hourly_rate).currentRate)}
+                                  {formatDualCurrency(getMentorPriceDetails(mentor.hourly_rate, mentor.original_price).currentRate)}
                                 </span>
                               </div>
                             )}
@@ -575,6 +640,14 @@ export default function MentorsPage() {
                           {user && String(mentor.user_id) === String(user.id) ? (
                             <Button size="sm" variant="outline" disabled className="opacity-50">
                               This is You
+                            </Button>
+                          ) : user?.role === "mentor" ? (
+                            <Button size="sm" variant="outline" disabled className="opacity-50">
+                              Booking Disabled
+                            </Button>
+                          ) : isAdmin ? (
+                            <Button size="sm" variant="outline" onClick={() => setBookingMentor(mentor)}>
+                              View Profile
                             </Button>
                           ) : (
                             <Button size="sm" onClick={() => handleOpenBookingModal(mentor)}>
@@ -695,96 +768,356 @@ export default function MentorsPage() {
           </div>
         )}
 
-        {/* ─── MODAL: Book Session ─── */}
+        {/* ─── MODAL: Book Session / View Profile ─── */}
         {bookingMentor && (
           <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
-              <div>
-                <h3 className="text-xl font-bold text-foreground">Book Mentoring Session</h3>
-                <p className="text-xs text-muted mt-1">Schedule a 60-minute call with {bookingMentor.mentor_name || bookingMentor.name}</p>
-              </div>
-
-              <form onSubmit={handleBookSession} className="space-y-4">
-                
-                {/* Date */}
-                <div className="space-y-2">
-                  <label className="text-xs text-muted font-medium">Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                {/* Time */}
-                <div className="space-y-2">
-                  <label className="text-xs text-muted font-medium">Time Slot</label>
-                  <input
-                    type="time"
-                    required
-                    value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
-                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                {/* Project Focus */}
-                <div className="space-y-2">
-                  <label className="text-xs text-muted font-medium">Focus Project (Optional)</label>
-                  <select
-                    value={selectedProject}
-                    onChange={(e) => setSelectedProject(e.target.value)}
-                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="">General Career Mentoring</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Notes */}
-                <div className="space-y-2">
-                  <label className="text-xs text-muted font-medium">Notes / Questions (Optional)</label>
-                  <textarea
-                    placeholder="Briefly explain what you would like to discuss..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                    className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                {/* Summary */}
-                <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex justify-between items-center text-sm font-semibold">
-                  <span className="text-muted">Total (1 Hour)</span>
-                  {bookingMentor.hourly_rate === 0 ? (
-                    <span className="text-success">Free (Passion Service)</span>
-                  ) : (
-                    <div className="text-right">
-                      <span className="text-[11px] text-muted/60 line-through block leading-none mb-1">
-                        {formatDualCurrency(getMentorPriceDetails(bookingMentor.hourly_rate).originalRate)}
-                      </span>
-                      <span className="text-foreground leading-none">
-                        {formatDualCurrency(getMentorPriceDetails(bookingMentor.hourly_rate).currentRate)}
-                      </span>
+            <div className={`w-full ${isAdmin ? 'max-w-lg' : 'max-w-4xl'} bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp max-h-[90vh] overflow-y-auto`}>
+              {isAdmin ? (
+                <div className="space-y-6">
+                  <div className="flex items-start gap-4 justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/25 to-secondary/25 border border-primary/20 flex items-center justify-center text-primary font-bold text-xl">
+                        {bookingMentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-xl font-bold text-foreground">{bookingMentor.mentor_name}</h3>
+                          {bookingMentor.mentor_id && (
+                            <span className="text-[10px] bg-white/5 text-muted/60 border border-white/10 px-1.5 py-0.5 rounded-md font-mono">
+                              {bookingMentor.mentor_id}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 text-warning text-xs font-semibold">
+                          <Star className="h-4 w-4 fill-current" />
+                          {bookingMentor.rating.toFixed(1)}
+                          <span className="text-muted font-normal">({bookingMentor.total_sessions} sessions completed)</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Buttons */}
-                <div className="flex gap-3 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setBookingMentor(null)} className="flex-1">
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isBooking} isLoading={isBooking} className="flex-1">
-                    Confirm Booking
-                  </Button>
-                </div>
+                  <div className="space-y-4 pt-2 border-t border-white/5">
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">About Coach</h4>
+                      <p className="text-sm text-foreground leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">
+                        {bookingMentor.bio}
+                      </p>
+                    </div>
 
-              </form>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-3 rounded-2xl border border-white/5 flex flex-col justify-center">
+                        <span className="text-[10px] text-muted uppercase tracking-wider block">Experience</span>
+                        <span className="text-sm font-bold text-foreground">
+                          {bookingMentor.experience_years || 5}+ Years
+                        </span>
+                      </div>
+                      <div className="bg-white/5 p-3 rounded-2xl border border-white/5 space-y-2">
+                        <span className="text-[10px] text-muted uppercase tracking-wider block">Hourly Rate (USD)</span>
+                        <div className="flex gap-2 items-center">
+                          <div className="relative flex-1">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-xs font-semibold">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={adminEditPrice}
+                              onChange={(e) => setAdminEditPrice(e.target.value)}
+                              className="w-full bg-surface border border-border rounded-xl pl-6 pr-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={handleAdminUpdatePrice}
+                            disabled={adminPriceLoading || !adminEditPrice}
+                          >
+                            {adminPriceLoading ? "Updating..." : "Update"}
+                          </Button>
+                        </div>
+                        {adminPriceSuccess && (
+                          <span className="text-[9px] text-success block">Price updated and locked!</span>
+                        )}
+                        {adminPriceError && (
+                          <span className="text-[9px] text-error block">{adminPriceError}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Socials & Contacts */}
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-2">Socials & Direct Contacts</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <a
+                          href={bookingMentor.linkedin_url || "https://linkedin.com"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-white/5 hover:bg-[#0077b5]/20 border border-white/10 hover:border-[#0077b5]/50 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Linkedin className="h-4 w-4 text-[#0077b5]" />
+                          <span className="truncate font-semibold">LinkedIn Profile</span>
+                        </a>
+
+                        <a
+                          href={bookingMentor.github_url || "https://github.com"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-white/5 hover:bg-[#24292e]/40 border border-white/10 hover:border-[#24292e]/80 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Github className="h-4 w-4 text-foreground" />
+                          <span className="truncate font-semibold">GitHub Profile</span>
+                        </a>
+
+                        <a
+                          href={`mailto:${bookingMentor.email || "support@careerai.com"}`}
+                          className="flex items-center gap-2 bg-white/5 hover:bg-primary/20 border border-white/10 hover:border-primary/50 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Mail className="h-4 w-4 text-primary" />
+                          <span className="truncate font-semibold">Email Coach</span>
+                        </a>
+
+                        <a
+                          href={`tel:${bookingMentor.mobile_number || "+15550192834"}`}
+                          className="flex items-center gap-2 bg-white/5 hover:bg-success/20 border border-white/10 hover:border-success/50 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Phone className="h-4 w-4 text-success" />
+                          <span className="truncate font-semibold">Call Coach</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Platform Admin Support */}
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-2">Platform Admin Support</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <a
+                          href="mailto:durgasravan21@gmail.com"
+                          className="flex items-center gap-2 bg-white/5 hover:bg-secondary/20 border border-white/10 hover:border-secondary/50 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Mail className="h-4 w-4 text-secondary" />
+                          <span className="truncate font-semibold">Email Admin</span>
+                        </a>
+
+                        <a
+                          href="tel:+15550123456"
+                          className="flex items-center gap-2 bg-white/5 hover:bg-accent/20 border border-white/10 hover:border-accent/50 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Phone className="h-4 w-4 text-accent" />
+                          <span className="truncate font-semibold">Call Admin</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-2">Expertise & Technologies</h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {bookingMentor.expertise.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    {bookingMentor.availability && bookingMentor.availability.length > 0 && (
+                      <div>
+                        <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-2">Weekly Availability</h4>
+                        <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                          {bookingMentor.availability.map((slot, idx) => {
+                            const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                            return (
+                              <div key={idx} className="flex justify-between items-center text-xs text-muted bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                                <span className="font-medium text-foreground">{days[slot.day_of_week]}</span>
+                                <span>{slot.start_time} - {slot.end_time}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5 flex">
+                    <Button onClick={() => setBookingMentor(null)} className="w-full">
+                      Close Details
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                  
+                  {/* Left Column: Coach Profile details */}
+                  <div className="space-y-5">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/25 to-secondary/25 border border-primary/20 flex items-center justify-center text-primary font-bold text-xl">
+                        {bookingMentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-xl font-bold text-foreground">{bookingMentor.mentor_name}</h3>
+                          {bookingMentor.mentor_id && (
+                            <span className="text-[10px] bg-white/5 text-muted/60 border border-white/10 px-1.5 py-0.5 rounded-md font-mono">
+                              {bookingMentor.mentor_id}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 text-warning text-xs font-semibold">
+                          <Star className="h-4 w-4 fill-current" />
+                          {bookingMentor.rating.toFixed(1)}
+                          <span className="text-muted font-normal">({bookingMentor.total_sessions} sessions completed)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-1">About Coach</h4>
+                      <p className="text-xs text-foreground leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5 max-h-40 overflow-y-auto">
+                        {bookingMentor.bio}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-3 rounded-2xl border border-white/5 flex flex-col justify-center">
+                        <span className="text-[10px] text-muted uppercase tracking-wider block">Experience</span>
+                        <span className="text-xs font-bold text-foreground">
+                          {bookingMentor.experience_years || 5}+ Years
+                        </span>
+                      </div>
+                      <div className="bg-white/5 p-3 rounded-2xl border border-white/5 flex flex-col justify-center">
+                        <span className="text-[10px] text-muted uppercase tracking-wider block">Hourly Rate</span>
+                        <span className="text-xs font-bold text-success">
+                          {bookingMentor.hourly_rate === 0 ? "Free" : `$${bookingMentor.hourly_rate}/hr`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Socials */}
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-2">Socials</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <a
+                          href={bookingMentor.linkedin_url || "https://linkedin.com"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-white/5 hover:bg-[#0077b5]/20 border border-white/10 hover:border-[#0077b5]/50 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Linkedin className="h-4 w-4 text-[#0077b5]" />
+                          <span className="truncate font-semibold">LinkedIn</span>
+                        </a>
+
+                        <a
+                          href={bookingMentor.github_url || "https://github.com"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-white/5 hover:bg-[#24292e]/40 border border-white/10 hover:border-[#24292e]/80 px-3 py-2 rounded-xl text-xs text-foreground transition-all duration-200"
+                        >
+                          <Github className="h-4 w-4 text-foreground" />
+                          <span className="truncate">GitHub</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs text-muted uppercase tracking-wider font-semibold mb-2">Expertise</h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {bookingMentor.expertise.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Booking Form */}
+                  <div className="space-y-4 border-t md:border-t-0 md:border-l border-white/5 pt-6 md:pt-0 md:pl-8">
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">Book Mentoring Session</h3>
+                      <p className="text-xs text-muted mt-1">Schedule a 60-minute call with {bookingMentor.mentor_name || bookingMentor.name}</p>
+                    </div>
+
+                    <form onSubmit={handleBookSession} className="space-y-4">
+                      
+                      {/* Date */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted font-medium">Date</label>
+                        <input
+                          type="date"
+                          required
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+
+                      {/* Time */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted font-medium">Time Slot</label>
+                        <input
+                          type="time"
+                          required
+                          value={selectedTime}
+                          onChange={(e) => setSelectedTime(e.target.value)}
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+
+                      {/* Project Focus */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted font-medium">Focus Project (Optional)</label>
+                        <select
+                          value={selectedProject}
+                          onChange={(e) => setSelectedProject(e.target.value)}
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="">General Career Mentoring</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.title}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted font-medium">Notes / Questions (Optional)</label>
+                        <textarea
+                          placeholder="Briefly explain what you would like to discuss..."
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          rows={3}
+                          className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+
+                      {/* Summary */}
+                      <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex justify-between items-center text-sm font-semibold">
+                        <span className="text-muted">Total (1 Hour)</span>
+                        {bookingMentor.hourly_rate === 0 ? (
+                          <span className="text-success">Free (Passion Service)</span>
+                        ) : (
+                          <div className="text-right">
+                            <span className="text-[11px] text-muted/60 line-through block leading-none mb-1">
+                              {formatDualCurrency(getMentorPriceDetails(bookingMentor.hourly_rate, bookingMentor.original_price).originalRate)}
+                            </span>
+                            <span className="text-foreground leading-none">
+                              {formatDualCurrency(getMentorPriceDetails(bookingMentor.hourly_rate, bookingMentor.original_price).currentRate)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Buttons */}
+                      <div className="flex gap-3 pt-2">
+                        <Button type="button" variant="outline" onClick={() => setBookingMentor(null)} className="flex-1">
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={isBooking} isLoading={isBooking} className="flex-1">
+                          Confirm Booking
+                        </Button>
+                      </div>
+
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

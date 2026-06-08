@@ -47,8 +47,10 @@ export default function MentorApplyPage() {
   const [githubUrl, setGithubUrl] = useState("");
   const [corporateEmail, setCorporateEmail] = useState("");
   const [selfieBase64, setSelfieBase64] = useState<string | null>(null);
+  const [selfieFileName, setSelfieFileName] = useState("");
   const [idBase64, setIdBase64] = useState<string | null>(null);
   const [idFileName, setIdFileName] = useState("");
+  const [idType, setIdType] = useState("");
   const [signedAgreement, setSignedAgreement] = useState(false);
   const [signatureText, setSignatureText] = useState("");
 
@@ -124,6 +126,7 @@ export default function MentorApplyPage() {
         ctx.drawImage(videoRef.current, 0, 0, 320, 240);
         const base64 = canvas.toDataURL("image/jpeg");
         setSelfieBase64(base64);
+        setSelfieFileName("webcam_selfie.jpg");
         stopCamera();
       }
     }
@@ -242,6 +245,40 @@ export default function MentorApplyPage() {
     setStep(3);
   };
 
+  // Step 3 Continue Validation (Safety Check)
+  const handleStep3Continue = () => {
+    setError("");
+    if (!idType) {
+      setError("Please select a Government ID Type first.");
+      return;
+    }
+    if (!selfieBase64 || !idBase64) {
+      setError("Both selfie photo and government ID scan are required.");
+      return;
+    }
+
+    const cleanSelfie = selfieBase64.includes(",") ? selfieBase64.split(",")[1] : selfieBase64;
+    const cleanId = idBase64.includes(",") ? idBase64.split(",")[1] : idBase64;
+
+    // 1. Identical file check
+    if (cleanSelfie === cleanId) {
+      setError("AI Biometric Verification Failed: Selfie photo and ID document image are identical. You must capture a real-time webcam selfie and upload a separate government-issued ID card.");
+      return;
+    }
+
+    // 2. Academic transcript check
+    const academicKeywords = ["marksheet", "12th", "10th", "grade", "certificate", "resume", "cv", "transcript", "degree", "result", "diploma", "report", "hsc", "ssc", "board"];
+    const nameLower = (idFileName || "").toLowerCase();
+    const isAcademic = academicKeywords.some(kw => nameLower.includes(kw));
+
+    if (isAcademic) {
+      setError(`Safety Violation: Uploaded document '${idFileName}' recognized as an academic transcript or marksheet. The AI agent rejects this upload. Please upload an official government-issued ID (e.g. Aadhaar Card, Passport, Driver's License) for safety purposes.`);
+      return;
+    }
+
+    setStep(4);
+  };
+
   // Submit Application
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,6 +301,9 @@ export default function MentorApplyPage() {
         corporate_email: corporateEmail || undefined,
         selfie_base64: selfieBase64 || undefined,
         identity_document_base64: idBase64 || undefined,
+        id_type: idType,
+        selfie_filename: selfieFileName,
+        id_filename: idFileName,
         signed_agreement: signedAgreement,
         signature_svg_or_text: signatureText,
         availability: [
@@ -601,6 +641,35 @@ export default function MentorApplyPage() {
 
             <div className="space-y-5">
               
+              {/* Government ID Type Dropdown Selector */}
+              <div className="glass-card p-4 border border-white/5 bg-white/5 rounded-xl space-y-2 text-left">
+                <label className="text-xs text-muted font-bold uppercase tracking-wider block text-left">
+                  Select Government-Issued Identity Document Type <span className="text-red-400 font-bold">*</span>
+                </label>
+                <select
+                  value={idType}
+                  onChange={(e) => {
+                    setIdType(e.target.value);
+                    setSelfieBase64(null);
+                    setSelfieFileName("");
+                    setIdBase64(null);
+                    setIdFileName("");
+                    setError("");
+                  }}
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:ring-primary outline-none accent-primary transition-all cursor-pointer"
+                >
+                  <option value="">-- Choose Government ID Type --</option>
+                  <option value="passport">Passport</option>
+                  <option value="driver_license">Driver's License</option>
+                  <option value="national_id">National ID Card</option>
+                  <option value="aadhaar">Aadhaar Card (Govt of India)</option>
+                  <option value="state_id">State ID / PAN Card (Govt of India)</option>
+                </select>
+                <span className="text-[10px] text-muted block text-left">
+                  Safety Warning: Only official government-issued identifications are accepted by the AI Verification Agent.
+                </span>
+              </div>
+
               {/* Webcam Selfie Capture */}
               <div className="space-y-2">
                 <label className="text-xs text-muted font-semibold block">1. Take a Selfie Photo</label>
@@ -653,7 +722,7 @@ export default function MentorApplyPage() {
               <Button type="button" variant="outline" onClick={() => { stopCamera(); setStep(2); }} className="flex-1">
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
               </Button>
-              <Button onClick={() => selfieBase64 && idBase64 ? setStep(4) : setError("Both selfie and government ID are required.")} className="flex-1">
+              <Button onClick={handleStep3Continue} className="flex-1">
                 Continue <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </div>

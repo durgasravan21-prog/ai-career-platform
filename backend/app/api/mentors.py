@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.mentor_matching import match_mentors
+from app.ai.document_verifier import verify_documents_and_matching_ai
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.mentor import (
@@ -38,6 +39,7 @@ from app.schemas.mentor import (
     VerifyCorporateRequest,
     ReportMentorRequest,
     MentorReportResponse,
+    VerifyDocumentsRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,7 +80,33 @@ def save_base64_file(base64_str: str, file_prefix: str, user_id: int) -> str:
         return ""
 
 
-def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0) -> MentorResponse:
+async def _get_mentor_review_stats(db: AsyncSession, mentor_id: int) -> tuple[int, float]:
+    """Calculate the reviewed count and review earnings dynamically for a mentor."""
+    from app.models.project import UserProject, UserProjectStatus
+    result = await db.execute(
+        select(UserProject).where(
+            UserProject.reviewer_mentor_id == mentor_id,
+            UserProject.status == UserProjectStatus.reviewed
+        )
+    )
+    reviewed_projects = result.scalars().all()
+    reviewed_count = len(reviewed_projects)
+    review_earnings = 0.0
+    for up in reviewed_projects:
+        if up.project:
+            difficulty = up.project.difficulty.value if hasattr(up.project.difficulty, "value") else up.project.difficulty
+            if difficulty == "beginner":
+                review_earnings += 0.50
+            elif difficulty == "intermediate":
+                review_earnings += 0.75
+            elif difficulty == "advanced":
+                review_earnings += 1.00
+            else:
+                review_earnings += 0.50
+    return reviewed_count, review_earnings
+
+
+def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0, review_earnings: float = 0.0) -> MentorResponse:
     """Convert a MentorProfile ORM object to a MentorResponse schema."""
     exp_list = []
     if isinstance(mentor.expertise, dict):
@@ -121,9 +149,13 @@ def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0) -> Mento
         signed_agreement=mentor.signed_agreement,
         verified_at=mentor.verified_at,
         reviewed_count=reviewed_count,
+        review_earnings=review_earnings,
         rejected_at=mentor.rejected_at,
         selfie_url=mentor.selfie_url,
         identity_document_url=mentor.identity_document_url,
+        original_price=mentor.original_price,
+        price_edited_by_admin=mentor.price_edited_by_admin,
+        has_premium_subscription=mentor.has_premium_subscription,
     )
 
 
@@ -161,7 +193,11 @@ async def list_mentors(
                 continue
         filtered.append(mentor)
 
-    return [_mentor_to_response(m) for m in filtered]
+    res = []
+    for m in filtered:
+        rev_count, rev_earnings = await _get_mentor_review_stats(db, m.id)
+        res.append(_mentor_to_response(m, reviewed_count=rev_count, review_earnings=rev_earnings))
+    return res
 
 
 @router.post(
@@ -227,9 +263,10 @@ async def match_mentor(
     for match in matches:
         mentor = mentor_lookup.get(match["mentor_id"])
         if mentor:
+            rev_count, rev_earnings = await _get_mentor_review_stats(db, mentor.id)
             responses.append(
                 MentorMatchResponse(
-                    mentor=_mentor_to_response(mentor),
+                    mentor=_mentor_to_response(mentor, reviewed_count=rev_count, review_earnings=rev_earnings),
                     match_score=match["match_score"],
                     reasoning=match["reasoning"],
                 )
@@ -429,11 +466,15 @@ async def get_my_sessions(
     db: AsyncSession = Depends(get_db),
 ) -> list[SessionResponse]:
     """Return all mentoring sessions for the current user (as student or mentor)."""
-    # Sessions as student
-    result = await db.execute(
-        select(MentorSession).where(MentorSession.student_id == current_user.id)
-    )
-    sessions = list(result.scalars().all())
+    if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+        result = await db.execute(select(MentorSession))
+        sessions = list(result.scalars().all())
+    else:
+        # Sessions as student
+        result = await db.execute(
+            select(MentorSession).where(MentorSession.student_id == current_user.id)
+        )
+        sessions = list(result.scalars().all())
 
     # Also sessions where user is mentor
     result = await db.execute(
@@ -472,6 +513,24 @@ async def get_my_sessions(
 # ─── Verification & Onboarding API Endpoints ───────────────────────
 
 @router.post(
+    "/mentors/verify-documents",
+    summary="Real-time AI verification of government ID and webcam selfie",
+)
+async def verify_documents_api(
+    body: VerifyDocumentsRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Run real-time AI verification on the uploaded selfie and government ID."""
+    return await verify_documents_and_matching_ai(
+        body.selfie_base64,
+        body.identity_document_base64,
+        body.id_type,
+        body.selfie_filename,
+        body.id_filename
+    )
+
+
+@router.post(
     "/mentors/apply",
     response_model=MentorResponse,
     status_code=status.HTTP_201_CREATED,
@@ -482,10 +541,6 @@ async def apply_as_mentor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorResponse:
-    # Save files if present
-    selfie_url = save_base64_file(body.selfie_base64, "selfie", current_user.id) if body.selfie_base64 else None
-    id_doc_url = save_base64_file(body.identity_document_base64, "id_doc", current_user.id) if body.identity_document_base64 else None
-
     # Check if they already have a mentor profile
     result = await db.execute(
         select(MentorProfile).where(MentorProfile.user_id == current_user.id)
@@ -506,47 +561,95 @@ async def apply_as_mentor(
                 detail=f"Cooldown active. You can re-apply in {remaining_days} days.",
             )
 
+    # Determine if we need to run AI verification
+    # If the mentor profile is already verified and the user is NOT providing new base64 files,
+    # we can skip the biometric AI verification step.
+    ai_result = None
+    if mentor is None or mentor.verification_status != "verified" or (body.selfie_base64 and body.identity_document_base64):
+        if not body.selfie_base64 or not body.identity_document_base64:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Identity verification failed: Webcam selfie and government ID document are required.",
+            )
+        if not body.id_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Identity verification failed: Government ID type must be selected.",
+            )
+        ai_result = await verify_documents_and_matching_ai(
+            body.selfie_base64, body.identity_document_base64, body.id_type,
+            body.selfie_filename, body.id_filename
+        )
+    else:
+        # Re-use existing AI verification details if they exist
+        if mentor.expertise and isinstance(mentor.expertise, dict):
+            ai_result = mentor.expertise.get("ai_verification")
+
+    # Save files if present
+    selfie_url = save_base64_file(body.selfie_base64, "selfie", current_user.id) if body.selfie_base64 else (mentor.selfie_url if mentor else None)
+    id_doc_url = save_base64_file(body.identity_document_base64, "id_doc", current_user.id) if body.identity_document_base64 else (mentor.identity_document_url if mentor else None)
+
     # Expertise needs to be stored as {"areas": [...]}
-    expertise_dict = {"areas": body.expertise}
+    expertise_dict = {
+        "areas": body.expertise,
+        "id_type": body.id_type or (mentor.expertise.get("id_type") if mentor and mentor.expertise else None),
+        "ai_verification": ai_result
+    }
 
     if mentor is None:
+        verification_status = "verified" if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else "pending"
+        is_active = True if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else False
         mentor = MentorProfile(
             user_id=current_user.id,
             bio=body.bio,
             hourly_rate=body.hourly_rate,
             expertise=expertise_dict,
-            verification_status="pending",
+            verification_status=verification_status,
             linkedin_url=body.linkedin_url,
             github_url=body.github_url,
             corporate_email=body.corporate_email,
             company_name=body.company_name,
-            corporate_email_verified=False,
+            corporate_email_verified=True if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com") else False,
             selfie_url=selfie_url,
             identity_document_url=id_doc_url,
             signed_agreement=body.signed_agreement,
             signature_svg_or_text=body.signature_svg_or_text,
-            is_active=False,  # inactive until approved
+            is_active=is_active,
         )
         db.add(mentor)
     else:
         mentor.bio = body.bio
         mentor.hourly_rate = body.hourly_rate
         mentor.expertise = expertise_dict
-        mentor.verification_status = "pending"
+        
+        # Preserve verification status if already verified, otherwise reset to pending
+        if current_user.email in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+            mentor.verification_status = "verified"
+            mentor.is_active = True
+        elif mentor.verification_status != "verified":
+            mentor.verification_status = "pending"
+            mentor.is_active = False
+            
         mentor.rejected_at = None
         mentor.linkedin_url = body.linkedin_url
         mentor.github_url = body.github_url
-        mentor.corporate_email = body.corporate_email
+        
+        # Reset corporate email verification only if corporate email is updated
+        if mentor.corporate_email != body.corporate_email:
+            mentor.corporate_email = body.corporate_email
+            mentor.corporate_email_verified = False
+            
         if body.company_name:
             mentor.company_name = body.company_name
-        mentor.corporate_email_verified = False
+            
         if selfie_url:
             mentor.selfie_url = selfie_url
         if id_doc_url:
             mentor.identity_document_url = id_doc_url
+            
         mentor.signed_agreement = body.signed_agreement
-        mentor.signature_svg_or_text = body.signature_svg_or_text
-        mentor.is_active = False
+        if body.signature_svg_or_text:
+            mentor.signature_svg_or_text = body.signature_svg_or_text
 
     await db.flush()
 
@@ -601,15 +704,8 @@ async def get_application_status(
             detail="No mentor profile found for this user.",
         )
     
-    from app.models.project import UserProject, UserProjectStatus
-    result_count = await db.execute(
-        select(UserProject).where(
-            UserProject.reviewer_mentor_id == mentor.id,
-            UserProject.status == UserProjectStatus.reviewed
-        )
-    )
-    reviewed_count = len(result_count.scalars().all())
-    return _mentor_to_response(mentor, reviewed_count=reviewed_count)
+    reviewed_count, review_earnings = await _get_mentor_review_stats(db, mentor.id)
+    return _mentor_to_response(mentor, reviewed_count=reviewed_count, review_earnings=review_earnings)
 
 
 @router.post(
@@ -654,7 +750,7 @@ async def admin_approve_mentor(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorResponse:
-    if current_user.email != "durgasravan21@gmail.com":
+    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can approve or reject mentor applications.",
@@ -682,7 +778,8 @@ async def admin_approve_mentor(
         mentor.is_active = False
         
     await db.flush()
-    return _mentor_to_response(mentor)
+    reviewed_count, review_earnings = await _get_mentor_review_stats(db, mentor.id)
+    return _mentor_to_response(mentor, reviewed_count=reviewed_count, review_earnings=review_earnings)
 
 
 @router.get(
@@ -694,8 +791,8 @@ async def list_pending_mentors(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MentorResponse]:
-    """Return all pending mentors for admin review. Only accessible by durgasravan21@gmail.com."""
-    if current_user.email != "durgasravan21@gmail.com":
+    """Return all pending mentors for admin review. Only accessible by admins."""
+    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can view pending applications.",
@@ -705,7 +802,82 @@ async def list_pending_mentors(
     )
     result = await db.execute(query)
     mentors = result.scalars().all()
-    return [_mentor_to_response(m) for m in mentors]
+    res = []
+    for m in mentors:
+        rev_count, rev_earnings = await _get_mentor_review_stats(db, m.id)
+        res.append(_mentor_to_response(m, reviewed_count=rev_count, review_earnings=rev_earnings))
+    return res
+
+
+class AdminUpdatePricingRequest(BaseModel):
+    hourly_rate: float
+    original_price: Optional[float] = None
+
+
+@router.post(
+    "/admin/mentors/{mentor_id}/update-pricing",
+    response_model=MentorResponse,
+    summary="Update mentor pricing by admin",
+)
+async def admin_update_pricing(
+    mentor_id: int,
+    body: AdminUpdatePricingRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MentorResponse:
+    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can update mentor pricing.",
+        )
+    result = await db.execute(
+        select(MentorProfile).where(MentorProfile.id == mentor_id)
+    )
+    mentor = result.scalar_one_or_none()
+    if mentor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mentor profile with id {mentor_id} not found",
+        )
+    mentor.hourly_rate = body.hourly_rate
+    if body.original_price is not None:
+        mentor.original_price = body.original_price
+    elif mentor.original_price is None:
+        mentor.original_price = body.hourly_rate * 1.3
+    mentor.price_edited_by_admin = True
+    await db.flush()
+    reviewed_count, review_earnings = await _get_mentor_review_stats(db, mentor.id)
+    return _mentor_to_response(mentor, reviewed_count=reviewed_count, review_earnings=review_earnings)
+
+
+@router.post(
+    "/admin/mentors/{mentor_id}/toggle-premium",
+    response_model=MentorResponse,
+    summary="Toggle mentor premium tier status by admin",
+)
+async def admin_toggle_premium(
+    mentor_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MentorResponse:
+    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can toggle mentor premium status.",
+        )
+    result = await db.execute(
+        select(MentorProfile).where(MentorProfile.id == mentor_id)
+    )
+    mentor = result.scalar_one_or_none()
+    if mentor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mentor profile with id {mentor_id} not found",
+        )
+    mentor.has_premium_subscription = not mentor.has_premium_subscription
+    await db.flush()
+    reviewed_count, review_earnings = await _get_mentor_review_stats(db, mentor.id)
+    return _mentor_to_response(mentor, reviewed_count=reviewed_count, review_earnings=review_earnings)
 
 
 class UpdateSessionStatusRequest(BaseModel):
@@ -838,7 +1010,7 @@ async def get_admin_reports(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MentorReportResponse]:
-    if current_user.email != "durgasravan21@gmail.com":
+    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can view mentor reports.",
@@ -883,7 +1055,7 @@ async def resolve_mentor_report(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MentorReportResponse:
-    if current_user.email != "durgasravan21@gmail.com":
+    if current_user.email not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the platform admin can resolve mentor reports.",

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { cn, getInitials } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,9 @@ import {
   LogOut,
   User,
   ChevronDown,
+  Bell,
+  Trash2,
+  CheckCheck,
 } from "lucide-react";
 
 const navLinks = [
@@ -28,6 +32,52 @@ export function Navbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const fetchNotifications = React.useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const data = await api.notifications.getAll();
+      setNotifications(data);
+    } catch (e) {
+      console.error("Failed to load notifications", e);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchNotifications();
+      
+      const handleUpdate = () => {
+        fetchNotifications();
+      };
+      
+      window.addEventListener("mock_notifications_updated", handleUpdate);
+      return () => {
+        window.removeEventListener("mock_notifications_updated", handleUpdate);
+      };
+    }
+  }, [isAuthenticated, fetchNotifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await api.notifications.markAllRead();
+      fetchNotifications();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await api.notifications.clearAll();
+      fetchNotifications();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Don't show navbar on onboarding
   if (pathname?.startsWith("/onboarding")) return null;
@@ -72,11 +122,97 @@ export function Navbar() {
           {/* Right Side */}
           <div className="flex items-center gap-3">
             {isAuthenticated && user ? (
-              <div className="relative">
-                <button
-                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors"
-                >
+              <>
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setNotificationsOpen(!notificationsOpen);
+                      setProfileDropdownOpen(false);
+                    }}
+                    className="relative p-2 rounded-xl text-muted hover:text-foreground hover:bg-white/5 transition-all duration-200"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {notifications.filter(n => !n.read).length > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-error text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                        {notifications.filter(n => !n.read).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationsOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setNotificationsOpen(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-2 w-80 bg-surface border border-white/10 rounded-2xl shadow-xl z-20 animate-slideDown overflow-hidden">
+                        <div className="p-3 border-b border-white/5 flex items-center justify-between">
+                          <p className="text-sm font-semibold text-foreground">Notifications</p>
+                          <div className="flex gap-2 text-[10px]">
+                            {notifications.length > 0 && (
+                              <>
+                                <button
+                                  onClick={handleMarkAllRead}
+                                  className="text-primary hover:underline flex items-center gap-0.5"
+                                >
+                                  <CheckCheck className="w-3 h-3" /> Read All
+                                </button>
+                                <button
+                                  onClick={handleClearAll}
+                                  className="text-error hover:underline flex items-center gap-0.5"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Clear
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto divide-y divide-white/5">
+                          {notifications.length === 0 ? (
+                            <div className="p-6 text-center text-xs text-muted">
+                              No new notifications
+                            </div>
+                          ) : (
+                            notifications.map((notif) => (
+                              <div
+                                key={notif.id}
+                                className={cn(
+                                  "p-3 text-xs space-y-1 transition-colors",
+                                  !notif.read ? "bg-white/[0.02]" : "opacity-70"
+                                )}
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className={cn(
+                                    "font-semibold text-left",
+                                    notif.type === "warning" ? "text-warning" : "text-foreground"
+                                  )}>
+                                    {notif.title}
+                                  </span>
+                                  <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                                    {new Date(notif.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="text-muted leading-normal text-left">{notif.message}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Profile dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(!profileDropdownOpen);
+                      setNotificationsOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors"
+                  >
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
                     <span className="text-white text-xs font-semibold">
                       {getInitials(user.name)}
@@ -124,6 +260,7 @@ export function Navbar() {
                   </>
                 )}
               </div>
+              </>
             ) : (
               <div className="hidden md:flex items-center gap-2">
                 <Link

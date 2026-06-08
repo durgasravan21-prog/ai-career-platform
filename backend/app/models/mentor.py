@@ -69,6 +69,9 @@ class MentorProfile(Base):
     signature_svg_or_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    original_price: Mapped[float | None] = mapped_column(Float, default=None, nullable=True)
+    price_edited_by_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    has_premium_subscription: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

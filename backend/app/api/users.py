@@ -369,6 +369,22 @@ async def analyze_cv(
             
     if not cv_text:
         cv_text = content_bytes.decode("utf-8", errors="ignore")
+
+    # 2a. Call real AI CV Scanner Agent if API keys are available
+    from app.ai.cv_agent import analyze_cv_ai
+    ai_result = await analyze_cv_ai(cv_text, target_role_title, required_skills)
+    if ai_result:
+        return CVAnalysisResponse(
+            ats_score=ai_result.get("ats_score", 70),
+            target_role=ai_result.get("target_role", target_role_title),
+            missing_keywords=ai_result.get("missing_keywords", []),
+            formatting_issues=ai_result.get("formatting_issues", []),
+            rejection_risks=ai_result.get("rejection_risks", []),
+            actionable_recommendations=ai_result.get("actionable_recommendations", []),
+            parsed_skills=ai_result.get("parsed_skills", []),
+            parsed_education=ai_result.get("parsed_education", []),
+            parsed_experience=ai_result.get("parsed_experience", []),
+        )
         
     # Parse CV text (case-insensitive substring check for skills and keywords)
     cv_text_lower = cv_text.lower()
@@ -382,8 +398,6 @@ async def analyze_cv(
             matched_skills.append(skill)
         else:
             missing_skills.append(skill)
-            
-    # Simple parser for education and experience sections
     parsed_education = []
     parsed_experience = []
     

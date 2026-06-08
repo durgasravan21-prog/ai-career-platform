@@ -102,16 +102,28 @@ export function formatDualCurrency(rate: number): string {
   return `₹${inrRate.toLocaleString("en-IN")} ($${rate}/hr)`;
 }
 
-export function getMentorPriceDetails(baseRate: number) {
+export function getMentorPriceDetails(baseRate: number, originalPrice?: number) {
+  if (originalPrice !== undefined && originalPrice !== null && originalPrice > 0) {
+    return {
+      currentRate: baseRate,
+      originalRate: originalPrice,
+    };
+  }
   return {
-    currentRate: Math.round(baseRate * 1.1),
-    originalRate: Math.round(baseRate * 1.5),
+    currentRate: baseRate,
+    originalRate: Math.round(baseRate * 1.3),
   };
 }
 
-export function formatDualCurrencyWithDiscount(baseRate: number): string {
+export function formatDualCurrencyWithDiscount(baseRate: number, originalPrice?: number): string {
   if (baseRate === 0) return "Free (Passion Service)";
-  const { currentRate } = getMentorPriceDetails(baseRate);
+  const { currentRate } = getMentorPriceDetails(baseRate, originalPrice);
   const inrCurrent = Math.round(currentRate * 83.5);
   return `₹${inrCurrent.toLocaleString("en-IN")} ($${currentRate}/hr)`;
 }
+
+export function formatDualCurrencyAmount(amount: number): string {
+  const inrAmount = Math.round(amount * 83.5);
+  return `₹${inrAmount.toLocaleString("en-IN")} ($${amount})`;
+}
+

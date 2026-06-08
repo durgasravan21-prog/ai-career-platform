@@ -43,6 +43,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Create all tables if they don't exist (dev convenience).
         # In production, use Alembic migrations instead.
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Add new columns to mentor_profiles table dynamically for SQLite database compatibility
+        from sqlalchemy import text
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN original_price FLOAT"))
+            logger.info("Added original_price column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN price_edited_by_admin BOOLEAN DEFAULT FALSE"))
+            logger.info("Added price_edited_by_admin column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN has_premium_subscription BOOLEAN DEFAULT FALSE"))
+            logger.info("Added has_premium_subscription column to mentor_profiles.")
+        except Exception:
+            pass
     logger.info("Database tables ensured.")
     yield
     logger.info("Shutting down...")

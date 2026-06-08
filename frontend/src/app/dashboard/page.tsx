@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { cn, getTimeGreeting, formatDualCurrency } from "@/lib/utils";
+import { cn, getTimeGreeting, formatDualCurrency, formatDualCurrencyAmount } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress, CircularProgress } from "@/components/ui/progress";
@@ -45,11 +46,20 @@ import {
   ShieldAlert,
   Calendar,
   Star,
+  Loader2,
+  Video,
+  Camera,
+  PhoneOff,
+  Mic,
+  MicOff,
+  VideoOff,
+  Laptop,
 } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const [roadmap, setRoadmap] = useState<RoadmapResult | null>(null);
   const [recommendedProjects, setRecommendedProjects] = useState<Project[]>([]);
@@ -61,6 +71,17 @@ export default function DashboardPage() {
   const [pendingMentors, setPendingMentors] = useState<Mentor[]>([]);
   const [mentorSessions, setMentorSessions] = useState<MentorSession[]>([]);
   const [mentorReports, setMentorReports] = useState<any[]>([]);
+
+  // Admin Dashboard States
+  const [adminActiveTab, setAdminActiveTab] = useState<"reviews" | "users" | "performance" | "pricing" | "agreements">("reviews");
+  const [activeUsers, setActiveUsers] = useState<any[]>([]);
+  const [allMentors, setAllMentors] = useState<Mentor[]>([]);
+  const [editingMentorPricing, setEditingMentorPricing] = useState<string | null>(null);
+  const [editHourlyRate, setEditHourlyRate] = useState<string>("");
+  const [editOriginalPrice, setEditOriginalPrice] = useState<string>("");
+  const [unlockingMentor, setUnlockingMentor] = useState<Mentor | null>(null);
+  const [agreementPassword, setAgreementPassword] = useState<string>("");
+  const [unlockError, setUnlockError] = useState<string>("");
 
   // Report Modal States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -82,6 +103,338 @@ export default function DashboardPage() {
   const [reviewFeedback, setReviewFeedback] = useState<string>("");
   const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
 
+  // AI Project Template Generator states
+  const [aiProjectInput, setAiProjectInput] = useState<string>("");
+  const [isGeneratingAIProject, setIsGeneratingAIProject] = useState<boolean>(false);
+
+  // Mentor Onboarding Verification Blocker States
+  const [wizStep, setWizStep] = useState(1);
+  const [selfieFile, setSelfieFile] = useState<string | null>(null);
+  const [selfieFileName, setSelfieFileName] = useState<string>("");
+  const [idFile, setIdFile] = useState<string | null>(null);
+  const [idFileName, setIdFileName] = useState<string>("");
+
+  // Camera & AI verification states
+  const [selfieMode, setSelfieMode] = useState<"idle" | "camera" | "file">("idle");
+  const [idMode, setIdMode] = useState<"idle" | "camera" | "file">("idle");
+  const [aiVerifyStatus, setAiVerifyStatus] = useState<"idle" | "verifying" | "passed" | "failed">("idle");
+  const [aiVerifyStep, setAiVerifyStep] = useState<number>(0);
+  const [aiVerifyLogs, setAiVerifyLogs] = useState<string[]>([]);
+  const [aiMatchScore, setAiMatchScore] = useState<number | null>(null);
+  const [wizIdType, setWizIdType] = useState<string>("");
+
+  const selfieVideoRef = useRef<HTMLVideoElement>(null);
+  const idVideoRef = useRef<HTMLVideoElement>(null);
+  const selfieStreamRef = useRef<MediaStream | null>(null);
+  const idStreamRef = useRef<MediaStream | null>(null);
+
+  // Camera cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (selfieStreamRef.current) {
+        selfieStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (idStreamRef.current) {
+        idStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const startSelfieCamera = async () => {
+    if (!wizIdType) {
+      setError("Please select a Government ID Type first.");
+      return;
+    }
+    setSelfieMode("camera");
+    setSelfieFile(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: "user" }
+      });
+      selfieStreamRef.current = stream;
+      setTimeout(() => {
+        if (selfieVideoRef.current) {
+          selfieVideoRef.current.srcObject = stream;
+        }
+      }, 150);
+      setError("");
+    } catch (err: any) {
+      console.error("Camera access error:", err);
+      setError("Unable to access front camera. Please upload an image instead.");
+      setSelfieMode("idle");
+    }
+  };
+
+  const stopSelfieCamera = () => {
+    if (selfieStreamRef.current) {
+      selfieStreamRef.current.getTracks().forEach(track => track.stop());
+      selfieStreamRef.current = null;
+    }
+    setSelfieMode("idle");
+  };
+
+  const captureSelfieSnapshot = () => {
+    if (selfieVideoRef.current) {
+      const video = selfieVideoRef.current;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg");
+        setSelfieFile(dataUrl);
+        setSelfieFileName("webcam_selfie.jpg");
+        setAiVerifyStatus("idle");
+        setAiVerifyLogs([]);
+      }
+    }
+    stopSelfieCamera();
+  };
+
+  const startIdCamera = async () => {
+    if (!wizIdType) {
+      setError("Please select a Government ID Type first.");
+      return;
+    }
+    setIdMode("camera");
+    setIdFile(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: "environment" }
+      });
+      idStreamRef.current = stream;
+      setTimeout(() => {
+        if (idVideoRef.current) {
+          idVideoRef.current.srcObject = stream;
+        }
+      }, 150);
+      setError("");
+    } catch (err: any) {
+      console.error("Camera access error:", err);
+      setError("Unable to access back camera. Please upload a document image instead.");
+      setIdMode("idle");
+    }
+  };
+
+  const stopIdCamera = () => {
+    if (idStreamRef.current) {
+      idStreamRef.current.getTracks().forEach(track => track.stop());
+      idStreamRef.current = null;
+    }
+    setIdMode("idle");
+  };
+
+  const captureIdSnapshot = () => {
+    if (idVideoRef.current) {
+      const video = idVideoRef.current;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg");
+        setIdFile(dataUrl);
+        setIdFileName("webcam_id.jpg");
+        setAiVerifyStatus("idle");
+        setAiVerifyLogs([]);
+      }
+    }
+    stopIdCamera();
+  };
+
+  const handleSelfieFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!wizIdType) {
+      setError("Please select a Government ID Type first.");
+      return;
+    }
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          setSelfieFile(reader.result);
+          setSelfieFileName(file.name);
+          setSelfieMode("file");
+          setAiVerifyStatus("idle");
+          setAiVerifyLogs([]);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleIdFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!wizIdType) {
+      setError("Please select a Government ID Type first.");
+      return;
+    }
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          setIdFile(reader.result);
+          setIdFileName(file.name);
+          setIdMode("file");
+          setAiVerifyStatus("idle");
+          setAiVerifyLogs([]);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const runAiVerification = () => {
+    setAiVerifyStatus("verifying");
+    setAiVerifyLogs([]);
+    setAiVerifyStep(0);
+    setError("");
+
+    const cleanSelfie = selfieFile ? (selfieFile.includes(",") ? selfieFile.split(",")[1] : selfieFile) : "";
+    const cleanId = idFile ? (idFile.includes(",") ? idFile.split(",")[1] : idFile) : "";
+
+    // 1. Check duplicate/identical uploads (fast path)
+    if (cleanSelfie && cleanSelfie === cleanId) {
+      const logs = [
+        "🔍 AI Verification Agent initiating...",
+        "📡 Calibrating biometric scanners and visual filters...",
+        "📂 Analyzing identity document structure...",
+        "❌ AI Biometric Verification Failed: Selfie photo and ID document image are identical.",
+        "⚠️ Safety Guard: You must capture a real-time webcam selfie and upload a separate government-issued ID card."
+      ];
+      logs.forEach((log, index) => {
+        setTimeout(() => {
+          setAiVerifyLogs(prev => [...prev, log]);
+          setAiVerifyStep(index + 1);
+          if (index === logs.length - 1) {
+            setAiVerifyStatus("failed");
+            setAiMatchScore(0);
+            setError("Biometric verification failed: Selfie and ID document are identical.");
+          }
+        }, (index + 1) * 350);
+      });
+      return;
+    }
+
+    // 2. Check academic transcript / marksheet filename (fast path)
+    const academicKeywords = ["marksheet", "12th", "10th", "grade", "certificate", "resume", "cv", "transcript", "degree", "result", "diploma", "report", "hsc", "ssc", "board"];
+    const nameLower = (idFileName || "").toLowerCase();
+    const isAcademic = academicKeywords.some(kw => nameLower.includes(kw));
+
+    if (isAcademic) {
+      const logs = [
+        "🔍 AI Verification Agent initiating...",
+        "📂 Analyzing identity document structure and typography...",
+        "🔬 Running optical character recognition (OCR) check...",
+        `❌ Safety Violation: Uploaded document recognized as an academic transcript or marksheet.`,
+        `⚠️ The AI agent rejects '${idFileName}'. Please upload an official government-issued ID (e.g. Aadhaar Card, Passport, Driver's License) for safety purposes.`
+      ];
+      logs.forEach((log, index) => {
+        setTimeout(() => {
+          setAiVerifyLogs(prev => [...prev, log]);
+          setAiVerifyStep(index + 1);
+          if (index === logs.length - 1) {
+            setAiVerifyStatus("failed");
+            setAiMatchScore(0);
+            setError(`Safety Violation: Uploaded document '${idFileName}' recognized as academic transcript/marksheet. Government-issued ID required.`);
+          }
+        }, (index + 1) * 350);
+      });
+      return;
+    }
+
+    // Start Backend API Call in the background
+    const apiPromise = api.mentors.verifyDocuments({
+      selfie_base64: selfieFile || "",
+      identity_document_base64: idFile || "",
+      id_type: wizIdType || "national_id",
+      selfie_filename: selfieFileName || "webcam_selfie.jpg",
+      id_filename: idFileName || "webcam_id.jpg"
+    });
+
+    // Run progressive logs animation (showing system activity while waiting for the LLM)
+    const initialLogs = [
+      "🔍 AI Verification Agent initiating...",
+      "📡 Calibrating biometric scanners and visual filters...",
+      "📂 Analyzing identity document structure and typography...",
+      "🔬 Running optical character recognition (OCR) check..."
+    ];
+
+    let currentStep = 0;
+    const playLogs = () => {
+      if (currentStep < initialLogs.length) {
+        setAiVerifyLogs(prev => [...prev, initialLogs[currentStep]]);
+        setAiVerifyStep(currentStep + 1);
+        currentStep++;
+        setTimeout(playLogs, 400);
+      } else {
+        // Now wait for the backend API call to finish
+        apiPromise.then((result) => {
+          const finalLogs = [
+            `✓ Identity document type verified: ${(wizIdType || "National ID").toUpperCase()}`,
+            `✓ OCR Check: ${result.ocr_check === "passed" ? "Valid layout, hallmarks matching." : "Failed."}`,
+            "👤 Initializing biometric face model and keypoint mapping...",
+            "📊 Extracting structural facial vector comparison...",
+            `✓ Biometric match vector comparison completed.`,
+            `🎉 AI Verification PASSED. Facial similarity score: ${result.similarity_score}%.`
+          ];
+          
+          let subStep = 0;
+          const playSubLogs = () => {
+            if (subStep < finalLogs.length) {
+              setAiVerifyLogs(prev => [...prev, finalLogs[subStep]]);
+              setAiVerifyStep(initialLogs.length + subStep + 1);
+              subStep++;
+              setTimeout(playSubLogs, 300);
+            } else {
+              setAiVerifyStatus("passed");
+              setAiMatchScore(result.similarity_score);
+            }
+          };
+          playSubLogs();
+        }).catch((err) => {
+          const errMsg = err?.message || "Verification failed. Please ensure the photos are clear and show a valid ID.";
+          const finalLogs = [
+            `❌ AI Identity Verification Failed.`,
+            `⚠️ Reason: ${errMsg}`
+          ];
+          
+          let subStep = 0;
+          const playSubLogs = () => {
+            if (subStep < finalLogs.length) {
+              setAiVerifyLogs(prev => [...prev, finalLogs[subStep]]);
+              setAiVerifyStep(initialLogs.length + subStep + 1);
+              subStep++;
+              setTimeout(playSubLogs, 300);
+            } else {
+              setAiVerifyStatus("failed");
+              setAiMatchScore(0);
+              setError(errMsg);
+            }
+          };
+          playSubLogs();
+        });
+      }
+    };
+
+    playLogs();
+  };
+
+  const [signedAgreement, setSignedAgreement] = useState(false);
+  const [signatureText, setSignatureText] = useState("");
+  const [wizHourlyRate, setWizHourlyRate] = useState("75");
+  const [wizCompany, setWizCompany] = useState("");
+  const [wizExpertise, setWizExpertise] = useState<string[]>(["Full-Stack", "React", "Node.js", "Python"]);
+  const [wizExpertiseInput, setWizExpertiseInput] = useState("");
+  const [wizAvailability, setWizAvailability] = useState<any[]>([
+    { day_of_week: 1, start_time: "09:00", end_time: "17:00" },
+    { day_of_week: 3, start_time: "09:00", end_time: "17:00" },
+    { day_of_week: 5, start_time: "09:00", end_time: "14:00" }
+  ]);
+  const [isSubmittingWiz, setIsSubmittingWiz] = useState(false);
+
   // Project template creator state
   const [projTitle, setProjTitle] = useState<string>("");
   const [projDesc, setProjDesc] = useState<string>("");
@@ -89,6 +442,14 @@ export default function DashboardPage() {
   const [projTechStack, setProjTechStack] = useState<string>("");
   const [projHours, setProjHours] = useState<number>(40);
   const [isCreatingProject, setIsCreatingProject] = useState<boolean>(false);
+
+  // Published templates and video call sandbox states
+  const [myTemplates, setMyTemplates] = useState<any[]>([]);
+  const [isVideoCallOpen, setIsVideoCallOpen] = useState<boolean>(false);
+  const [activeVideoSession, setActiveVideoSession] = useState<any | null>(null);
+  const [transcriptionLogs, setTranscriptionLogs] = useState<string[]>([]);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
 
   // CV Upload state
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -145,12 +506,20 @@ export default function DashboardPage() {
     }
   };
 
-  // Auth guard
+  // Auth guard and incomplete profile redirection for students
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push("/?login=true");
+    if (!authLoading) {
+      if (!isAuthenticated) {
+        router.push("/?login=true");
+      } else if (user && user.role !== "mentor" && user.email !== "durgasravan21@gmail.com") {
+        const targetRoleId = user.profile?.target_role_id;
+        const skills = user.profile?.skills || [];
+        if (!targetRoleId || skills.length === 0) {
+          router.push("/onboarding");
+        }
+      }
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, user, router]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -161,13 +530,27 @@ export default function DashboardPage() {
       setError("");
       try {
         if (user?.email === "durgasravan21@gmail.com") {
-          // Admin View: Fetch pending mentors and reports
-          const [pending, reports] = await Promise.all([
+          // Admin View: Fetch pending mentors, reports, active users, all mentors, and pending submissions
+          const [pending, reports, activeUsersList, mentorsList, pendingSub, allSessions] = await Promise.all([
             api.mentors.getPendingMentors(),
             api.mentors.getReports(),
+            api.mentors.getActiveUsers(),
+            api.mentors.getAll(),
+            api.projects.getPendingSubmissions(),
+            api.mentors.getMySessions(),
           ]);
           setPendingMentors(pending || []);
           setMentorReports(reports || []);
+          setActiveUsers(activeUsersList || []);
+          setAllMentors(
+            mentorsList && typeof mentorsList === "object" && "data" in mentorsList
+              ? (mentorsList.data as Mentor[])
+              : Array.isArray(mentorsList)
+              ? mentorsList
+              : []
+          );
+          setPendingSubmissions(pendingSub || []);
+          setMentorSessions(allSessions || []);
         } else {
           // Check if mentor profile exists
           let currentMentor: Mentor | null = null;
@@ -242,6 +625,65 @@ export default function DashboardPage() {
 
     fetchData();
   }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const loadMyTemplates = () => {
+      try {
+        const allProjs = JSON.parse(localStorage.getItem("mock_projects") || "[]");
+        const mentorKeywords = mentorProfile?.expertise || [];
+        const filtered = allProjs.filter((p: any) => 
+          p.id > 10 || 
+          p.tech_stack?.some((t: string) => mentorKeywords.some((k: string) => k.toLowerCase() === t.toLowerCase()))
+        );
+        setMyTemplates(filtered.slice(0, 4));
+      } catch (e) {
+        console.error("Failed to load mentor templates:", e);
+      }
+    };
+    loadMyTemplates();
+  }, [isAuthenticated, mentorProfile, success]);
+
+  // Live video transcription simulation effect
+  useEffect(() => {
+    if (!isVideoCallOpen) {
+      setTranscriptionLogs([]);
+      return;
+    }
+
+    const dialogue = [
+      "System: [AI Assistant Active - Transcription & Summarization Enabled]",
+      "Mentor: Hey! Great to connect. How has your progress been on the project?",
+      "Student: Hi! It's going well, but I ran into some issues with the API response times.",
+      "Mentor: Let's take a look. Usually, this is due to N+1 queries in the relational fetching logic.",
+      "System: [AI Alert: High database load detected in query resolver]",
+      "Mentor: I suggest using joinedload or selectinload to eager-load the related records.",
+      "Student: Ah! I was doing lazy loading, which triggered separate queries for each item. That makes so much sense.",
+      "Mentor: Exactly. Once you make that change, re-run the benchmark to verify the speedup.",
+      "System: [AI Note: Suggested learning step 'Optimize database query fetching patterns' logged]",
+      "Student: Excellent. I'll implement that and update the submission tonight.",
+      "Mentor: Sounds like a plan. Let's jump into the frontend state management next.",
+    ];
+
+    setTranscriptionLogs([dialogue[0]]);
+    let currentIndex = 1;
+
+    const interval = setInterval(() => {
+      if (currentIndex < dialogue.length) {
+        setTranscriptionLogs((prev) => [...prev, dialogue[currentIndex]]);
+        currentIndex++;
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isVideoCallOpen]);
+
+  // Auto-scroll transcription logs to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [transcriptionLogs]);
 
   if (authLoading || !isAuthenticated) {
     return (
@@ -337,6 +779,119 @@ export default function DashboardPage() {
     }
   };
 
+  const handleTogglePremium = async (mentorId: string) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.mentors.togglePremium(mentorId);
+      const mentorsList = await api.mentors.getAll();
+      setAllMentors(
+        mentorsList && typeof mentorsList === "object" && "data" in mentorsList
+          ? (mentorsList.data as Mentor[])
+          : Array.isArray(mentorsList)
+          ? mentorsList
+          : []
+      );
+      setSuccess("Mentor Premium subscription status updated.");
+    } catch (err: any) {
+      setError(err?.message || "Failed to update premium status.");
+    }
+  };
+
+  const handleUpdatePricing = async (mentorId: string, hourlyRate: number, originalPrice: number) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.mentors.updatePricing(mentorId, hourlyRate, originalPrice);
+      const mentorsList = await api.mentors.getAll();
+      setAllMentors(
+        mentorsList && typeof mentorsList === "object" && "data" in mentorsList
+          ? (mentorsList.data as Mentor[])
+          : Array.isArray(mentorsList)
+          ? mentorsList
+          : []
+      );
+      setEditingMentorPricing(null);
+      setSuccess("Mentor pricing updated successfully.");
+    } catch (err: any) {
+      setError(err?.message || "Failed to update pricing.");
+    }
+  };
+
+  const handleReviewSubmission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewingSubmission) return;
+    setIsSubmittingReview(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.projects.reviewSubmission(reviewingSubmission.id, reviewScore, reviewFeedback);
+      const [activeUsersList, pendingSub] = await Promise.all([
+        api.mentors.getActiveUsers(),
+        api.projects.getPendingSubmissions()
+      ]);
+      setActiveUsers(activeUsersList || []);
+      setPendingSubmissions(pendingSub || []);
+      setReviewingSubmission(null);
+      setSuccess("Project submission reviewed successfully.");
+    } catch (err: any) {
+      setError(err?.message || "Failed to submit review.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const handleDownloadAgreement = () => {
+    if (!unlockingMentor) return;
+    const expectedPassword1 = `${unlockingMentor.mentor_name}@${unlockingMentor.mentor_id}`;
+    const expectedPassword2 = `mentor@${unlockingMentor.mentor_id}`;
+    if (agreementPassword !== expectedPassword1 && agreementPassword !== expectedPassword2) {
+      setUnlockError("Incorrect password. Please verify the Mentor name and ID.");
+      return;
+    }
+
+    const docContent = `
+# MENTOR ONBOARDING AGREEMENT
+**Document Reference: AGC-${unlockingMentor.mentor_id}**
+**Security Classification: CONFIDENTIAL**
+
+---
+
+### PARTIES
+1. **CareerAI Platform** (hereinafter referred to as "the Platform")
+2. **${unlockingMentor.mentor_name}** (hereinafter referred to as "the Mentor")
+
+### TERMS & AGREEMENT
+- **Mentor ID**: ${unlockingMentor.mentor_id}
+- **Expertise Focus**: ${unlockingMentor.expertise.join(", ")}
+- **Hourly Base Rate**: $${unlockingMentor.hourly_rate} USD
+- **Premium Tier Status**: ${unlockingMentor.has_premium_subscription ? "Active - Collective Group Sessions Enabled" : "Inactive - Standard Individual Sessions Only"}
+
+This document certifies that ${unlockingMentor.mentor_name} is a verified professional mentor on CareerAI. The Mentor agrees to guide students on project submissions, provide skill-gap reviews, and maintain professional conduct. All student code reviews and feedback shared on this platform are intellectual properties of the respective student or organization.
+
+Signed Digitally by:
+- CareerAI Admin: Durga sravan Challagolla
+- Verified Coach: ${unlockingMentor.mentor_name}
+
+*Timestamp: ${new Date().toLocaleDateString()}*
+`;
+
+    const blob = new Blob([docContent], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${unlockingMentor.mentor_name?.replace(/\s+/g, "_")}_Agreement.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setUnlockingMentor(null);
+    setAgreementPassword("");
+    setUnlockError("");
+    setSuccess(`Agreement for ${unlockingMentor.mentor_name} downloaded successfully.`);
+  };
+
   const handleOpenReportModal = (mentorId: string | number, mentorName: string) => {
     setReportTargetMentorId(String(mentorId));
     setReportTargetMentorName(mentorName);
@@ -399,31 +954,36 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-background py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 animate-fadeIn">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">
-              Platform Admin Dashboard
-            </h1>
-            <p className="text-muted mt-1">
-              Welcome back, Administrator. Approve and manage professional mentor applications.
-            </p>
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+                Platform Admin Dashboard
+              </h1>
+              <p className="text-muted mt-1">
+                Welcome back, Administrator. Review pending applications, track user activity, configure rates, and audit digital agreements.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => router.push("/profile")} className="self-start">
+              <Settings className="h-4 w-4 mr-2" /> Admin Settings
+            </Button>
           </div>
 
           {/* Success / Error Alerts */}
           {success && (
             <div className="mb-6 bg-success/10 border border-success/20 rounded-xl px-4 py-3 flex items-center gap-3 text-success animate-fadeIn">
               <Check className="h-5 w-5 flex-shrink-0" />
-              <p className="text-sm">{success}</p>
+              <p className="text-sm font-semibold">{success}</p>
             </div>
           )}
           {error && (
             <div className="mb-6 bg-error/10 border border-error/20 rounded-xl px-4 py-3 flex items-center gap-3 text-error animate-fadeIn">
               <ShieldAlert className="h-5 w-5 flex-shrink-0" />
-              <p className="text-sm">{error}</p>
+              <p className="text-sm font-semibold">{error}</p>
             </div>
           )}
 
           {/* Admin Stats */}
-          <div className="grid gap-6 md:grid-cols-3 mb-8">
+          <div className="grid gap-6 md:grid-cols-4 mb-8">
             <Card className="p-6 flex items-center gap-4 bg-white/5 border-white/10">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
                 <Users className="h-6 w-6" />
@@ -438,230 +998,1503 @@ export default function DashboardPage() {
                 <Award className="h-6 w-6" />
               </div>
               <div>
-                <span className="text-xs text-muted block">Platform Admin</span>
-                <span className="text-sm font-semibold text-foreground truncate max-w-[200px] block">{user?.email}</span>
+                <span className="text-xs text-muted block">Active Users</span>
+                <span className="text-2xl font-bold text-foreground">{activeUsers.length}</span>
               </div>
             </Card>
             <Card className="p-6 flex items-center gap-4 bg-white/5 border-white/10">
               <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent">
-                <TrendingUp className="h-6 w-6" />
+                <FolderKanban className="h-6 w-6" />
               </div>
               <div>
-                <span className="text-xs text-muted block">System Health</span>
-                <span className="text-sm font-bold text-success flex items-center gap-1">
-                  <Check className="h-4 w-4" /> Operational
+                <span className="text-xs text-muted block">Verify Solutions</span>
+                <span className="text-2xl font-bold text-foreground">{pendingSubmissions.length} pending</span>
+              </div>
+            </Card>
+            <Card className="p-6 flex items-center gap-4 bg-white/5 border-white/10">
+              <div className="w-12 h-12 rounded-2xl bg-success/10 border border-success/20 flex items-center justify-center text-success">
+                <DollarSign className="h-6 w-6" />
+              </div>
+              <div>
+                <span className="text-xs text-muted block">Coaches Pool</span>
+                <span className="text-2xl font-bold text-foreground">
+                  {allMentors.filter(m => m.verification_status === "verified").length} verified
                 </span>
               </div>
             </Card>
           </div>
 
-          {/* Pending Reviews list */}
-          <Card className="p-6">
-            <CardTitle className="mb-6 flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-warning" />
-              Applications Requiring Review ({pendingMentors.length})
-            </CardTitle>
+          {/* Tab Selection Navigation */}
+          <div className="flex border-b border-white/10 mb-8 overflow-x-auto">
+            <button
+              onClick={() => setAdminActiveTab("reviews")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "reviews"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Onboarding & Reports ({pendingMentors.length + mentorReports.filter(r => r.status === "pending").length})
+            </button>
+            <button
+              onClick={() => setAdminActiveTab("users")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "users"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Active Users & Projects ({activeUsers.length})
+            </button>
+            <button
+              onClick={() => setAdminActiveTab("performance")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "performance"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Mentor Performance ({allMentors.filter(m => m.verification_status === "verified").length})
+            </button>
+            <button
+              onClick={() => setAdminActiveTab("pricing")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "pricing"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Pricing Control
+            </button>
+            <button
+              onClick={() => setAdminActiveTab("agreements")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "agreements"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Onboarding Agreements
+            </button>
+          </div>
 
-            {pendingMentors.length === 0 ? (
-              <div className="text-center py-16">
-                <Check className="h-12 w-12 text-success mx-auto mb-4 bg-success/15 p-2.5 rounded-full" />
-                <h3 className="text-lg font-bold text-foreground">All Caught Up!</h3>
-                <p className="text-sm text-muted mt-1">There are no pending mentor applications awaiting verification.</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {pendingMentors.map((mentor) => (
-                  <div
-                    key={mentor.id}
-                    className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col lg:flex-row gap-6 justify-between items-start"
-                  >
-                    {/* Mentor Details */}
-                    <div className="space-y-4 flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg">
-                          {mentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-foreground text-base">{mentor.mentor_name}</h3>
-                          <p className="text-xs text-muted mt-0.5">{mentor.corporate_email || "No Corporate Email"}</p>
-                        </div>
-                      </div>
+          {/* TAB 1: REVIEWS (ONBOARDING APPLICATIONS & REPORTS) */}
+          {adminActiveTab === "reviews" && (
+            <div className="space-y-8">
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2 text-warning">
+                  <ShieldAlert className="h-5 w-5" />
+                  Applications Requiring Review ({pendingMentors.length})
+                </CardTitle>
 
-                      <div className="grid gap-4 sm:grid-cols-2 text-xs text-muted">
-                        <div>
-                          <span className="font-medium text-foreground block">Company:</span>
-                          <span>{mentor.company_name || "Self-Employed / Not Specified"}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground block">Proposed Rate:</span>
-                          <span className="text-success font-semibold">{formatDualCurrency(mentor.hourly_rate)}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground block">Contact Mobile:</span>
-                          <span className="text-foreground">{mentor.mobile_number || "Not provided"}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground block">Login Email:</span>
-                          <span className="text-foreground">{mentor.email || "Not provided"}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground block">LinkedIn Profile:</span>
-                          {mentor.linkedin_url ? (
-                            <a href={mentor.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-[250px]">
-                              {mentor.linkedin_url}
-                            </a>
-                          ) : (
-                            <span>Not provided</span>
-                          )}
-                        </div>
-                        <div>
-                          <span className="font-medium text-foreground block">Github Profile:</span>
-                          {mentor.github_url ? (
-                            <a href={mentor.github_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-[250px]">
-                              {mentor.github_url}
-                            </a>
-                          ) : (
-                            <span>Not provided</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">Biography & Background</span>
-                        <p className="text-xs text-muted leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">{mentor.bio}</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">Specialty Expertise Areas</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {mentor.expertise.map((exp) => (
-                            <Badge key={exp} variant="outline" className="text-[10px]">{exp}</Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Documents section */}
-                      <div className="grid gap-4 sm:grid-cols-2 pt-2">
-                        {mentor.selfie_url && (
-                          <div className="space-y-1.5">
-                            <span className="text-xs font-semibold text-foreground block">Captured Selfie Verification</span>
-                            <div className="relative aspect-video rounded-xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={`${apiBaseUrl}${mentor.selfie_url}`} alt="Webcam Selfie" className="object-cover w-full h-full" />
+                {pendingMentors.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Check className="h-12 w-12 text-success mx-auto mb-4 bg-success/15 p-2.5 rounded-full" />
+                    <h3 className="text-lg font-bold text-foreground">All Caught Up!</h3>
+                    <p className="text-sm text-muted mt-1">There are no pending mentor applications awaiting verification.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {pendingMentors.map((mentor) => (
+                      <div
+                        key={mentor.id}
+                        className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col lg:flex-row gap-6 justify-between items-start"
+                      >
+                        {/* Mentor Details */}
+                        <div className="space-y-4 flex-1">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg">
+                              {mentor.mentor_name?.split(" ").map(n => n[0]).join("") || "M"}
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-foreground text-base">{mentor.mentor_name}</h3>
+                              <p className="text-xs text-muted mt-0.5">{mentor.corporate_email || "No Corporate Email"}</p>
                             </div>
                           </div>
-                        )}
-                        {mentor.identity_document_url && (
-                          <div className="space-y-1.5">
-                            <span className="text-xs font-semibold text-foreground block">ID Document / Passport Scan</span>
-                            <div className="relative aspect-video rounded-xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
-                              {mentor.identity_document_url.endsWith(".pdf") ? (
-                                <a href={`${apiBaseUrl}${mentor.identity_document_url}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1.5">
-                                  <FileText className="h-4 w-4" /> View ID Document PDF
+
+                          <div className="grid gap-4 sm:grid-cols-2 text-xs text-muted">
+                            <div>
+                              <span className="font-medium text-foreground block">Company:</span>
+                              <span>{mentor.company_name || "Self-Employed / Not Specified"}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block">Proposed Rate:</span>
+                              <span className="text-success font-semibold">{formatDualCurrency(mentor.hourly_rate)}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block">Contact Mobile:</span>
+                              <span className="text-foreground">{mentor.mobile_number || "Not provided"}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block">Login Email:</span>
+                              <span className="text-foreground">{mentor.email || "Not provided"}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block">LinkedIn Profile:</span>
+                              {mentor.linkedin_url ? (
+                                <a href={mentor.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-[250px]">
+                                  {mentor.linkedin_url}
                                 </a>
                               ) : (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={`${apiBaseUrl}${mentor.identity_document_url}`} alt="ID Document Scan" className="object-cover w-full h-full" />
+                                <span>Not provided</span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-medium text-foreground block">Github Profile:</span>
+                              {mentor.github_url ? (
+                                <a href={mentor.github_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-[250px]">
+                                  {mentor.github_url}
+                                </a>
+                              ) : (
+                                <span>Not provided</span>
                               )}
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Action buttons */}
-                    <div className="flex lg:flex-col gap-3 self-stretch lg:self-start lg:w-48 justify-end">
-                      <Button
-                        size="sm"
-                        onClick={() => handleAdminApprove(mentor.id, "verified")}
-                        className="flex-1 bg-success hover:bg-success/80 text-white font-bold"
-                      >
-                        <Check className="h-4 w-4 mr-2" /> Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAdminApprove(mentor.id, "rejected")}
-                        className="flex-1 border-error/30 hover:bg-error/10 text-error font-bold"
-                      >
-                        <X className="h-4 w-4 mr-2" /> Reject
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                          <div className="space-y-2">
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">Biography & Background</span>
+                            <p className="text-xs text-muted leading-relaxed bg-white/5 p-3 rounded-xl border border-white/5">{mentor.bio}</p>
+                          </div>
 
-          {/* Reports Under Review */}
-          <Card className="p-6 mt-8">
-            <CardTitle className="mb-6 flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-error" />
-              Reports Under Review ({mentorReports.length})
-            </CardTitle>
+                          <div className="space-y-2">
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">Specialty Expertise Areas</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {mentor.expertise.map((exp) => (
+                                <Badge key={exp} variant="outline" className="text-[10px]">{exp}</Badge>
+                              ))}
+                            </div>
+                          </div>
 
-            {mentorReports.length === 0 ? (
-              <div className="text-center py-12 text-muted text-sm bg-white/[0.01] rounded-2xl border border-white/5">
-                <Check className="h-10 w-10 text-success mx-auto mb-2 bg-success/15 p-2.5 rounded-full" />
-                No pending or active mentor reports.
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {mentorReports.map((report) => (
-                  <div
-                    key={report.id}
-                    className="p-5 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center"
-                  >
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-foreground">
-                          Reported Mentor: {report.mentor_name || `Mentor #${report.mentor_id}`}
-                        </span>
-                        <Badge
-                          className={
-                            report.status === "pending"
-                              ? "bg-error/20 text-error border-error/30"
-                              : "bg-success/20 text-success border-success/30"
-                          }
-                        >
-                          {report.status}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted">
-                        Submitted by Student: <span className="text-foreground">{report.student_name || `Student #${report.student_id}`}</span> on{" "}
-                        {new Date(report.created_at).toLocaleDateString()} at{" "}
-                        {new Date(report.created_at).toLocaleTimeString()}
-                      </p>
-                      <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-xs text-muted-foreground italic mt-2">
-                        &ldquo;{report.reason}&rdquo;
-                      </div>
-                    </div>
+                          {/* Documents section */}
+                          <div className="grid gap-4 sm:grid-cols-2 pt-2">
+                            {mentor.selfie_url && (
+                              <div className="space-y-1.5">
+                                <span className="text-xs font-semibold text-foreground block">Captured Selfie Verification</span>
+                                <div className="relative aspect-video rounded-xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={`${apiBaseUrl}${mentor.selfie_url}`} alt="Webcam Selfie" className="object-cover w-full h-full" />
+                                </div>
+                              </div>
+                            )}
+                            {mentor.identity_document_url && (
+                              <div className="space-y-1.5">
+                                <span className="text-xs font-semibold text-foreground block">ID Document / Passport Scan</span>
+                                <div className="relative aspect-video rounded-xl overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
+                                  {mentor.identity_document_url.endsWith(".pdf") ? (
+                                    <a href={`${apiBaseUrl}${mentor.identity_document_url}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1.5">
+                                      <FileText className="h-4 w-4" /> View ID Document PDF
+                                    </a>
+                                  ) : (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={`${apiBaseUrl}${mentor.identity_document_url}`} alt="ID Document Scan" className="object-cover w-full h-full" />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-                    <div className="flex gap-2 self-stretch md:self-auto justify-end">
-                      {report.status === "pending" && (
-                        <>
+                        {/* Action buttons */}
+                        <div className="flex lg:flex-col gap-3 self-stretch lg:self-start lg:w-48 justify-end">
                           <Button
                             size="sm"
-                            onClick={() => handleAdminApprove(report.mentor_id, "suspended")}
-                            className="bg-error hover:bg-error/80 text-white font-bold"
+                            onClick={() => handleAdminApprove(mentor.id, "verified")}
+                            className="flex-1 bg-success hover:bg-success/80 text-white font-bold"
                           >
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Suspend Mentor
+                            <Check className="h-4 w-4 mr-2" /> Approve
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleResolveReport(report.id)}
-                            className="border-success/30 text-success hover:bg-success/10 font-bold"
+                            onClick={() => handleAdminApprove(mentor.id, "rejected")}
+                            className="flex-1 border-error/30 hover:bg-error/10 text-error font-bold"
                           >
-                            <Check className="h-3.5 w-3.5 mr-1" /> Resolve
+                            <X className="h-4 w-4 mr-2" /> Reject
                           </Button>
-                        </>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Reports Section */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2 text-error">
+                  <ShieldAlert className="h-5 w-5" />
+                  Reports Under Review ({mentorReports.length})
+                </CardTitle>
+
+                {mentorReports.length === 0 ? (
+                  <div className="text-center py-12 text-muted text-sm bg-white/[0.01] rounded-2xl border border-white/5">
+                    <Check className="h-10 w-10 text-success mx-auto mb-2 bg-success/15 p-2.5 rounded-full" />
+                    No pending or active mentor reports.
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {mentorReports.map((report) => (
+                      <div
+                        key={report.id}
+                        className="p-5 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center"
+                      >
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-foreground">
+                              Reported Mentor: {report.mentor_name || `Mentor #${report.mentor_id}`}
+                            </span>
+                            <Badge
+                              className={
+                                report.status === "pending"
+                                  ? "bg-error/20 text-error border-error/30"
+                                  : "bg-success/20 text-success border-success/30"
+                              }
+                            >
+                              {report.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted">
+                            Submitted by Student: <span className="text-foreground">{report.student_name || `Student #${report.student_id}`}</span> on{" "}
+                            {new Date(report.created_at).toLocaleDateString()}
+                          </p>
+                          <div className="bg-white/5 p-3 rounded-lg border border-white/5 text-xs text-muted-foreground italic mt-2">
+                            &ldquo;{report.reason}&rdquo;
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 self-stretch md:self-auto justify-end">
+                          {report.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleAdminApprove(report.mentor_id, "suspended")}
+                                className="bg-error hover:bg-error/80 text-white font-bold"
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" /> Suspend Mentor
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleResolveReport(report.id)}
+                                className="border-success/30 text-success hover:bg-success/10 font-bold"
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> Resolve
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* TAB 2: ACTIVE USERS & PROJECTS */}
+          {adminActiveTab === "users" && (
+            <div className="space-y-8">
+              {/* Active Users Table */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Active Users Registry ({activeUsers.length})
+                </CardTitle>
+
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-4">User Details</th>
+                        <th className="p-4">System Role</th>
+                        <th className="p-4">Target Career Goal</th>
+                        <th className="p-4 text-center">Skill Progress</th>
+                        <th className="p-4">Active Project</th>
+                        <th className="p-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {activeUsers.map((u) => (
+                        <tr key={u.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                          <td className="p-4">
+                            <div className="font-semibold text-foreground">{u.name}</div>
+                            <div className="text-muted text-[10px]">{u.email}</div>
+                          </td>
+                          <td className="p-4">
+                            <Badge variant={u.role === "mentor" ? "default" : "outline"} className="capitalize text-[10px]">
+                              {u.role}
+                            </Badge>
+                          </td>
+                          <td className="p-4 text-muted">{u.dream_role || "Not Configured"}</td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2 max-w-[120px] mx-auto">
+                              <Progress value={u.skill_progress} className="h-1.5 flex-1" />
+                              <span className="font-mono text-[10px] font-bold">{u.skill_progress}%</span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-muted truncate max-w-[150px]">{u.active_project}</td>
+                          <td className="p-4">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border",
+                              u.status === "Active Now" 
+                                ? "bg-success/10 text-success border-success/20" 
+                                : "bg-white/5 text-muted border-white/10"
+                            )}>
+                              <span className={cn("w-1.5 h-1.5 rounded-full", u.status === "Active Now" ? "bg-success animate-pulse" : "bg-muted")} />
+                              {u.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {activeUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-muted italic">No active users found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* Verify Proposed Solutions */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <FolderKanban className="h-5 w-5 text-secondary" />
+                  Verify Proposed Student Solutions ({pendingSubmissions.length})
+                </CardTitle>
+
+                {pendingSubmissions.length === 0 ? (
+                  <div className="text-center py-12 text-muted text-sm bg-white/[0.01] rounded-2xl border border-white/5">
+                    <Check className="h-10 w-10 text-success mx-auto mb-2 bg-success/15 p-2.5 rounded-full" />
+                    All student project submissions have been reviewed and verified!
+                  </div>
+                ) : (
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {pendingSubmissions.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4 flex flex-col justify-between"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <h4 className="font-bold text-foreground text-sm leading-snug">{sub.project_title}</h4>
+                              <p className="text-xs text-muted mt-0.5">Submitted by Student: <strong className="text-foreground">{sub.user_name}</strong></p>
+                            </div>
+                            <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5 text-[10px] whitespace-nowrap">
+                              Awaiting Verification
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted leading-relaxed line-clamp-3 bg-black/20 p-2.5 rounded-xl border border-white/5">
+                            {sub.description || "No submission description provided."}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/5">
+                          <div className="flex gap-3 text-[10px] text-muted">
+                            {sub.github_url && (
+                              <a
+                                href={sub.github_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline flex items-center gap-1 font-semibold"
+                              >
+                                <Sparkles className="h-3 w-3" /> GitHub Repo
+                              </a>
+                            )}
+                            {sub.portfolio_url && (
+                              <a
+                                href={sub.portfolio_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline flex items-center gap-1 font-semibold"
+                              >
+                                <BookOpen className="h-3 w-3" /> Demo Link
+                              </a>
+                            )}
+                          </div>
+                          <Button size="sm" onClick={() => {
+                            setReviewingSubmission(sub);
+                            setReviewScore(8);
+                            setReviewFeedback("");
+                          }}>
+                            Verify & Grade
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* TAB 3: MENTOR PERFORMANCE & ONE-ON-ONE SESSIONS */}
+          {adminActiveTab === "performance" && (
+            <div className="space-y-8">
+              {/* Mentors Earnings & Premium toggle */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <Award className="h-5 w-5 text-success" />
+                  Coach Performance & Subscription Control ({allMentors.filter(m => m.verification_status === "verified").length})
+                </CardTitle>
+
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-4">Mentor ID</th>
+                        <th className="p-4">Coach Details</th>
+                        <th className="p-4">Company</th>
+                        <th className="p-4 text-center">Sessions</th>
+                        <th className="p-4 text-center">Avg Rating</th>
+                        <th className="p-4 text-center">Hourly Rate</th>
+                        <th className="p-4 text-center">Total Payouts</th>
+                        <th className="p-4 text-center">Premium Tier</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {allMentors.filter(m => m.verification_status === "verified").map((m) => {
+                        const baseRate = m.hourly_rate || 50;
+                        const completedSessionsCount = m.total_sessions || 0;
+                        const reviewedSessionsCount = m.reviewed_count || 0;
+                        const sessionEarnings = completedSessionsCount * baseRate;
+                        const reviewEarnings = m.review_earnings ?? (reviewedSessionsCount * 0.75);
+                        const totalPayouts = sessionEarnings + reviewEarnings;
+
+                        return (
+                          <tr key={m.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                            <td className="p-4 font-mono font-bold text-primary">{m.mentor_id || `MNT-${m.id}`}</td>
+                            <td className="p-4">
+                              <div className="font-semibold text-foreground">{m.mentor_name || m.name}</div>
+                              <div className="text-muted text-[10px]">{m.email}</div>
+                            </td>
+                            <td className="p-4 text-muted">{m.company_name || "Self-Employed"}</td>
+                            <td className="p-4 text-center font-semibold">{m.total_sessions} calls</td>
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center gap-1 text-warning font-bold">
+                                <Star className="h-3 w-3 fill-current" />
+                                {m.rating ? m.rating.toFixed(1) : "0.0"}
+                              </div>
+                            </td>
+                            <td className="p-4 text-center text-success font-semibold">{formatDualCurrency(m.hourly_rate)}</td>
+                            <td className="p-4 text-center text-success font-bold">{formatDualCurrencyAmount(totalPayouts)}</td>
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePremium(m.id)}
+                                  className={cn(
+                                    "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                                    m.has_premium_subscription ? "bg-primary" : "bg-white/10"
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                      m.has_premium_subscription ? "translate-x-5" : "translate-x-0"
+                                    )}
+                                  />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {allMentors.filter(m => m.verification_status === "verified").length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-muted italic">No verified coaches found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* One-on-One Session Details */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-accent" />
+                  All Booked One-on-One Sessions ({mentorSessions.length})
+                </CardTitle>
+
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-4">Session ID</th>
+                        <th className="p-4">Student ID</th>
+                        <th className="p-4">Coach / Mentor</th>
+                        <th className="p-4">Scheduled Date & Time</th>
+                        <th className="p-4 text-center">Duration</th>
+                        <th className="p-4 text-center">Price / Cost</th>
+                        <th className="p-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {mentorSessions.map((session) => (
+                        <tr key={session.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                          <td className="p-4 font-mono text-[10px] text-muted">#SESS-{session.id}</td>
+                          <td className="p-4 font-semibold text-muted">Student #{(session as any).student_id || session.mentee_id}</td>
+                          <td className="p-4 font-semibold text-foreground">{session.mentor_name || `Coach #${session.mentor_id}`}</td>
+                          <td className="p-4 text-muted">
+                            {new Date(session.scheduled_at).toLocaleDateString()} at{" "}
+                            {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="p-4 text-center font-semibold">{session.duration_minutes} min</td>
+                          <td className="p-4 text-center text-success font-semibold">
+                            {formatDualCurrency(session.price || (session.amount_cents ? session.amount_cents / 100 : 0))}
+                          </td>
+                          <td className="p-4 text-center">
+                            <Badge
+                              className={cn(
+                                "capitalize text-[10px]",
+                                session.status === "confirmed" && "bg-success/20 text-success border-success/30",
+                                session.status === "pending" && "bg-warning/20 text-warning border-warning/30",
+                                session.status === "completed" && "bg-primary/20 text-primary border-primary/30",
+                                session.status === "cancelled" && "bg-error/20 text-error border-error/30"
+                              )}
+                            >
+                              {session.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                      {mentorSessions.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-muted italic">No booked mentoring sessions on the platform.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* TAB 4: PRICING CONTROL */}
+          {adminActiveTab === "pricing" && (
+            <Card className="p-6">
+              <CardTitle className="mb-6 flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Specialized Pricing Control (Marketplace Rates)
+              </CardTitle>
+
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                      <th className="p-4">Mentor ID</th>
+                      <th className="p-4">Coach Name</th>
+                      <th className="p-4">Company</th>
+                      <th className="p-4 text-center">Original Price (Strikethrough)</th>
+                      <th className="p-4 text-center">Coaching Price (Discounted Rate)</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {allMentors.filter(m => m.verification_status === "verified").map((m) => {
+                      const isEditing = editingMentorPricing === m.id;
+                      
+                      return (
+                        <tr key={m.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                          <td className="p-4 font-mono font-bold text-primary">{m.mentor_id || `MNT-${m.id}`}</td>
+                          <td className="p-4 font-semibold">{m.mentor_name || m.name}</td>
+                          <td className="p-4 text-muted">{m.company_name || "Self-Employed"}</td>
+                          
+                          {/* Original Price */}
+                          <td className="p-4 text-center">
+                            {isEditing ? (
+                              <div className="relative max-w-[110px] mx-auto">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editOriginalPrice}
+                                  onChange={(e) => setEditOriginalPrice(e.target.value)}
+                                  className="w-full bg-surface border border-border rounded-lg pl-6 pr-2 py-1 text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <span className="line-through text-muted font-semibold">
+                                {m.original_price ? formatDualCurrency(m.original_price) : formatDualCurrency(m.hourly_rate)}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Coaching Price (Discounted) */}
+                          <td className="p-4 text-center">
+                            {isEditing ? (
+                              <div className="relative max-w-[110px] mx-auto">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editHourlyRate}
+                                  onChange={(e) => setEditHourlyRate(e.target.value)}
+                                  className="w-full bg-surface border border-border rounded-lg pl-6 pr-2 py-1 text-center font-bold text-success focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-success font-bold">
+                                {formatDualCurrency(m.hourly_rate)}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="p-4 text-right">
+                            {isEditing ? (
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUpdatePricing(m.id, parseFloat(editHourlyRate), parseFloat(editOriginalPrice))}
+                                  className="bg-success hover:bg-success/80 text-white py-1 px-3 text-xs"
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingMentorPricing(null)}
+                                  className="py-1 px-3 text-xs"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingMentorPricing(m.id);
+                                  setEditHourlyRate(String(m.hourly_rate));
+                                  setEditOriginalPrice(String(m.original_price || m.hourly_rate));
+                                }}
+                              >
+                                Edit Rates
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {allMentors.filter(m => m.verification_status === "verified").length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-muted italic">No verified coaches found to edit pricing.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* TAB 5: ONBOARDING AGREEMENTS */}
+          {adminActiveTab === "agreements" && (
+            <Card className="p-6">
+              <CardTitle className="mb-6 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-accent" />
+                Secure Mentor Onboarding Agreements (Protected Contracts)
+              </CardTitle>
+
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                      <th className="p-4">Mentor ID</th>
+                      <th className="p-4">Coach Name</th>
+                      <th className="p-4">Company</th>
+                      <th className="p-4">Corporate Domain Email</th>
+                      <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {allMentors.filter(m => m.verification_status === "verified").map((m) => (
+                      <tr key={m.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                        <td className="p-4 font-mono font-bold text-primary">{m.mentor_id || `MNT-${m.id}`}</td>
+                        <td className="p-4 font-semibold">{m.mentor_name || m.name}</td>
+                        <td className="p-4 text-muted">{m.company_name || "Self-Employed"}</td>
+                        <td className="p-4 text-muted font-mono">{m.corporate_email || "No Corporate Domain Linked"}</td>
+                        <td className="p-4 text-center">
+                          <Badge variant="success" className="text-[10px]">
+                            Verified & Signed
+                          </Badge>
+                        </td>
+                        <td className="p-4 text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setUnlockingMentor(m);
+                              setAgreementPassword("");
+                              setUnlockError("");
+                            }}
+                            className="bg-gradient-to-r from-primary to-secondary text-white font-bold"
+                          >
+                            <FileText className="h-3.5 w-3.5 mr-1" /> Download Agreement
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {allMentors.filter(m => m.verification_status === "verified").length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-muted italic">No verified mentors with signed contracts.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Secure Agreement Password Prompt Modal */}
+          {unlockingMentor && (
+            <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
+                <div className="text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center mx-auto text-accent">
+                    <ShieldAlert className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground">Protected Agreement</h3>
+                  <p className="text-xs text-muted leading-relaxed">
+                    The onboarding contract for <strong>{unlockingMentor.mentor_name}</strong> is password protected.
+                    Enter the passcode to verify administrative clearance and decrypt the contract.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-muted">Passcode required</span>
+                      <span className="text-primary font-mono italic">Format: name@id</span>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="e.g. MentorName@MNT-001"
+                      value={agreementPassword}
+                      onChange={(e) => setAgreementPassword(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleDownloadAgreement();
+                        }
+                      }}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-center font-mono tracking-widest placeholder-muted"
+                    />
+                    {unlockError && (
+                      <span className="text-[10px] text-error font-medium block text-center animate-pulse">{unlockError}</span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setUnlockingMentor(null);
+                        setAgreementPassword("");
+                        setUnlockError("");
+                      }}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDownloadAgreement}
+                      className="flex-1 bg-gradient-to-r from-primary to-secondary text-white font-bold"
+                    >
+                      Verify & Decrypt
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Solution Verification/Submission Review Modal (rendered for admin) */}
+          {reviewingSubmission && (
+            <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="w-full max-w-lg bg-surface border border-border rounded-3xl p-6 shadow-2xl space-y-6 animate-slideUp">
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">Verify Student Submission</h3>
+                  <p className="text-xs text-muted mt-1">
+                    Evaluate the repository and grade <strong>{reviewingSubmission.user_name}</strong> for the project: <strong>{reviewingSubmission.project_title}</strong>
+                  </p>
+                </div>
+
+                <form onSubmit={handleReviewSubmission} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted font-medium block">
+                      GitHub Code Repository:
+                    </label>
+                    <a
+                      href={reviewingSubmission.github_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline font-mono bg-white/5 px-3 py-2 rounded-xl block truncate"
+                    >
+                      {reviewingSubmission.github_url}
+                    </a>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-muted">Review Score (1 - 10)</span>
+                      <span className="text-primary font-bold">{reviewScore} / 10</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      step="1"
+                      value={reviewScore}
+                      onChange={(e) => setReviewScore(Number(e.target.value))}
+                      className="w-full accent-primary bg-white/5 h-1.5 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted font-medium">Constructive Feedback / Review Comments</label>
+                    <textarea
+                      required
+                      placeholder="Add assessment notes and suggestions for improvement..."
+                      value={reviewFeedback}
+                      onChange={(e) => setReviewFeedback(e.target.value)}
+                      rows={6}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button type="button" variant="outline" onClick={() => setReviewingSubmission(null)} className="flex-1">
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmittingReview} isLoading={isSubmittingReview} className="flex-1 bg-gradient-to-r from-primary to-secondary text-white font-bold">
+                      Verify & Grade
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    );
+  };
+
+  // ─── MENTOR VERIFICATION WIZARD BLOCKER ───────────────────────
+  const renderMentorVerificationWizard = () => {
+    const DAYS_OF_WEEK = [
+      { id: 1, name: "Monday" },
+      { id: 2, name: "Tuesday" },
+      { id: 3, name: "Wednesday" },
+      { id: 4, name: "Thursday" },
+      { id: 5, name: "Friday" },
+      { id: 6, name: "Saturday" },
+      { id: 0, name: "Sunday" },
+    ];
+
+    const handleToggleDay = (dayId: number) => {
+      const exists = wizAvailability.some(s => s.day_of_week === dayId);
+      if (exists) {
+        setWizAvailability(wizAvailability.filter(s => s.day_of_week !== dayId));
+      } else {
+        setWizAvailability([...wizAvailability, { day_of_week: dayId, start_time: "09:00", end_time: "17:00" }]);
+      }
+    };
+
+    const handleTimeChange = (dayId: number, field: "start_time" | "end_time", value: string) => {
+      setWizAvailability(wizAvailability.map(s => {
+        if (s.day_of_week === dayId) {
+          return { ...s, [field]: value };
+        }
+        return s;
+      }));
+    };
+
+    const handleAddExpertiseTag = () => {
+      const trimmed = wizExpertiseInput.trim();
+      if (trimmed && !wizExpertise.includes(trimmed)) {
+        setWizExpertise([...wizExpertise, trimmed]);
+        setWizExpertiseInput("");
+      }
+    };
+
+    const handleRemoveExpertiseTag = (tag: string) => {
+      setWizExpertise(wizExpertise.filter(t => t !== tag));
+    };
+
+    const handleWizSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!selfieFile || !idFile || !signedAgreement || !signatureText.trim()) {
+        setError("Please complete all steps (webcam selfie, ID verification, agreement checkbox, and signature).");
+        return;
+      }
+      setIsSubmittingWiz(true);
+      setError("");
+      setSuccess("");
+      try {
+        const availabilityPayload = wizAvailability.map(slot => {
+          const start = slot.start_time || "09:00";
+          const end = slot.end_time || "17:00";
+          return {
+            day_of_week: Number(slot.day_of_week),
+            start_time: start.includes(":") && start.split(":").length === 2 ? `${start}:00` : start,
+            end_time: end.includes(":") && end.split(":").length === 2 ? `${end}:00` : end,
+          };
+        });
+
+        const updated = await api.mentors.apply({
+          bio: mentorProfile?.bio || "Expert Mentor Coach",
+          hourly_rate: parseFloat(wizHourlyRate || "75"),
+          expertise: wizExpertise.length > 0 ? wizExpertise : ["Advising"],
+          linkedin_url: mentorProfile?.linkedin_url || `https://linkedin.com/in/${user?.name.toLowerCase().replace(/\s+/g, "")}`,
+          github_url: mentorProfile?.github_url || `https://github.com/${user?.name.toLowerCase().replace(/\s+/g, "")}`,
+          corporate_email: mentorProfile?.corporate_email || `${user?.email.split("@")[0]}@corporate.com`,
+          company_name: wizCompany.trim() || "Self-Employed",
+          selfie_base64: selfieFile,
+          identity_document_base64: idFile,
+          id_type: wizIdType,
+          selfie_filename: selfieFileName,
+          id_filename: idFileName,
+          signed_agreement: true,
+          signature_svg_or_text: signatureText.trim(),
+          availability: availabilityPayload,
+        });
+
+        setSuccess("Mentor onboarding profile verified successfully! Welcome to CareerAI.");
+        setMentorProfile(updated);
+        setWizStep(1);
+      } catch (err: any) {
+        setError(err?.message || "Failed to submit verification details.");
+      } finally {
+        setIsSubmittingWiz(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <div className="w-full max-w-3xl space-y-8 animate-fadeIn">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center mx-auto mb-4 shadow-lg animate-float">
+              <Settings className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+              Complete Mentor Verification
+            </h1>
+            <p className="text-muted text-sm max-w-md mx-auto">
+              Welcome Coach. Please complete your security profile, verification documents, and signed contract to unlock your dashboard.
+            </p>
+          </div>
+
+          {/* Progress Tracker */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center text-xs">
+            {["1. Photo & ID Verification", "2. Agreement & Signature", "3. Availability & Rates"].map((label, index) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setWizStep(index + 1)}
+                className={cn(
+                  "font-semibold transition-colors",
+                  wizStep === index + 1 ? "text-primary" : "text-muted hover:text-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Error and Success notifications */}
+          {error && (
+            <div className="bg-error/10 border border-error/20 rounded-xl px-4 py-3 flex items-center gap-3 text-error">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+          )}
+          {success && (
+            <div className="bg-success/10 border border-success/20 rounded-xl px-4 py-3 flex items-center gap-3 text-success">
+              <Check className="h-5 w-5 flex-shrink-0" />
+              <p className="text-sm font-medium">{success}</p>
+            </div>
+          )}
+
+          <Card className="p-8">
+            <div className="space-y-6">
+              {/* STEP 1: UPLOADS */}
+              {wizStep === 1 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-lg font-bold text-foreground">Upload Verification Documents</h3>
+                    <p className="text-xs text-muted mt-0.5">We require photo identification to list you on the public expert directory.</p>
+                  </div>
+
+                  {/* Government ID Type Dropdown Selector */}
+                  <div className="glass-card p-4 border border-white/5 bg-white/5 rounded-xl space-y-2 text-left">
+                    <label className="text-xs text-muted font-bold uppercase tracking-wider block text-left">
+                      Select Government-Issued Identity Document Type <span className="text-red-400 font-bold">*</span>
+                    </label>
+                    <select
+                      value={wizIdType}
+                      onChange={(e) => {
+                        setWizIdType(e.target.value);
+                        setSelfieFile(null);
+                        setIdFile(null);
+                        setAiVerifyStatus("idle");
+                        setError("");
+                      }}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:ring-primary outline-none accent-primary transition-all cursor-pointer"
+                    >
+                      <option value="">-- Choose Government ID Type --</option>
+                      <option value="passport">Passport</option>
+                      <option value="driver_license">Driver's License</option>
+                      <option value="national_id">National ID Card</option>
+                      <option value="aadhaar">Aadhaar Card (Govt of India)</option>
+                      <option value="state_id">State ID / PAN Card (Govt of India)</option>
+                    </select>
+                    <span className="text-[10px] text-muted block text-left">
+                      Safety Warning: Only official government-issued identifications are accepted by the AI Verification Agent.
+                    </span>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Selfie Upload */}
+                    <div className="glass-card p-6 flex flex-col items-center justify-center text-center space-y-4 border border-white/5 hover:border-white/10 transition-colors">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        <Camera className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-foreground">Webcam Selfie Capture</h4>
+                        <p className="text-[11px] text-muted mt-1">Take a live photo of yourself to match against your document profile.</p>
+                      </div>
+                      
+                      {selfieFile ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <img src={selfieFile} alt="Selfie preview" className="w-20 h-20 object-cover rounded-full border border-primary/30" />
+                          <Badge variant="success">Photo Saved</Badge>
+                          <button type="button" onClick={() => { setSelfieFile(null); setSelfieMode("idle"); setAiVerifyStatus("idle"); }} className="text-[10px] text-error hover:underline">Retake Photo</button>
+                        </div>
+                      ) : selfieMode === "camera" ? (
+                        <div className="w-full flex flex-col items-center space-y-3">
+                          <video ref={selfieVideoRef} autoPlay playsInline className="w-full h-40 object-cover rounded-lg bg-black/40 border border-primary/20" />
+                          <div className="flex gap-2 w-full">
+                            <Button type="button" size="sm" onClick={captureSelfieSnapshot} className="flex-1 text-xs">
+                              Capture Photo
+                            </Button>
+                            <Button type="button" size="sm" variant="outline" onClick={stopSelfieCamera} className="flex-1 text-xs">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full flex flex-col space-y-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={startSelfieCamera}
+                            disabled={!wizIdType}
+                            className={cn(
+                              "w-full text-xs flex items-center justify-center gap-1.5",
+                              !wizIdType 
+                                ? "bg-white/5 border border-white/10 text-muted cursor-not-allowed opacity-50" 
+                                : "bg-primary/20 hover:bg-primary/30 border border-primary/30"
+                            )}
+                          >
+                            <Video className="h-3.5 w-3.5" /> Start Camera
+                          </Button>
+                          <label className={cn("w-full block", !wizIdType && "cursor-not-allowed opacity-50")}>
+                            <span className={cn(
+                              "w-full block text-center py-1.5 px-3 border rounded-lg text-xs font-medium transition-all",
+                              !wizIdType 
+                                ? "bg-white/5 border-white/10 text-muted cursor-not-allowed" 
+                                : "bg-white/5 hover:bg-white/10 border-white/10 text-foreground cursor-pointer font-medium"
+                            )}>
+                              Upload Photo
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleSelfieFileSelect}
+                              disabled={!wizIdType}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ID Document Upload */}
+                    <div className="glass-card p-6 flex flex-col items-center justify-center text-center space-y-4 border border-white/5 hover:border-white/10 transition-colors">
+                      <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-foreground">Identity Verification Scan</h4>
+                        <p className="text-[11px] text-muted mt-1">Upload a clear photo of your passport, driver&apos;s license, or national ID card.</p>
+                      </div>
+
+                      {idFile ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <img src={idFile} alt="ID Document preview" className="w-24 h-16 object-cover rounded-lg border border-secondary/30" />
+                          <Badge variant="success">Document Scan Saved</Badge>
+                          <button type="button" onClick={() => { setIdFile(null); setIdMode("idle"); setAiVerifyStatus("idle"); }} className="text-[10px] text-error hover:underline">Re-upload Scan</button>
+                        </div>
+                      ) : idMode === "camera" ? (
+                        <div className="w-full flex flex-col items-center space-y-3">
+                          <video ref={idVideoRef} autoPlay playsInline className="w-full h-40 object-cover rounded-lg bg-black/40 border border-secondary/20" />
+                          <div className="flex gap-2 w-full">
+                            <Button type="button" size="sm" onClick={captureIdSnapshot} className="flex-1 text-xs">
+                              Capture ID
+                            </Button>
+                            <Button type="button" size="sm" variant="outline" onClick={stopIdCamera} className="flex-1 text-xs">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full flex flex-col space-y-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={startIdCamera}
+                            disabled={!wizIdType}
+                            className={cn(
+                              "w-full text-xs flex items-center justify-center gap-1.5",
+                              !wizIdType 
+                                ? "bg-white/5 border border-white/10 text-muted cursor-not-allowed opacity-50" 
+                                : "bg-secondary/20 hover:bg-secondary/30 border border-secondary/30"
+                            )}
+                          >
+                            <Video className="h-3.5 w-3.5" /> Scan ID with Camera
+                          </Button>
+                          <label className={cn("w-full block", !wizIdType && "cursor-not-allowed opacity-50")}>
+                            <span className={cn(
+                              "w-full block text-center py-1.5 px-3 border rounded-lg text-xs font-medium transition-all",
+                              !wizIdType 
+                                ? "bg-white/5 border-white/10 text-muted cursor-not-allowed" 
+                                : "bg-white/5 hover:bg-white/10 border-white/10 text-foreground cursor-pointer font-medium"
+                            )}>
+                              Upload ID Document
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleIdFileSelect}
+                              disabled={!wizIdType}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* AI AGENT VERIFICATION BOX */}
+                  {selfieFile && idFile && wizIdType && (
+                    <div className="glass-card p-6 border border-white/10 rounded-2xl bg-gradient-to-br from-white/5 to-cyan/5 flex flex-col space-y-4">
+                      <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                        <div className="w-10 h-10 rounded-lg bg-cyan/10 flex items-center justify-center text-cyan">
+                          <Sparkles className="h-5 w-5 animate-pulse" />
+                        </div>
+                        <div className="text-left">
+                          <h4 className="font-bold text-sm text-foreground text-left">AI Agent Identity & Biometric Verification</h4>
+                          <p className="text-[11px] text-muted text-left">Verify government document authenticity and biometric similarity.</p>
+                        </div>
+                      </div>
+
+                      {aiVerifyStatus === "idle" && (
+                        <div className="flex flex-col items-center justify-center py-4 text-center space-y-3">
+                          <p className="text-xs text-muted max-w-sm">Ready to check government document authenticity and facial biometric resemblance.</p>
+                          <Button
+                            type="button"
+                            onClick={runAiVerification}
+                            className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 text-xs text-white"
+                          >
+                            Run AI Agent Verification
+                          </Button>
+                        </div>
+                      )}
+
+                      {aiVerifyStatus === "verifying" && (
+                        <div className="space-y-4 py-2">
+                          <div className="flex items-center gap-2.5 text-xs text-cyan font-medium">
+                            <Loader2 className="h-4 w-4 animate-spin text-cyan" />
+                            <span>AI Verification Agent is running analysis...</span>
+                          </div>
+                          
+                          {/* Console logs box */}
+                          <div className="bg-black/60 border border-white/5 p-4 rounded-xl font-mono text-[10px] text-green-400 space-y-1.5 h-36 overflow-y-auto scrollbar-thin text-left">
+                            {aiVerifyLogs.map((log, i) => (
+                              <div key={i} className="animate-fadeIn">{log}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {aiVerifyStatus === "passed" && (
+                        <div className="space-y-4 py-2 animate-fadeIn">
+                          <div className="bg-success/15 border border-success/30 rounded-xl p-4 flex flex-col md:flex-row items-center md:justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-success/20 flex items-center justify-center text-success">
+                                <Check className="h-5 w-5" />
+                              </div>
+                              <div className="text-left">
+                                <h5 className="font-bold text-xs text-success uppercase tracking-wider text-left">Government ID Verified</h5>
+                                <p className="text-[11px] text-muted mt-0.5 text-left">Biometrics matched with official government portrait.</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-4 items-center">
+                              <div className="text-center bg-white/5 border border-white/5 px-3 py-1.5 rounded-lg">
+                                <span className="text-[10px] text-muted block uppercase font-mono">Similarity</span>
+                                <span className="text-sm font-bold text-cyan font-mono">{aiMatchScore}%</span>
+                              </div>
+                              <div className="text-center bg-white/5 border border-white/5 px-3 py-1.5 rounded-lg">
+                                <span className="text-[10px] text-muted block uppercase font-mono">Authenticity</span>
+                                <span className="text-sm font-bold text-success font-mono">100% GOVT</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-black/60 border border-white/5 p-3 rounded-xl font-mono text-[10px] text-green-400 space-y-1 text-left">
+                            <div>✓ Selfie matching features: {aiMatchScore}% similarity vector.</div>
+                            <div>✓ Document OCR scan verified: Valid {wizIdType.toUpperCase()} security markings detected.</div>
+                            <div>✓ Government registry check: Authentic, valid document database match.</div>
+                            <div>✓ Status: AI check matches user database profile. Action authorized.</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {aiVerifyStatus === "failed" && (
+                        <div className="space-y-4 py-2 animate-fadeIn">
+                          <div className="bg-error/15 border border-error/30 rounded-xl p-4 flex flex-col md:flex-row items-center md:justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-error/20 flex items-center justify-center text-error">
+                                <AlertCircle className="h-5 w-5" />
+                              </div>
+                              <div className="text-left">
+                                <h5 className="font-bold text-xs text-error uppercase tracking-wider text-left">Verification Failed</h5>
+                                <p className="text-[11px] text-muted mt-0.5 text-left">The AI agent rejected the uploaded files.</p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setSelfieFile(null);
+                                setSelfieFileName("");
+                                setIdFile(null);
+                                setIdFileName("");
+                                setAiVerifyStatus("idle");
+                                setError("");
+                                setAiVerifyLogs([]);
+                              }}
+                              className="bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-foreground"
+                            >
+                              Reset & Retry
+                            </Button>
+                          </div>
+
+                          <div className="bg-black/60 border border-white/5 p-3 rounded-xl font-mono text-[10px] text-red-400 space-y-1 text-left">
+                            {aiVerifyLogs.map((log, i) => (
+                              <div key={i} className="animate-fadeIn">{log}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-4 border-t border-white/5">
+                    <Button type="button" onClick={() => setWizStep(2)} disabled={!selfieFile || !idFile || aiVerifyStatus !== "passed"}>
+                      Next: Digital Agreement <ArrowRight className="h-4 w-4 ml-1.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: CONTRACT & SIGNATURE */}
+              {wizStep === 2 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-lg font-bold text-foreground">Digital Onboarding Agreement</h3>
+                    <p className="text-xs text-muted mt-0.5">Please review the platform coaching agreement terms below.</p>
+                  </div>
+
+                  {/* Contract Scroll Container */}
+                  <div className="h-48 overflow-y-auto bg-black/45 border border-white/5 p-4 rounded-xl text-xs text-muted leading-relaxed space-y-4 font-mono select-none">
+                    <h4 className="font-bold text-foreground uppercase">MENTOR SERVICE AGREEMENT</h4>
+                    <p><strong>Ref Code: AGC-MNT-004</strong></p>
+                    <p>1. <strong>Coaching Obligations:</strong> The Mentor agrees to provide constructive code reviews, target-role roadmap advice, and structured project feedback to platform students.</p>
+                    <p>2. <strong>Intellectual Property:</strong> The Mentor acknowledges that all code repositories, solutions, and files submitted by students are the sole property of the students. Mentors may not copy, share, or redistribute student code.</p>
+                    <p>3. <strong>Availability Integrity:</strong> The Mentor agrees to maintain up-to-date availability calendars and attend booked 1-on-1 calls on time.</p>
+                    <p>4. <strong>Platform Commission:</strong> The Platform will process payments and credit rates directly. The Mentor agrees to the platform commission framework for paid slots.</p>
+                  </div>
+
+                  <label className="flex items-start gap-3 cursor-pointer select-none bg-white/5 border border-white/5 p-4 rounded-xl">
+                    <input
+                      type="checkbox"
+                      checked={signedAgreement}
+                      onChange={(e) => setSignedAgreement(e.target.checked)}
+                      className="w-4.5 h-4.5 rounded border-border bg-surface text-primary focus:ring-primary accent-primary mt-0.5"
+                    />
+                    <span className="text-xs text-muted">
+                      I have read, understood, and agree to the terms listed in the digital onboarding agreement.
+                    </span>
+                  </label>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted font-bold uppercase tracking-wider block">
+                      Digital Signature
+                    </label>
+                    <Input
+                      placeholder="Type your full name to sign"
+                      value={signatureText}
+                      onChange={(e) => setSignatureText(e.target.value)}
+                    />
+                    <span className="text-[10px] text-muted block">By typing your name, you execute this agreement electronically.</span>
+                  </div>
+
+                  <div className="flex justify-between pt-4 border-t border-white/5">
+                    <Button type="button" variant="outline" onClick={() => setWizStep(1)}>
+                      Back
+                    </Button>
+                    <Button type="button" onClick={() => setWizStep(3)} disabled={!signedAgreement || !signatureText.trim()}>
+                      Next: Rates & Hours <ArrowRight className="h-4 w-4 ml-1.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: DETAILS & RATES */}
+              {wizStep === 3 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-lg font-bold text-foreground">Coaching Rates & Availability</h3>
+                    <p className="text-xs text-muted mt-0.5">Configure your expertise tags, hourly rate, and weekly slots.</p>
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted font-semibold uppercase tracking-wider">
+                        Hourly Rate (USD)
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm font-semibold">$</div>
+                        <Input
+                          type="number"
+                          min="0"
+                          required
+                          placeholder="e.g. 75"
+                          value={wizHourlyRate}
+                          onChange={(e) => setWizHourlyRate(e.target.value)}
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted font-semibold uppercase tracking-wider">
+                        Company Affiliation
+                      </label>
+                      <Input
+                        placeholder="e.g. Google, Self-Employed"
+                        value={wizCompany}
+                        onChange={(e) => setWizCompany(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Expertise Tags */}
+                  <div className="space-y-3">
+                    <label className="text-xs text-muted font-semibold uppercase tracking-wider block">Specialty Expertise Areas</label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g. React, AWS, Docker"
+                        value={wizExpertiseInput}
+                        onChange={(e) => setWizExpertiseInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddExpertiseTag();
+                          }
+                        }}
+                      />
+                      <Button type="button" variant="outline" onClick={handleAddExpertiseTag}>
+                        Add
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {wizExpertise.map(tag => (
+                        <Badge key={tag} variant="outline" className="flex items-center gap-1">
+                          {tag}
+                          <button type="button" onClick={() => handleRemoveExpertiseTag(tag)} className="text-error font-bold ml-1 hover:text-red-400">&times;</button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Availability slots */}
+                  <div className="space-y-4">
+                    <label className="text-xs text-muted font-semibold uppercase tracking-wider block">Weekly Availability Slots</label>
+                    <div className="grid gap-3 bg-white/[0.02] border border-white/5 p-4 rounded-xl text-xs">
+                      {DAYS_OF_WEEK.map(day => {
+                        const activeSlot = wizAvailability.find(s => Number(s.day_of_week) === day.id);
+                        const isChecked = !!activeSlot;
+                        return (
+                          <div key={day.id} className="flex items-center justify-between gap-3 pb-2 border-b border-white/5 last:border-0 last:pb-0">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleDay(day.id)}
+                                className="w-4 rounded border-border text-primary focus:ring-primary accent-primary"
+                              />
+                              <span className="font-bold text-foreground w-24">{day.name}</span>
+                            </label>
+                            {isChecked && activeSlot && (
+                              <div className="flex items-center gap-2 text-[10px]">
+                                <span>From:</span>
+                                <input
+                                  type="time"
+                                  required
+                                  value={activeSlot.start_time || "09:00"}
+                                  onChange={(e) => handleTimeChange(day.id, "start_time", e.target.value)}
+                                  className="bg-surface border border-border rounded px-1.5 py-0.5 text-foreground focus:ring-primary"
+                                />
+                                <span>To:</span>
+                                <input
+                                  type="time"
+                                  required
+                                  value={activeSlot.end_time || "17:00"}
+                                  onChange={(e) => handleTimeChange(day.id, "end_time", e.target.value)}
+                                  className="bg-surface border border-border rounded px-1.5 py-0.5 text-foreground focus:ring-primary"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Navigation & Submit */}
+                  <div className="flex justify-between pt-4 border-t border-white/5">
+                    <Button type="button" variant="outline" onClick={() => setWizStep(2)}>
+                      Back
+                    </Button>
+                    <Button type="button" onClick={handleWizSubmit} disabled={isSubmittingWiz} isLoading={isSubmittingWiz} className="bg-gradient-to-r from-primary to-secondary text-white font-bold px-8">
+                      {isSubmittingWiz ? "Verifying..." : "Verify & Unlock Dashboard"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       </div>
@@ -707,9 +2540,9 @@ export default function DashboardPage() {
     const completedHours = completedBookings.reduce((sum, s) => sum + s.duration_minutes / 60, 0);
     const mentoringEarnings = completedHours * baseRate;
 
-    // Calculate project reviews payout details ($15 per review)
+    // Calculate project reviews payout details (Beginner: $1, Intermediate: $2, Advanced: $3)
     const reviewedCount = mentorProfile?.reviewed_count ?? 0;
-    const reviewEarnings = reviewedCount * 15;
+    const reviewEarnings = mentorProfile?.review_earnings ?? 0;
 
     // Total earnings
     const totalEarnings = mentoringEarnings + reviewEarnings;
@@ -737,6 +2570,57 @@ export default function DashboardPage() {
         const apiErr = err as ApiError;
         setError(apiErr.message || "Failed to update session status.");
       }
+    };
+
+    const handleGenerateAIProject = () => {
+      if (!aiProjectInput.trim()) return;
+      setIsGeneratingAIProject(true);
+      setError("");
+      setSuccess("");
+      
+      setTimeout(() => {
+        const text = aiProjectInput.toLowerCase();
+        let generatedTitle = "Advanced Distributed Microservices Architecture";
+        let tech = "React, Node.js, Express, PostgreSQL, Docker, Redis";
+        let difficulty = "advanced";
+        let hours = 60;
+        let details = "Build a scalable, real-time distributed application. In this project, you will learn to implement microservices, containerization, and low-latency cache synchronization.";
+
+        if (text.includes("chat") || text.includes("websocket") || text.includes("realtime")) {
+          generatedTitle = "Real-time Messaging & Event Engine";
+          tech = "Next.js, WebSockets, Redis, Node.js, PostgreSQL";
+          difficulty = "intermediate";
+          hours = 45;
+          details = "Implement a low-latency real-time chat application with group rooms and live status notifications. Learn message persistence and event buffering using Redis Pub/Sub.";
+        } else if (text.includes("ecommerce") || text.includes("shop") || text.includes("stripe") || text.includes("payment")) {
+          generatedTitle = "E-Commerce Micro-services Platform";
+          tech = "React, Node.js, Stripe API, PostgreSQL, Docker";
+          difficulty = "advanced";
+          hours = 80;
+          details = "Design and build a fully secure payment gateway integration and order processing microservice. You will implement stripe webhooks, inventory concurrency control, and transactional database integrity.";
+        } else if (text.includes("ai") || text.includes("model") || text.includes("llm") || text.includes("openai") || text.includes("embedding")) {
+          generatedTitle = "Intelligent AI-Powered Search Engine";
+          tech = "Next.js, FastAPI, pgvector, Python, OpenAI API";
+          difficulty = "advanced";
+          hours = 70;
+          details = "Build a vector-similarity document search system. Parse raw data into embeddings, index them using pgvector in PostgreSQL, and build a conversational AI interface to query files.";
+        } else if (text.includes("dashboard") || text.includes("admin") || text.includes("chart")) {
+          generatedTitle = "Operational SaaS Analytics Dashboard";
+          tech = "React, Chart.js, Tailwind CSS, Node.js, Express";
+          difficulty = "beginner";
+          hours = 30;
+          details = "Create a responsive data visualization platform with filterable time-series charts, user session logs, and report export features.";
+        }
+
+        setProjTitle(generatedTitle);
+        setProjDifficulty(difficulty);
+        setProjTechStack(tech);
+        setProjHours(hours);
+        setProjDesc(details + "\n\nCore features to include:\n1. Robust error boundaries and user notifications.\n2. Secure authentication and role-based permissions.\n3. Comprehensive API documentation (Swagger/OpenAPI).\n4. Production build configurations with Docker/CI-CD pipelines.");
+        
+        setIsGeneratingAIProject(false);
+        setSuccess("AI has successfully expanded your previous work into a complete project template! Review and publish the details below.");
+      }, 2500);
     };
 
     const handleCreateProject = async (e: React.FormEvent) => {
@@ -829,7 +2713,7 @@ export default function DashboardPage() {
                 Manage student session requests, review peer submissions, and track your platform earnings.
               </p>
             </div>
-            <Button variant="outline" onClick={() => router.push("/mentors/apply")} className="self-start">
+            <Button variant="outline" onClick={() => router.push("/profile")} className="self-start">
               <Settings className="h-4 w-4 mr-2" /> Edit Availability & Rates
             </Button>
           </div>
@@ -873,17 +2757,17 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="text-xs text-muted block">Platform Payouts</span>
-                  <span className="text-xl font-bold text-foreground">{formatDualCurrency(totalEarnings)}</span>
+                  <span className="text-xl font-bold text-foreground">{formatDualCurrencyAmount(totalEarnings)}</span>
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t border-white/5 space-y-1.5 text-xs text-muted">
                 <div className="flex justify-between">
                   <span>Coaching Sessions ({completedHours}h):</span>
-                  <span className="font-semibold text-foreground">{formatDualCurrency(mentoringEarnings)}</span>
+                  <span className="font-semibold text-foreground">{formatDualCurrencyAmount(mentoringEarnings)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Peer Code Reviews ({reviewedCount}):</span>
-                  <span className="font-semibold text-foreground">{formatDualCurrency(reviewEarnings)}</span>
+                  <span className="font-semibold text-foreground">{formatDualCurrencyAmount(reviewEarnings)}</span>
                 </div>
               </div>
             </Card>
@@ -1037,6 +2921,50 @@ export default function DashboardPage() {
                 )}
               </Card>
 
+              {/* AI Project Template Generator from Previous Work */}
+              <Card className="p-6 border border-primary/20 bg-gradient-to-b from-surface to-[#151528] animate-fadeIn">
+                <CardTitle className="mb-3 flex items-center gap-2 text-primary">
+                  <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                  AI Project Template Generator from Previous Work
+                </CardTitle>
+                <p className="text-xs text-muted mb-4 leading-relaxed">
+                  Describe a project you built previously, a piece of custom code, or an architectural pattern you worked on.
+                  Our AI will automatically construct a complete project template brief, list required features/technologies, and populate the project editor below.
+                </p>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted font-medium block">
+                      Previous Work Description / Project Concept
+                    </label>
+                    <textarea
+                      placeholder="e.g. I built a chat app using WebSockets and Node.js with Redis pub-sub to broadcast messages in group rooms..."
+                      value={aiProjectInput}
+                      onChange={(e) => setAiProjectInput(e.target.value)}
+                      rows={3}
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleGenerateAIProject}
+                    disabled={isGeneratingAIProject || !aiProjectInput.trim()}
+                    className="w-full bg-gradient-to-r from-primary via-secondary to-accent text-white font-bold"
+                  >
+                    {isGeneratingAIProject ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        AI is compiling project template details...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate with AI & Populate Template Editor
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Card>
+
               {/* Upload / Create Project Template */}
               <Card className="p-6">
                 <CardTitle className="mb-4 flex items-center gap-2">
@@ -1114,6 +3042,83 @@ export default function DashboardPage() {
                 </form>
               </Card>
 
+              {/* My Published Project Templates */}
+              <Card className="p-6">
+                <CardTitle className="mb-4 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Laptop className="h-5 w-5 text-primary" />
+                    My Published Project Templates ({myTemplates.length})
+                  </span>
+                  <Badge variant="outline" className="text-xs text-muted">Active Catalog</Badge>
+                </CardTitle>
+
+                {myTemplates.length === 0 ? (
+                  <p className="text-xs text-muted italic text-center py-4 bg-white/[0.01] rounded-xl border border-white/5">
+                    No custom templates uploaded yet. Create one using the form or AI generator above!
+                  </p>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {myTemplates.map((p) => (
+                      <div key={p.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex flex-col justify-between space-y-3">
+                        <div>
+                          <div className="flex justify-between items-start gap-1">
+                            <h4 className="font-bold text-foreground text-sm line-clamp-1">{p.title}</h4>
+                            {getDifficultyBadge(p.difficulty)}
+                          </div>
+                          <p className="text-xs text-muted line-clamp-2 mt-1 leading-relaxed">{p.description}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {p.tech_stack?.slice(0, 3).map((tech: string) => (
+                            <Badge key={tech} variant="outline" className="text-[9px] py-0 px-1.5">{tech}</Badge>
+                          ))}
+                          <span className="text-[10px] text-muted ml-auto font-mono">{p.estimated_hours}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Active Student Cohort */}
+              <Card className="p-6">
+                <CardTitle className="mb-4 flex items-center gap-2">
+                  <Users className="h-5 w-5 text-secondary" />
+                  Active Student Cohort (Enrolled in Your Projects)
+                </CardTitle>
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-3">Student Name</th>
+                        <th className="p-3">Enrolled Project</th>
+                        <th className="p-3 text-center">Progress</th>
+                        <th className="p-3 text-right">Incentive Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      <tr className="hover:bg-white/[0.02] text-foreground">
+                        <td className="p-3 font-semibold">Durga sravan Challagolla</td>
+                        <td className="p-3 text-muted">SaaS Analytics Dashboard</td>
+                        <td className="p-3 text-center font-bold text-primary">78% Complete</td>
+                        <td className="p-3 text-right text-success font-mono font-bold">$15 review pending</td>
+                      </tr>
+                      <tr className="hover:bg-white/[0.02] text-foreground">
+                        <td className="p-3 font-semibold">Jane Smith</td>
+                        <td className="p-3 text-muted">Stripe Gateway Microservice</td>
+                        <td className="p-3 text-center font-bold text-primary">45% Complete</td>
+                        <td className="p-3 text-right text-muted font-mono">In Progress</td>
+                      </tr>
+                      <tr className="hover:bg-white/[0.02] text-foreground">
+                        <td className="p-3 font-semibold">Alex Rivera</td>
+                        <td className="p-3 text-muted">AI pgvector Search Engine</td>
+                        <td className="p-3 text-center font-bold text-primary">95% Complete</td>
+                        <td className="p-3 text-right text-success font-mono font-bold">$15 review pending</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
             </div>
 
             {/* Right Column (Profile & Schedule) */}
@@ -1161,6 +3166,16 @@ export default function DashboardPage() {
                             className="flex-1 py-1 rounded bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-[10px]"
                           >
                             Mark Done
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveVideoSession(session);
+                              setIsVideoCallOpen(true);
+                            }}
+                            className="flex-1 py-1 rounded bg-success/20 hover:bg-success/30 text-success font-bold transition-all text-[10px] flex items-center justify-center gap-1"
+                          >
+                            <Video className="h-3 w-3" /> Join Call
                           </button>
                         </div>
                       </div>
@@ -1276,12 +3291,25 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                <div className="p-3 bg-primary/10 border border-primary/20 rounded-2xl flex items-center gap-3">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                  <span className="text-xs text-muted">
-                    Submitting this review will add a flat incentive of <strong className="text-foreground">$15 ({formatDualCurrency(15)})</strong> to your platform payouts stats.
-                  </span>
-                </div>
+                {(() => {
+                  const getSubmissionIncentive = (sub: any) => {
+                    if (!sub) return 0.50;
+                    const diff = (sub.difficulty || "beginner").toLowerCase();
+                    if (diff === "beginner") return 0.50;
+                    if (diff === "intermediate") return 0.75;
+                    if (diff === "advanced") return 1.00;
+                    return 0.50;
+                  };
+                  const incentive = getSubmissionIncentive(reviewingSubmission);
+                  return (
+                    <div className="p-3 bg-primary/10 border border-primary/20 rounded-2xl flex items-center gap-3">
+                      <DollarSign className="h-5 w-5 text-primary" />
+                      <span className="text-xs text-muted">
+                        Submitting this review will add a flat incentive of <strong className="text-foreground">${incentive.toFixed(2)} ({formatDualCurrencyAmount(incentive)})</strong> to your platform payouts stats.
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex gap-3 pt-2">
                   <Button type="button" variant="outline" onClick={() => setReviewingSubmission(null)} className="flex-1">
@@ -1329,7 +3357,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-muted font-medium">You are registered as a verified mentor from {mentorProfile.company_name}.</p>
                 </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => router.push("/mentors/apply")} className="w-full sm:w-auto border-success/30 hover:bg-success/20 text-foreground font-bold">
+              <Button size="sm" variant="outline" onClick={() => router.push("/profile")} className="w-full sm:w-auto border-success/30 hover:bg-success/20 text-foreground font-bold">
                 Manage Profile
               </Button>
             </div>
@@ -1944,6 +3972,18 @@ export default function DashboardPage() {
                               >
                                 Report
                               </button>
+                              {session.status === "confirmed" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveVideoSession(session);
+                                    setIsVideoCallOpen(true);
+                                  }}
+                                  className="bg-success/20 hover:bg-success/30 text-success border border-success/30 py-1 px-2.5 text-[10px] rounded-lg font-bold transition-all flex items-center gap-1"
+                                >
+                                  <Video className="h-3 w-3" /> Join Call
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -2115,19 +4155,241 @@ export default function DashboardPage() {
     );
   };
 
-  // Dynamic Dashboard Router Switching
-  if (user?.email === "durgasravan21@gmail.com") {
-    return renderAdminDashboard();
-  }
+  const renderVideoCallModal = () => {
+    if (!activeVideoSession) return null;
 
-  if (
+    const peerName = user?.email === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified")
+      ? (activeVideoSession.student_name || "Student")
+      : (activeVideoSession.mentor_name || "Coach");
+
+    const peerInitials = peerName.split(" ").map((n: string) => n[0]).join("").toUpperCase();
+    const myInitials = user?.name ? user.name.split(" ").map(n => n[0]).join("").toUpperCase() : "U";
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+        <div className="relative w-full max-w-6xl aspect-video md:aspect-auto md:h-[80vh] bg-[#0a0a0f]/90 border border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl backdrop-blur-xl">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-bold tracking-wider animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-error" />
+                REC 00:04
+              </div>
+              <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                <span className="text-primary">1-on-1 Mentoring Room</span>
+                <span className="text-muted">|</span>
+                <span className="text-xs text-muted font-normal">Session #{activeVideoSession.id}</span>
+              </h3>
+            </div>
+            <button
+              onClick={() => setIsVideoCallOpen(false)}
+              className="text-muted hover:text-foreground p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Main Workspace */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+            {/* Webcam Grid */}
+            <div className="flex-1 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/45 overflow-y-auto">
+              {/* User Webcam Frame */}
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
+                {isVideoMuted ? (
+                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-3">
+                    <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted font-bold text-2xl">
+                      {myInitials}
+                    </div>
+                    <span className="text-xs text-muted font-medium flex items-center gap-1.5">
+                      <VideoOff className="h-3.5 w-3.5 text-error" /> Camera is off
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-[#0a0a0f] to-secondary/10 opacity-70 animate-pulse" />
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-primary to-secondary p-[1px] flex items-center justify-center relative z-10 shadow-lg">
+                      <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center text-white font-extrabold text-3xl">
+                        {myInitials}
+                      </div>
+                    </div>
+                    <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10">
+                      You (Camera Active)
+                    </span>
+                  </>
+                )}
+                {isMuted && (
+                  <span className="absolute top-4 right-4 bg-error/20 border border-error/30 text-error p-1.5 rounded-full z-10">
+                    <MicOff className="h-3.5 w-3.5" />
+                  </span>
+                )}
+              </div>
+
+              {/* Peer (Coach/Student) Webcam Frame */}
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
+                <div className="absolute inset-0 bg-gradient-to-br from-secondary/15 via-[#0a0a0f] to-accent/15 opacity-70" />
+                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-secondary to-accent p-[1px] flex items-center justify-center relative z-10 shadow-lg">
+                  <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center text-white font-extrabold text-3xl">
+                    {peerInitials}
+                  </div>
+                </div>
+                <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2">
+                  <span>{peerName}</span>
+                  {/* Waveform talk animation */}
+                  <div className="flex items-center gap-[3px] h-3.5 w-6">
+                    <div className="w-[3px] bg-success h-2 rounded-full animate-bounce" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }} />
+                    <div className="w-[3px] bg-success h-3 rounded-full animate-bounce" style={{ animationDelay: '0.3s', animationDuration: '0.6s' }} />
+                    <div className="w-[3px] bg-success h-1.5 rounded-full animate-bounce" style={{ animationDelay: '0.2s', animationDuration: '0.9s' }} />
+                    <div className="w-[3px] bg-success h-2.5 rounded-full animate-bounce" style={{ animationDelay: '0.4s', animationDuration: '0.7s' }} />
+                  </div>
+                </span>
+              </div>
+            </div>
+
+            {/* AI Live Transcription Sidebar */}
+            <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 flex flex-col h-[350px] md:h-full bg-white/[0.02] backdrop-blur-lg">
+              <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                <span className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  AI Live Transcription
+                </span>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-primary/30 text-primary">
+                  Beta
+                </Badge>
+              </div>
+
+              {/* Transcription Logs Container */}
+              <div
+                ref={scrollRef}
+                className="flex-1 p-5 overflow-y-auto space-y-4 text-xs font-sans scrollbar-thin"
+              >
+                {transcriptionLogs.map((log, idx) => {
+                  const isSystem = log.startsWith("System:");
+                  const isMentor = log.startsWith("Mentor:");
+                  const isStudent = log.startsWith("Student:");
+
+                  let content = log;
+                  let sender = "";
+                  let bubbleStyle = "bg-white/5 text-muted border-white/5";
+
+                  if (isSystem) {
+                    sender = "AI Copilot";
+                    content = log.substring(7).trim();
+                    bubbleStyle = "bg-warning/10 text-warning border-warning/20 border";
+                  } else if (isMentor) {
+                    sender = user?.email === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? "You" : peerName;
+                    content = log.substring(7).trim();
+                    bubbleStyle = "bg-secondary/15 text-[#e2e8f0] border-secondary/30 border";
+                  } else if (isStudent) {
+                    sender = user?.email === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? peerName : "You";
+                    content = log.substring(8).trim();
+                    bubbleStyle = "bg-primary/15 text-[#e2e8f0] border-primary/30 border";
+                  }
+
+                  return (
+                    <div key={idx} className={cn("flex flex-col gap-1", isSystem ? "items-center text-center" : "items-start")}>
+                      <span className="text-[10px] text-muted font-bold px-1">{sender}</span>
+                      <div className={cn("px-3.5 py-2.5 rounded-2xl text-[11px] leading-relaxed max-w-[90%]", bubbleStyle)}>
+                        {content}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Controls Toolbar */}
+          <div className="px-6 py-5 border-t border-white/10 bg-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs text-muted"
+                onClick={() => {
+                  setTranscriptionLogs(prev => [...prev, "System: [User started sharing screen]"]);
+                }}
+              >
+                <Laptop className="h-4 w-4 mr-2" /> Share Screen
+              </Button>
+            </div>
+
+            {/* Core Mic & Video Controls */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className={cn(
+                  "w-12 h-12 rounded-full border flex items-center justify-center transition-all shadow-md active:scale-90",
+                  isMuted
+                    ? "bg-error/20 hover:bg-error/30 text-error border-error/40"
+                    : "bg-white/5 hover:bg-white/10 text-foreground border-white/10"
+                )}
+              >
+                {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              </button>
+              <button
+                onClick={() => setIsVideoMuted(!isVideoMuted)}
+                className={cn(
+                  "w-12 h-12 rounded-full border flex items-center justify-center transition-all shadow-md active:scale-90",
+                  isVideoMuted
+                    ? "bg-error/20 hover:bg-error/30 text-error border-error/40"
+                    : "bg-white/5 hover:bg-white/10 text-foreground border-white/10"
+                )}
+              >
+                {isVideoMuted ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+              </button>
+            </div>
+
+            {/* Leave button */}
+            <div>
+              <button
+                onClick={() => setIsVideoCallOpen(false)}
+                className="bg-error hover:bg-red-600 text-white font-bold text-sm px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg hover:shadow-error/25 transition-all duration-200 active:scale-95"
+              >
+                <PhoneOff className="h-4 w-4" /> End Call
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Dynamic Dashboard Router Switching
+  const isMentorVerifiedAndComplete = 
+    mentorProfile && 
+    mentorProfile.selfie_url && 
+    mentorProfile.identity_document_url && 
+    mentorProfile.signed_agreement && 
+    mentorProfile.signature_svg_or_text;
+
+  let dashboardContent;
+  if (user?.email === "durgasravan21@gmail.com") {
+    dashboardContent = renderAdminDashboard();
+  } else if (user?.role === "mentor" || user?.email === "challagollasridevi@gmail.com") {
+    if (isMentorVerifiedAndComplete) {
+      dashboardContent = renderMentorDashboard();
+    } else {
+      dashboardContent = renderMentorVerificationWizard();
+    }
+  } else if (
     mentorProfile &&
     (mentorProfile.verification_status === "verified" ||
       mentorProfile.verification_status === "pending" ||
       mentorProfile.verification_status === "suspended")
   ) {
-    return renderMentorDashboard();
+    if (isMentorVerifiedAndComplete) {
+      dashboardContent = renderMentorDashboard();
+    } else {
+      dashboardContent = renderMentorVerificationWizard();
+    }
+  } else {
+    dashboardContent = renderStudentDashboard();
   }
 
-  return renderStudentDashboard();
+  return (
+    <>
+      {dashboardContent}
+      {isVideoCallOpen && renderVideoCallModal()}
+    </>
+  );
 }

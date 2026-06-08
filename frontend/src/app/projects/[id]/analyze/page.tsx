@@ -37,6 +37,44 @@ export default function ProjectAnalysisPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = JSON.parse(localStorage.getItem("saved_projects") || "[]");
+      setIsSaved(saved.includes(projectId));
+    }
+  }, [projectId]);
+
+  const handleSaveProject = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("saved_projects") || "[]");
+      let updatedSaved: string[];
+      if (saved.includes(projectId)) {
+        updatedSaved = saved.filter((id: string) => id !== projectId);
+        setIsSaved(false);
+        setSuccessMsg("Project removed from saved list.");
+      } else {
+        updatedSaved = [...saved, projectId];
+        setIsSaved(true);
+        setSuccessMsg("Project saved to your list!");
+      }
+      localStorage.setItem("saved_projects", JSON.stringify(updatedSaved));
+    } catch (err) {
+      setError("Failed to save project.");
+    }
+  };
+
+  const handleShareDetails = async () => {
+    try {
+      if (typeof window !== "undefined") {
+        await navigator.clipboard.writeText(window.location.href);
+        setSuccessMsg("Copied share link to clipboard!");
+      }
+    } catch (err) {
+      setError("Failed to copy link to clipboard.");
+    }
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -144,6 +182,20 @@ export default function ProjectAnalysisPage() {
           </Link>
         </div>
 
+        {/* Global Success / Error Banners */}
+        {successMsg && (
+          <div className="mb-6 bg-success/10 border border-success/20 rounded-xl px-4 py-3 flex items-center gap-3 text-success animate-fadeIn">
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-success" />
+            <p className="text-sm font-medium">{successMsg}</p>
+          </div>
+        )}
+        {error && (
+          <div className="mb-6 bg-error/10 border border-error/20 rounded-xl px-4 py-3 flex items-center gap-3 text-error animate-fadeIn">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-error" />
+            <p className="text-sm font-medium">{error}</p>
+          </div>
+        )}
+
         {/* Header Block */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-6 border-b border-white/5">
           <div>
@@ -159,11 +211,16 @@ export default function ProjectAnalysisPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm">
-              <Bookmark className="h-4 w-4 mr-2" />
-              Save Project
+            <Button
+              variant={isSaved ? "default" : "outline"}
+              size="sm"
+              onClick={handleSaveProject}
+              className={isSaved ? "bg-gradient-to-r from-primary to-secondary text-white font-semibold border-transparent" : ""}
+            >
+              <Bookmark className={`h-4 w-4 mr-2 ${isSaved ? "fill-current" : ""}`} />
+              {isSaved ? "Saved" : "Save Project"}
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleShareDetails}>
               <Share2 className="h-4 w-4 mr-2" />
               Share Details
             </Button>
