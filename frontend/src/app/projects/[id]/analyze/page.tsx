@@ -269,7 +269,7 @@ export default function ProjectAnalysisPage() {
                 className="w-full h-[230px] perspective-1000 group cursor-pointer"
                 onClick={() => toggleFlip('grade')}
               >
-                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['grade'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['grade'] ? 'flipped' : ''}`}>
                   
                   {/* Front Side */}
                   <div className="absolute inset-0 w-full h-full backface-hidden">
@@ -283,12 +283,13 @@ export default function ProjectAnalysisPage() {
                   </div>
 
                   {/* Back Side */}
-                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
-                    <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
-                      style={{ backgroundImage: `url('/images/portfolio_badge.png')` }}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl bg-[#12121a]/95 rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <img 
+                      src="/images/portfolio_badge.png" 
+                      alt="Portfolio Badge Details Background"
+                      className="absolute inset-0 w-full h-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/90 via-[#0a0a0f]/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <Sparkles className="h-4 w-4 text-primary animate-pulse" /> Portfolio Grade Details
@@ -310,7 +311,7 @@ export default function ProjectAnalysisPage() {
                 className="w-full h-[230px] perspective-1000 group cursor-pointer"
                 onClick={() => toggleFlip('clarity')}
               >
-                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['clarity'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['clarity'] ? 'flipped' : ''}`}>
                   
                   {/* Front Side */}
                   <div className="absolute inset-0 w-full h-full backface-hidden">
@@ -324,12 +325,13 @@ export default function ProjectAnalysisPage() {
                   </div>
 
                   {/* Back Side */}
-                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
-                    <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
-                      style={{ backgroundImage: `url('/images/clarity_flow.png')` }}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl bg-[#12121a]/95 rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <img 
+                      src="/images/clarity_flow.png" 
+                      alt="Clarity Flow Details Background"
+                      className="absolute inset-0 w-full h-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/90 via-[#0a0a0f]/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <GitBranch className="h-4 w-4 text-primary animate-pulse" /> Clarity & Documentation
@@ -351,7 +353,7 @@ export default function ProjectAnalysisPage() {
                 className="w-full h-[230px] perspective-1000 group cursor-pointer"
                 onClick={() => toggleFlip('complexity')}
               >
-                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['complexity'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['complexity'] ? 'flipped' : ''}`}>
                   
                   {/* Front Side */}
                   <div className="absolute inset-0 w-full h-full backface-hidden">
@@ -365,12 +367,13 @@ export default function ProjectAnalysisPage() {
                   </div>
 
                   {/* Back Side */}
-                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
-                    <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
-                      style={{ backgroundImage: `url('/images/complexity_chip.png')` }}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl bg-[#12121a]/95 rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <img 
+                      src="/images/complexity_chip.png" 
+                      alt="Complexity Chip Details Background"
+                      className="absolute inset-0 w-full h-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/90 via-[#0a0a0f]/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <Cpu className="h-4 w-4 text-secondary animate-pulse" /> Code Complexity Insights
@@ -392,7 +395,7 @@ export default function ProjectAnalysisPage() {
                 className="w-full h-[230px] perspective-1000 group cursor-pointer"
                 onClick={() => toggleFlip('relevance')}
               >
-                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['relevance'] ? '[transform:rotateY(180deg)]' : 'group-hover:[transform:rotateY(180deg)]'}`}>
+                <div className={`w-full h-full flip-card-inner relative duration-700 preserve-3d ${flippedCards['relevance'] ? 'flipped' : ''}`}>
                   
                   {/* Front Side */}
                   <div className="absolute inset-0 w-full h-full backface-hidden">
@@ -410,12 +413,13 @@ export default function ProjectAnalysisPage() {
                   </div>
 
                   {/* Back Side */}
-                  <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
-                    <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
-                      style={{ backgroundImage: `url('/images/career_growth.png')` }}
+                  <div className="absolute inset-0 w-full h-full rounded-2xl bg-[#12121a]/95 rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
+                    <img 
+                      src="/images/career_growth.png" 
+                      alt="Career Growth Details Background"
+                      className="absolute inset-0 w-full h-full object-cover opacity-75 transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/90 via-[#0a0a0f]/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <TrendingUp className="h-4 w-4 text-accent animate-pulse" /> Career Fit Analytics

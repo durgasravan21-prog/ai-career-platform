@@ -845,8 +845,13 @@ export default function DashboardPage() {
     if (!unlockingMentor) return;
     const expectedPassword1 = `${unlockingMentor.mentor_name}@${unlockingMentor.mentor_id}`;
     const expectedPassword2 = `mentor@${unlockingMentor.mentor_id}`;
-    if (agreementPassword !== expectedPassword1 && agreementPassword !== expectedPassword2) {
-      setUnlockError("Incorrect password. Please verify the Mentor name and ID.");
+    const expectedPassword3 = "agreement123";
+    if (
+      agreementPassword !== expectedPassword1 &&
+      agreementPassword !== expectedPassword2 &&
+      agreementPassword !== expectedPassword3
+    ) {
+      setUnlockError("Incorrect password. Please verify the passcode.");
       return;
     }
 
@@ -1771,11 +1776,11 @@ Signed Digitally by:
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-semibold">
                       <span className="text-muted">Passcode required</span>
-                      <span className="text-primary font-mono italic">Format: name@id</span>
+                      <span className="text-primary font-mono italic">Format: name@id or "agreement123"</span>
                     </div>
                     <input
                       type="password"
-                      placeholder="e.g. MentorName@MNT-001"
+                      placeholder="Enter name@id or agreement123"
                       value={agreementPassword}
                       onChange={(e) => setAgreementPassword(e.target.value)}
                       onKeyDown={(e) => {
