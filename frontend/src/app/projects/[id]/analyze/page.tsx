@@ -285,10 +285,10 @@ export default function ProjectAnalysisPage() {
                   {/* Back Side */}
                   <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
                     <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
                       style={{ backgroundImage: `url('/images/portfolio_badge.png')` }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <Sparkles className="h-4 w-4 text-primary animate-pulse" /> Portfolio Grade Details
@@ -326,10 +326,10 @@ export default function ProjectAnalysisPage() {
                   {/* Back Side */}
                   <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
                     <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
                       style={{ backgroundImage: `url('/images/clarity_flow.png')` }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <GitBranch className="h-4 w-4 text-primary animate-pulse" /> Clarity & Documentation
@@ -367,10 +367,10 @@ export default function ProjectAnalysisPage() {
                   {/* Back Side */}
                   <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
                     <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
                       style={{ backgroundImage: `url('/images/complexity_chip.png')` }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <Cpu className="h-4 w-4 text-secondary animate-pulse" /> Code Complexity Insights
@@ -412,10 +412,10 @@ export default function ProjectAnalysisPage() {
                   {/* Back Side */}
                   <div className="absolute inset-0 w-full h-full rounded-2xl glass-card rotate-y-180 backface-hidden overflow-hidden flex flex-col justify-end p-5 border border-white/10 shadow-2xl">
                     <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-30 transition-transform duration-500 group-hover:scale-110"
+                      className="absolute inset-0 bg-cover bg-center opacity-75 transition-transform duration-500 group-hover:scale-110"
                       style={{ backgroundImage: `url('/images/career_growth.png')` }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
                     <div className="relative z-10 space-y-2 text-left">
                       <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                         <TrendingUp className="h-4 w-4 text-accent animate-pulse" /> Career Fit Analytics

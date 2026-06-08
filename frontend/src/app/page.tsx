@@ -334,98 +334,104 @@ function LandingPageContent() {
             {/* Right Column (Visual Mockups) */}
             <div className="lg:col-span-5 relative h-[480px] w-full hidden lg:block select-none animate-fadeIn" style={{ animationDelay: "0.15s" }}>
               {/* Mockup 1: AI Mentor Match Card */}
-              <div className="absolute top-0 right-0 w-[300px] glass-card p-5 animate-float-slow bg-[#12121a]/85 border-white/10 shadow-2xl z-20">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/20 border border-primary/35 text-primary text-[10px] font-bold">
-                    <Sparkles className="h-3 w-3" />
-                    98% AI Match
-                  </span>
-                  <Badge variant="success" className="text-[9px] bg-success/20 text-success border-success/30 font-bold">Available</Badge>
-                </div>
-                
-                <div className="flex items-center gap-3.5 mb-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                    PC
+              <div className="absolute top-0 right-0 w-[300px] animate-float-slow z-20 hover:z-50">
+                <div className="glass-card p-5 bg-[#12121a]/85 border-white/10 shadow-2xl transition-all duration-300 hover:scale-105 hover:border-primary/50 hover:shadow-primary/20 cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/20 border border-primary/35 text-primary text-[10px] font-bold">
+                      <Sparkles className="h-3 w-3" />
+                      98% AI Match
+                    </span>
+                    <Badge variant="success" className="text-[9px] bg-success/20 text-success border-success/30 font-bold">Available</Badge>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-foreground text-sm">Priya Patel</h4>
-                    <p className="text-[10px] text-muted font-medium">Senior ML Architect at Stripe</p>
+                  
+                  <div className="flex items-center gap-3.5 mb-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                      PC
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-foreground text-sm">Priya Patel</h4>
+                      <p className="text-[10px] text-muted font-medium">Senior ML Architect at Stripe</p>
+                    </div>
                   </div>
-                </div>
 
-                <p className="text-[11px] text-muted leading-relaxed italic mb-3.5 border-l-2 border-primary/40 pl-2">
-                  &ldquo;I will review your ML project models, help deploy inference pipelines, and guide your resume review.&rdquo;
-                </p>
+                  <p className="text-[11px] text-muted leading-relaxed italic mb-3.5 border-l-2 border-primary/40 pl-2">
+                    &ldquo;I will review your ML project models, help deploy inference pipelines, and guide your resume review.&rdquo;
+                  </p>
 
-                <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                  <div>
-                    <span className="text-[9px] text-muted block uppercase tracking-wider font-semibold">Passion Rate</span>
-                    <span className="text-xs font-bold text-success">₹0 / hr (Free Session)</span>
-                  </div>
-                  <div className="h-7 px-3 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-foreground flex items-center cursor-pointer hover:bg-white/10">
-                    Book Call
+                  <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                    <div>
+                      <span className="text-[9px] text-muted block uppercase tracking-wider font-semibold">Passion Rate</span>
+                      <span className="text-xs font-bold text-success">₹0 / hr (Free Session)</span>
+                    </div>
+                    <div className="h-7 px-3 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-foreground flex items-center cursor-pointer hover:bg-white/10">
+                      Book Call
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Mockup 2: Skill Gap Circular Progress */}
-              <div className="absolute bottom-4 left-0 w-[240px] glass-card p-5 animate-float-delay bg-[#12121a]/90 border-white/10 shadow-2xl z-30">
-                <h4 className="text-xs font-bold text-foreground mb-4 flex items-center gap-1.5">
-                  <Target className="h-4 w-4 text-primary" />
-                  Full-Stack Career Goal
-                </h4>
-                
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-full h-full transform -rotate-90">
-                      <circle cx="32" cy="32" r="28" className="stroke-white/5 fill-none" strokeWidth="5" />
-                      <circle cx="32" cy="32" r="28" className="stroke-primary fill-none" strokeWidth="5" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - 0.74)} strokeLinecap="round" />
-                    </svg>
-                    <span className="absolute text-xs font-black text-foreground">74%</span>
+              <div className="absolute bottom-4 left-0 w-[240px] animate-float-delay z-30 hover:z-50">
+                <div className="glass-card p-5 bg-[#12121a]/90 border-white/10 shadow-2xl transition-all duration-300 hover:scale-105 hover:border-secondary/50 hover:shadow-secondary/20 cursor-pointer">
+                  <h4 className="text-xs font-bold text-foreground mb-4 flex items-center gap-1.5">
+                    <Target className="h-4 w-4 text-primary" />
+                    Full-Stack Career Goal
+                  </h4>
+                  
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="32" cy="32" r="28" className="stroke-white/5 fill-none" strokeWidth="5" />
+                        <circle cx="32" cy="32" r="28" className="stroke-primary fill-none" strokeWidth="5" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - 0.74)} strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute text-xs font-black text-foreground">74%</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted block">Next Step:</span>
+                      <span className="text-xs font-bold text-foreground block">System Architecture</span>
+                      <span className="text-[9px] text-primary block mt-0.5">Est. 2 weeks left</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-muted block">Next Step:</span>
-                    <span className="text-xs font-bold text-foreground block">System Architecture</span>
-                    <span className="text-[9px] text-primary block mt-0.5">Est. 2 weeks left</span>
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap gap-1">
-                  <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Docker</Badge>
-                  <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Next.js</Badge>
-                  <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Python</Badge>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Docker</Badge>
+                    <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Next.js</Badge>
+                    <Badge variant="outline" className="text-[9px] bg-white/5 border-white/5 py-0">Python</Badge>
+                  </div>
                 </div>
               </div>
 
               {/* Mockup 3: GitHub Complexity Analysis */}
-              <div className="absolute top-1/2 left-1/3 transform -translate-x-1/2 -translate-y-1/2 w-[220px] glass-card p-4 bg-[#12121a]/80 border-white/5 shadow-xl z-10">
-                <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
-                  <span className="text-[9px] text-muted font-bold block uppercase tracking-wider">GitHub Analyzer</span>
-                  <Badge className="text-[8px] bg-primary/20 text-primary border-primary/35">Project Audited</Badge>
-                </div>
-                
-                <div className="space-y-2.5">
-                  <div>
-                    <div className="flex justify-between text-[10px] font-medium mb-1">
-                      <span className="text-muted">Problem Clarity</span>
-                      <span className="text-foreground">8.8 / 10</span>
-                    </div>
-                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" style={{ width: "88%" }} />
-                    </div>
+              <div className="absolute top-1/2 left-1/3 transform -translate-x-1/2 -translate-y-1/2 w-[220px] z-10 hover:z-50">
+                <div className="glass-card p-4 bg-[#12121a]/80 border-white/5 shadow-xl transition-all duration-300 hover:scale-105 hover:border-accent/50 hover:shadow-accent/20 cursor-pointer">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+                    <span className="text-[9px] text-muted font-bold block uppercase tracking-wider">GitHub Analyzer</span>
+                    <Badge className="text-[8px] bg-primary/20 text-primary border-primary/35">Project Audited</Badge>
                   </div>
-                  <div>
-                    <div className="flex justify-between text-[10px] font-medium mb-1">
-                      <span className="text-muted">Complexity</span>
-                      <span className="text-foreground">9.4 / 10</span>
+                  
+                  <div className="space-y-2.5">
+                    <div>
+                      <div className="flex justify-between text-[10px] font-medium mb-1">
+                        <span className="text-muted">Problem Clarity</span>
+                        <span className="text-foreground">8.8 / 10</span>
+                      </div>
+                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-primary to-secondary rounded-full" style={{ width: "88%" }} />
+                      </div>
                     </div>
-                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-secondary to-accent rounded-full" style={{ width: "94%" }} />
+                    <div>
+                      <div className="flex justify-between text-[10px] font-medium mb-1">
+                        <span className="text-muted">Complexity</span>
+                        <span className="text-foreground">9.4 / 10</span>
+                      </div>
+                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-secondary to-accent rounded-full" style={{ width: "94%" }} />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] font-medium pt-1.5">
-                    <span className="text-muted">Portfolio Grade:</span>
-                    <span className="text-xs font-black text-success">Grade A</span>
+                    <div className="flex justify-between items-center text-[10px] font-medium pt-1.5">
+                      <span className="text-muted">Portfolio Grade:</span>
+                      <span className="text-xs font-black text-success">Grade A</span>
+                    </div>
                   </div>
                 </div>
               </div>
