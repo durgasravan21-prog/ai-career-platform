@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { CursorParticles } from "@/components/cursor-particles";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -273,6 +274,7 @@ function LandingPageContent() {
 
   return (
     <div className="min-h-screen bg-background">
+      <CursorParticles />
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         {/* Grid Background */}
