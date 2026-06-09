@@ -84,8 +84,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.auth.login(payload);
-      setUser(response.user);
+      await api.auth.login(payload);
+      const fullUser = await api.auth.getMe();
+      setUser(fullUser);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || "Login failed. Please try again.");
@@ -99,8 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.auth.register(payload);
-      setUser(response.user);
+      await api.auth.register(payload);
+      const fullUser = await api.auth.getMe();
+      setUser(fullUser);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || "Registration failed. Please try again.");
@@ -138,8 +140,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.auth.verifyOtp(email, otp, name, role, companyName);
-      setUser(response.user);
+      await api.auth.verifyOtp(email, otp, name, role, companyName);
+      const fullUser = await api.auth.getMe();
+      setUser(fullUser);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || "Failed to verify OTP. Please try again.");

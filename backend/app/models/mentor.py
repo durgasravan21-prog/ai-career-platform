@@ -87,7 +87,7 @@ class MentorProfile(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", lazy="selectin")  # noqa: F821
+    user: Mapped["User"] = relationship("User", back_populates="mentor_profile", lazy="selectin")  # noqa: F821
     availability: Mapped[list[MentorAvailability]] = relationship(
         "MentorAvailability", back_populates="mentor", lazy="selectin"
     )

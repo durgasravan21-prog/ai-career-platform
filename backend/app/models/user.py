@@ -57,6 +57,9 @@ class User(Base):
     skills: Mapped[list[UserSkill]] = relationship(
         "UserSkill", back_populates="user", lazy="selectin"
     )
+    mentor_profile: Mapped["MentorProfile | None"] = relationship(  # noqa: F821
+        "MentorProfile", back_populates="user", uselist=False, lazy="selectin"
+    )
     career_paths: Mapped[list["CareerPath"]] = relationship(  # noqa: F821
         "CareerPath", back_populates="user", lazy="selectin"
     )
@@ -66,6 +69,14 @@ class User(Base):
     recommendations: Mapped[list["Recommendation"]] = relationship(  # noqa: F821
         "Recommendation", back_populates="user", lazy="selectin"
     )
+
+    @property
+    def role(self) -> str:
+        if self.email.lower() == "durgasravan21@gmail.com":
+            return "mentor"
+        if self.mentor_profile is not None:
+            return "mentor"
+        return "student"
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"

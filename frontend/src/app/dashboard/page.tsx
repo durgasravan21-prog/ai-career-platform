@@ -2959,6 +2959,70 @@ Signed Digitally by:
             {/* Left/Middle Column (Incoming Requests, Submissions & Project Creator) */}
             <div className="lg:col-span-2 space-y-6">
               
+              {/* Confirmed Sessions Quick Join (Highly Visible on Mobile) */}
+              {upcomingBookings.length > 0 && (
+                <Card className="p-6 border-success/30 bg-gradient-to-r from-surface to-success/5 animate-pulse-slow">
+                  <CardTitle className="mb-4 flex items-center justify-between text-success">
+                    <span className="flex items-center gap-2">
+                      <span className="relative flex h-3.5 w-3.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-success"></span>
+                      </span>
+                      Confirmed Sessions & Join Options
+                    </span>
+                    <Badge variant="success" className="animate-pulse">Active Session Available</Badge>
+                  </CardTitle>
+                  <div className="space-y-4">
+                    {upcomingBookings.map((session) => (
+                      <div
+                        key={session.id}
+                        className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-foreground text-sm">
+                            {session.student_name ? `${session.student_name} (#${session.mentee_id})` : `Student #${session.mentee_id}`}
+                          </h4>
+                          <div className="flex flex-wrap gap-4 text-xs text-muted">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-success" />
+                              {new Date(session.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5 text-success" />
+                              {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            onClick={() => handleUpdateSessionStatus(session.id, "cancelled")}
+                            className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-error/10 hover:bg-error/20 text-error font-medium transition-colors text-xs border border-error/20"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdateSessionStatus(session.id, "completed")}
+                            className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-xs border border-primary/20"
+                          >
+                            Complete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveVideoSession(session);
+                              setIsVideoCallOpen(true);
+                            }}
+                            className="flex-[2] sm:flex-initial py-2 px-5 rounded-xl bg-success hover:bg-success/80 text-white font-bold transition-all text-xs flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.3)] active:scale-95"
+                          >
+                            <Video className="h-4 w-4" /> Join Call
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
               {/* Incoming Session Requests */}
               <Card className="p-6">
                 <CardTitle className="mb-4 flex items-center gap-2 text-warning">
