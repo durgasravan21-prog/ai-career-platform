@@ -80,6 +80,9 @@ export default function DashboardPage() {
   const [mentorSessions, setMentorSessions] = useState<MentorSession[]>([]);
   const [mentorReports, setMentorReports] = useState<any[]>([]);
 
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [leaveCooldown, setLeaveCooldown] = useState<number>(0);
+
   // Admin Dashboard States
   const [adminActiveTab, setAdminActiveTab] = useState<"reviews" | "users" | "sessions" | "performance" | "pricing" | "agreements">("reviews");
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
@@ -770,6 +773,28 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [isVideoCallOpen, remoteStream]);
 
+  // 1-minute call leave cooldown timer to prevent early declines/exits
+  useEffect(() => {
+    if (!isVideoCallOpen) {
+      setLeaveCooldown(0);
+      return;
+    }
+
+    setLeaveCooldown(60);
+
+    const interval = setInterval(() => {
+      setLeaveCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isVideoCallOpen]);
+
   // Fetch dashboard data
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -873,6 +898,9 @@ export default function DashboardPage() {
         setError(msg);
       } finally {
         setIsLoadingData(false);
+        if (typeof window !== "undefined") {
+          setIsOfflineMode(sessionStorage.getItem("backend_offline") === "true");
+        }
       }
     };
 
@@ -5044,8 +5072,18 @@ Signed Digitally by:
               </h3>
             </div>
             <button
-              onClick={handleLeaveCall}
-              className="text-muted hover:text-foreground p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              onClick={() => {
+                if (leaveCooldown > 0) return;
+                handleLeaveCall();
+              }}
+              disabled={leaveCooldown > 0}
+              className={cn(
+                "p-1.5 rounded-lg transition-colors",
+                leaveCooldown > 0
+                  ? "text-muted/30 cursor-not-allowed"
+                  : "text-muted hover:text-foreground hover:bg-white/5"
+              )}
+              title={leaveCooldown > 0 ? `Must wait ${leaveCooldown}s before leaving` : "Leave call"}
             >
               <X className="h-5 w-5" />
             </button>
@@ -5323,10 +5361,20 @@ Signed Digitally by:
             {/* Leave button */}
             <div>
               <button
-                onClick={handleLeaveCall}
-                className="bg-error hover:bg-red-600 text-white font-bold text-sm px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg hover:shadow-error/25 transition-all duration-200 active:scale-95"
+                onClick={() => {
+                  if (leaveCooldown > 0) return;
+                  handleLeaveCall();
+                }}
+                disabled={leaveCooldown > 0}
+                className={cn(
+                  "font-bold text-sm px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg transition-all duration-200",
+                  leaveCooldown > 0
+                    ? "bg-white/5 border border-white/10 text-muted cursor-not-allowed opacity-50"
+                    : "bg-error hover:bg-red-600 text-white hover:shadow-error/25 active:scale-95"
+                )}
               >
-                <PhoneOff className="h-4 w-4" /> End Call
+                <PhoneOff className="h-4 w-4" /> 
+                {leaveCooldown > 0 ? `Wait ${leaveCooldown}s` : "End Call"}
               </button>
             </div>
           </div>
@@ -5374,6 +5422,20 @@ Signed Digitally by:
 
   return (
     <>
+      {isOfflineMode && (
+        <div className="bg-warning/20 border-b border-warning/30 text-warning px-4 py-2.5 text-center text-xs font-bold flex items-center justify-center gap-2 animate-fadeIn z-45 sticky top-[73px] backdrop-blur-md">
+          <span>⚠️ Offline Mode: The API server is unreachable. You are viewing the offline local mock database. Real bookings will not be visible.</span>
+          <button 
+            onClick={() => {
+              sessionStorage.removeItem("backend_offline");
+              window.location.reload();
+            }}
+            className="underline hover:text-foreground font-bold px-2 py-0.5 rounded bg-warning/20 hover:bg-warning/30 transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
       {dashboardContent}
       {isVideoCallOpen && renderVideoCallModal()}
     </>

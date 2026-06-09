@@ -36,6 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch current user on mount if token exists
   useEffect(() => {
+    // Clear backend offline flag on refresh/load to retry connecting to the real database
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("backend_offline");
+    }
+
     const token =
       typeof window !== "undefined"
         ? sessionStorage.getItem("auth_token")
