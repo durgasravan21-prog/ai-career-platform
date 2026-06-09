@@ -888,7 +888,9 @@ export default function DashboardPage() {
         console.error("Dashboard error:", err);
         const apiErr = err as ApiError;
         let msg = apiErr.message || "Failed to load dashboard data";
-        if (
+        if (err.status === 503) {
+          msg = "Your LocalTunnel backend is unavailable (503 Service Unavailable). Please make sure the localtunnel process is running on your laptop with subdomain 'durga-career-ai'.";
+        } else if (
           err instanceof TypeError ||
           (err.message && err.message.includes("Failed to fetch")) ||
           err.status === undefined
@@ -5423,8 +5425,8 @@ Signed Digitally by:
   return (
     <>
       {isOfflineMode && (
-        <div className="bg-warning/20 border-b border-warning/30 text-warning px-4 py-2.5 text-center text-xs font-bold flex items-center justify-center gap-2 animate-fadeIn z-45 sticky top-[73px] backdrop-blur-md">
-          <span>⚠️ Offline Mode: The API server is unreachable. You are viewing the offline local mock database. Real bookings will not be visible.</span>
+        <div className="bg-warning/20 border-b border-warning/30 text-warning px-4 py-2.5 text-center text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 animate-fadeIn z-45 sticky top-[73px] backdrop-blur-md">
+          <span>⚠️ Offline Mode: LocalTunnel backend is unavailable (or returned 503). Verify the localtunnel client is running on your laptop.</span>
           <button 
             onClick={() => {
               sessionStorage.removeItem("backend_offline");
