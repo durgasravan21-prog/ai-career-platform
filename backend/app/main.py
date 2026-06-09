@@ -43,7 +43,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with engine.begin() as conn:
         if conn.dialect.name != "sqlite":
             from sqlalchemy import text
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            try:
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            except Exception as e:
+                logger.warning(f"Could not create vector extension: {e}. Assuming pre-installed.")
         # Create all tables if they don't exist (dev convenience).
         # In production, use Alembic migrations instead.
         await conn.run_sync(Base.metadata.create_all)

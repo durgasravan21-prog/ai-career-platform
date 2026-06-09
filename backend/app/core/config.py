@@ -53,7 +53,10 @@ class Settings(BaseSettings):
         import os
         if os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV"):
             env_db_url = os.environ.get("DATABASE_URL")
-            if not env_db_url or "sqlite" in env_db_url or "localhost" in env_db_url or "127.0.0.1" in env_db_url:
+            if env_db_url and "sqlite" not in env_db_url and "localhost" not in env_db_url and "127.0.0.1" not in env_db_url:
+                self.DATABASE_URL = env_db_url
+                self.DATABASE_URL_SYNC = env_db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+            else:
                 self.DATABASE_URL = "sqlite+aiosqlite:////tmp/ai_career.db"
                 self.DATABASE_URL_SYNC = "sqlite:////tmp/ai_career.db"
 
