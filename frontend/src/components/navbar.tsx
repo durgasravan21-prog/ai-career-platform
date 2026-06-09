@@ -53,12 +53,18 @@ export function Navbar() {
     if (isAuthenticated) {
       fetchNotifications();
       
+      // Poll for new notifications every 8 seconds
+      const pollInterval = setInterval(() => {
+        fetchNotifications();
+      }, 8000);
+
       const handleUpdate = () => {
         fetchNotifications();
       };
       
       window.addEventListener("mock_notifications_updated", handleUpdate);
       return () => {
+        clearInterval(pollInterval);
         window.removeEventListener("mock_notifications_updated", handleUpdate);
       };
     }

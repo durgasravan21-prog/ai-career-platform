@@ -509,6 +509,8 @@ export default function DashboardPage() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const signalingSocketRef = useRef<WebSocket | null>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
+  const screenStreamRef = useRef<MediaStream | null>(null);
 
   const sendSignal = async (msg: any) => {
     const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
@@ -558,7 +560,17 @@ export default function DashboardPage() {
 
   const handleSendReminder = async (sessionId: string | number) => {
     try {
-      await api.mentors.sendJoinReminder(sessionId);
+      const result = await api.mentors.sendJoinReminder(sessionId);
+      // Create a local notification for the student so they see it in the bell
+      if (result && result.student_id) {
+        const { addMockNotification } = await import("@/lib/api");
+        addMockNotification(
+          result.student_id,
+          "🔔 Call Join Reminder",
+          `Your mentor ${result.mentor_name || "your coach"} is waiting for you in the video call. Please join now!`,
+          "warning"
+        );
+      }
       alert("Join reminder sent successfully to student!");
       const sessionsData = await api.mentors.getMySessions();
       setMentorSessions(sessionsData || []);
@@ -578,9 +590,12 @@ export default function DashboardPage() {
     }
 
     try {
+      // Prefer codecs that produce broadly playable files
       const mimeTypes = [
-        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8,opus",
+        "video/webm;codecs=vp9,opus",
         "video/webm;codecs=vp8",
+        "video/webm;codecs=vp9",
         "video/webm",
         "video/mp4"
       ];
@@ -592,7 +607,12 @@ export default function DashboardPage() {
         }
       }
       
-      const options = selectedMimeType ? { mimeType: selectedMimeType } : undefined;
+      const options: MediaRecorderOptions = selectedMimeType ? { mimeType: selectedMimeType } : {};
+      // Request higher bitrate for quality
+      if (selectedMimeType) {
+        options.videoBitsPerSecond = 2500000;
+        options.audioBitsPerSecond = 128000;
+      }
       const recorder = new MediaRecorder(streamsToRecord, options);
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
@@ -611,8 +631,8 @@ export default function DashboardPage() {
         a.href = url;
         a.download = `mentoring_session_${activeVideoSession?.id || "record"}.${extension}`;
         a.click();
-        window.URL.revokeObjectURL(url);
-        alert("Session recording saved to downloads!");
+        setTimeout(() => window.URL.revokeObjectURL(url), 5000);
+        alert("Session recording saved to downloads! Open the .webm file in Chrome, Firefox, or VLC for best playback.");
       };
       recorder.start(1000);
       setIsRecording(true);
@@ -631,6 +651,12 @@ export default function DashboardPage() {
 
   const handleLeaveCall = () => {
     stopRecording();
+    // Stop screen sharing if active
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+      setIsScreenSharing(false);
+    }
     setIsVideoCallOpen(false);
   };
 
@@ -942,7 +968,7 @@ export default function DashboardPage() {
     loadMyTemplates();
   }, [isAuthenticated, mentorProfile, success]);
 
-  // Live video transcription simulation & Webcam capture effect
+  // Webcam capture effect — starts camera when call opens
   useEffect(() => {
     if (!isVideoCallOpen) {
       setTranscriptionLogs([]);
@@ -966,9 +992,21 @@ export default function DashboardPage() {
     };
 
     startCamera();
+    setTranscriptionLogs(["System: [Waiting for peer to join the call...]"]);
+
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isVideoCallOpen]);
+
+  // Live transcription simulation — only starts AFTER remote peer connects
+  useEffect(() => {
+    if (!isVideoCallOpen || !remoteStream) return;
 
     const dialogue = [
-      "System: [AI Assistant Active - Transcription & Summarization Enabled]",
+      "System: [Peer connected — AI Transcription & Summarization Enabled]",
       "Mentor: Hey! Great to connect. How has your progress been on the project?",
       "Student: Hi! It's going well, but I ran into some issues with the API response times.",
       "Mentor: Let's take a look. Usually, this is due to N+1 queries in the relational fetching logic.",
@@ -981,7 +1019,7 @@ export default function DashboardPage() {
       "Mentor: Sounds like a plan. Let's jump into the frontend state management next.",
     ];
 
-    setTranscriptionLogs([dialogue[0]]);
+    setTranscriptionLogs((prev) => [...prev, dialogue[0]]);
     let currentIndex = 1;
 
     const interval = setInterval(() => {
@@ -993,11 +1031,8 @@ export default function DashboardPage() {
 
     return () => {
       clearInterval(interval);
-      if (activeStream) {
-        activeStream.getTracks().forEach((track) => track.stop());
-      }
     };
-  }, [isVideoCallOpen]);
+  }, [isVideoCallOpen, remoteStream]);
 
   // Sync active stream tracks with Mute toggles
   useEffect(() => {
@@ -3268,7 +3303,17 @@ Signed Digitally by:
       setError("");
       setSuccess("");
       try {
-        await api.mentors.sendJoinReminder(sessionId);
+        const result = await api.mentors.sendJoinReminder(sessionId);
+        // Push a notification into the student's local notification store
+        if (result && result.student_id) {
+          const { addMockNotification } = await import("@/lib/api");
+          addMockNotification(
+            result.student_id,
+            "🔔 Call Join Reminder",
+            `Your mentor ${result.mentor_name || "your coach"} is waiting for you in the video call. Please join now!`,
+            "warning"
+          );
+        }
         const sessionsData = await api.mentors.getMySessions();
         setMentorSessions(sessionsData || []);
         setSuccess("Joining reminder sent to student successfully!");
@@ -5474,13 +5519,68 @@ Signed Digitally by:
             <div className="flex items-center gap-3">
               <Button
                 size="sm"
-                variant="outline"
-                className="text-xs text-muted"
-                onClick={() => {
-                  setTranscriptionLogs(prev => [...prev, "System: [User started sharing screen]"]);
+                variant={isScreenSharing ? "destructive" : "outline"}
+                className={cn("text-xs", isScreenSharing ? "bg-primary text-white animate-pulse" : "text-muted")}
+                onClick={async () => {
+                  if (isScreenSharing) {
+                    // Stop screen sharing
+                    if (screenStreamRef.current) {
+                      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+                      screenStreamRef.current = null;
+                    }
+                    // Restore camera video track to peer connection
+                    if (localStream && peerConnectionRef.current) {
+                      const camTrack = localStream.getVideoTracks()[0];
+                      if (camTrack) {
+                        const sender = peerConnectionRef.current.getSenders().find((s) => s.track?.kind === "video");
+                        if (sender) sender.replaceTrack(camTrack);
+                      }
+                    }
+                    setIsScreenSharing(false);
+                    setTranscriptionLogs((prev) => [...prev, "System: [Screen sharing stopped]"]);
+                  } else {
+                    // Start real screen sharing
+                    try {
+                      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { cursor: "always" } as any,
+                        audio: false,
+                      });
+                      screenStreamRef.current = displayStream;
+                      const screenTrack = displayStream.getVideoTracks()[0];
+                      // Replace camera video track with screen track in peer connection
+                      if (peerConnectionRef.current) {
+                        const sender = peerConnectionRef.current.getSenders().find((s) => s.track?.kind === "video");
+                        if (sender) sender.replaceTrack(screenTrack);
+                      }
+                      // Show screen share in local video preview
+                      if (localVideoRef.current) {
+                        localVideoRef.current.srcObject = displayStream;
+                      }
+                      setIsScreenSharing(true);
+                      setTranscriptionLogs((prev) => [...prev, "System: [User started sharing screen]"]);
+                      // Handle user clicking browser's native "Stop sharing" button
+                      screenTrack.onended = () => {
+                        screenStreamRef.current = null;
+                        if (localStream && peerConnectionRef.current) {
+                          const camTrack = localStream.getVideoTracks()[0];
+                          if (camTrack) {
+                            const sender = peerConnectionRef.current.getSenders().find((s) => s.track?.kind === "video");
+                            if (sender) sender.replaceTrack(camTrack);
+                          }
+                        }
+                        if (localVideoRef.current && localStream) {
+                          localVideoRef.current.srcObject = localStream;
+                        }
+                        setIsScreenSharing(false);
+                        setTranscriptionLogs((prev) => [...prev, "System: [Screen sharing stopped]"]);
+                      };
+                    } catch (err) {
+                      console.warn("Screen sharing cancelled or failed:", err);
+                    }
+                  }
                 }}
               >
-                <Laptop className="h-4 w-4 mr-2" /> Share Screen
+                <Laptop className="h-4 w-4 mr-2" /> {isScreenSharing ? "Stop Sharing" : "Share Screen"}
               </Button>
               {isRecording ? (
                 <Button
