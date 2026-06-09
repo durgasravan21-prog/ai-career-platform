@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.careerai</groupId>
+    <artifactId>ai-career-platform</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>AI Career &amp; Project Intelligence Platform</name>
+    <description>DevOps Build Orchestrator for CareerAI Next.js and FastAPI Services</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <frontend.directory>${project.basedir}/frontend</frontend.directory>
+        <backend.directory>${project.basedir}/backend</backend.directory>
+    </properties>
+
+    <build>
+        <plugins>
+            <!-- Clean frontend and backend build artifacts -->
+            <plugin>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <filesets>
+                        <fileset>
+                            <directory>${frontend.directory}/.next</directory>
+                        </fileset>
+                        <fileset>
+                            <directory>${frontend.directory}/node_modules</directory>
+                        </fileset>
+                        <fileset>
+                            <directory>${backend.directory}/.venv</directory>
+                        </fileset>
+                        <fileset>
+                            <directory>${backend.directory}/__pycache__</directory>
+                        </fileset>
+                    </filesets>
+                </configuration>
+            </plugin>
+
+            <!-- Orchestrate Frontend build via NPM -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <!-- Frontend: NPM Install -->
+                    <execution>
+                        <id>frontend-install</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <workingDirectory>${frontend.directory}</workingDirectory>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>install</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- Frontend: Build -->
+                    <execution>
+                        <id>frontend-build</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <workingDirectory>${frontend.directory}</workingDirectory>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>build</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- Backend: Setup virtual environment & requirements -->
+                    <execution>
+                        <id>backend-setup</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <workingDirectory>${backend.directory}</workingDirectory>
+                            <executable>python</executable>
+                            <arguments>
+                                <argument>-m</argument>
+                                <argument>venv</argument>
+                                <argument>.venv</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <!-- Backend: Install PIP Requirements -->
+                    <execution>
+                        <id>backend-pip-install</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <workingDirectory>${backend.directory}</workingDirectory>
+                            <executable>sh</executable>
+                            <arguments>
+                                <argument>-c</argument>
+                                <argument>.venv/bin/pip install -r requirements.txt</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

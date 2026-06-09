@@ -6,6 +6,10 @@ and provides a startup event for table creation.
 
 from __future__ import annotations
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator

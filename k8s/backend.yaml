@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: career-backend
+  labels:
+    app: career-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: career-backend
+  template:
+    metadata:
+      labels:
+        app: career-backend
+    spec:
+      containers:
+        - name: backend
+          image: career-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://postgres:postgres@db:5432/career_platform"
+            - name: DATABASE_URL_SYNC
+              value: "postgresql://postgres:postgres@db:5432/career_platform"
+            - name: BACKEND_SECRET_KEY
+              value: "super-secret-key-change-in-production-environments"
+            - name: BACKEND_CORS_ORIGINS
+              value: "http://localhost:3000,https://frontend-xi-eight-13.vercel.app"
+            - name: SUPABASE_JWT_SECRET
+              value: "super-secret-jwt-key-at-least-32-chars"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: career-backend
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: career-backend

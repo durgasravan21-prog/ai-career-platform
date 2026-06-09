@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: career-frontend
+  labels:
+    app: career-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: career-frontend
+  template:
+    metadata:
+      labels:
+        app: career-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: career-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://backend:8000"
+            - name: NEXT_PUBLIC_SUPABASE_URL
+              value: "http://backend:8000"
+            - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+              value: "mock-anon-key"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: career-frontend
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    app: career-frontend

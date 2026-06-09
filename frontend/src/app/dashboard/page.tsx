@@ -1087,8 +1087,15 @@ export default function DashboardPage() {
           });
         }
       }, 500);
-    } else {
-      const wsUrl = API_URL.replace("/api/v1", "").replace("http://", "ws://").replace("https://", "wss://") + `/ws/signal/${activeVideoSession.id}`;
+      let wsUrl = "";
+      if (API_URL.startsWith("http://") || API_URL.startsWith("https://")) {
+        wsUrl = API_URL.replace("/api/v1", "").replace("http://", "ws://").replace("https://", "wss://") + `/ws/signal/${activeVideoSession.id}`;
+      } else {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.host;
+        const basePath = API_URL.replace("/api/v1", "");
+        wsUrl = `${protocol}//${host}${basePath}/ws/signal/${activeVideoSession.id}`;
+      }
       const ws = new WebSocket(wsUrl);
       signalingSocketRef.current = ws;
 
@@ -1438,9 +1445,11 @@ Signed Digitally by:
   };
 
   const renderAdminDashboard = () => {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL 
+    const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== "")
       ? process.env.NEXT_PUBLIC_API_URL.replace("/api/v1", "") 
-      : "https://durga-career-ai.loca.lt";
+      : typeof window !== "undefined"
+      ? `${window.location.origin}/_/backend`
+      : "";
 
     return (
       <div className="min-h-screen bg-background py-8">

@@ -48,5 +48,13 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        import os
+        if os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV"):
+            if "sqlite" in self.DATABASE_URL:
+                self.DATABASE_URL = "sqlite+aiosqlite:////tmp/ai_career.db"
+                self.DATABASE_URL_SYNC = "sqlite:////tmp/ai_career.db"
+
 
 settings = Settings()

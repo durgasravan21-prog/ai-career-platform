@@ -1,0 +1,49 @@
+---
+- name: Provision and deploy AI Career & Project Intelligence Platform
+  hosts: all
+  become: true
+  tasks:
+    - name: Update apt packages cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install dependencies
+      package:
+        name:
+          - git
+          - curl
+          - docker.io
+          - docker-compose
+        state: present
+
+    - name: Ensure Docker service is running and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Clone AI Career Platform repository
+      git:
+        repo: "https://github.com/durgasravan21-prog/ai-career-platform.git"
+        dest: "/opt/ai-career-platform"
+        version: "main"
+        force: yes
+
+    - name: Create backend production .env file
+      copy:
+        dest: "/opt/ai-career-platform/backend/.env"
+        content: |
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/career_platform
+          DATABASE_URL_SYNC=postgresql://postgres:postgres@db:5432/career_platform
+          BACKEND_SECRET_KEY=change-me-in-production-use-a-long-random-string
+          SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters
+          ALGORITHM=HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES=10080
+          BACKEND_CORS_ORIGINS=http://localhost:3000,https://frontend-xi-eight-13.vercel.app
+
+    - name: Deploy services using Docker Compose
+      community.docker.docker_compose:
+        project_src: "/opt/ai-career-platform"
+        state: present
+        build: yes

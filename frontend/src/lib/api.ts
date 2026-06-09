@@ -26,7 +26,9 @@ import type {
   CVAnalysis,
 } from "@/types";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://durga-career-ai.loca.lt/api/v1";
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== "")
+  ? process.env.NEXT_PUBLIC_API_URL
+  : "/_/backend/api/v1";
 
 const MOCK_PROJECTS = [
   { id: 1, title: "E-Commerce Cloud Architecture", description: "Design a highly available microservices platform.", difficulty: "Advanced", tech_stack: ["AWS", "Kubernetes", "Docker", "Terraform"], estimated_hours: 40, career_relevance_score: 95.0 },
