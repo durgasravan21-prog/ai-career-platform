@@ -75,6 +75,7 @@ async def register(
         )
         db.add(mentor)
         await db.flush()
+        user.mentor_profile = mentor
 
     # Generate token
     access_token = create_access_token(data={"sub": str(user.id)})
@@ -101,7 +102,10 @@ async def login(
     - Verifies the bcrypt password hash.
     - Returns a JWT access token.
     """
-    result = await db.execute(select(User).where(User.email == body.email))
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(User).where(User.email == body.email).options(selectinload(User.mentor_profile))
+    )
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(body.password, user.hashed_password):
@@ -185,7 +189,10 @@ async def verify_otp(
     if email_clean in _active_otps:
         del _active_otps[email_clean]
         
-    result = await db.execute(select(User).where(User.email == email_clean))
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(User).where(User.email == email_clean).options(selectinload(User.mentor_profile))
+    )
     user = result.scalar_one_or_none()
     
     if user is None:
@@ -225,6 +232,7 @@ async def verify_otp(
             )
             db.add(mentor)
             await db.flush()
+            user.mentor_profile = mentor
         
     access_token = create_access_token(data={"sub": str(user.id)})
     

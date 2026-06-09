@@ -72,10 +72,29 @@ class User(Base):
 
     @property
     def role(self) -> str:
-        if self.email.lower() == "durgasravan21@gmail.com":
+        email_lower = self.email.lower() if self.email else ""
+        if email_lower in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
             return "mentor"
-        if self.mentor_profile is not None:
-            return "mentor"
+            
+        # Avoid triggering lazy-load in async context by checking __dict__ first
+        if "mentor_profile" in self.__dict__:
+            prof = self.__dict__["mentor_profile"]
+            if prof is not None:
+                return "mentor"
+            return "student"
+            
+        # Fallback using inspection to avoid raising MissingGreenlet
+        try:
+            from sqlalchemy import inspect
+            insp = inspect(self)
+            if insp is not None:
+                if "mentor_profile" in insp.unloaded:
+                    return "student"
+                if self.mentor_profile is not None:
+                    return "mentor"
+        except Exception:
+            pass
+            
         return "student"
 
     def __repr__(self) -> str:

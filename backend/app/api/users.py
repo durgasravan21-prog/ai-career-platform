@@ -35,7 +35,10 @@ async def get_me(
 ) -> UserProfileResponse:
     """Return the full profile of the authenticated user, including skills."""
     # Reload with relationships (they're lazy='selectin' so should be loaded)
-    result = await db.execute(select(User).where(User.id == current_user.id))
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(User).where(User.id == current_user.id).options(selectinload(User.mentor_profile))
+    )
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
