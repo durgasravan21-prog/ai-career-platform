@@ -549,8 +549,13 @@ class ApiClient {
       ...(options.headers || {}),
     };
 
-    // Use mock client if backend is marked as offline in this session
-    const isOffline = typeof window !== "undefined" && sessionStorage.getItem("backend_offline") === "true";
+    // Use mock client if backend is marked as offline in this session (local dev only)
+    const isOffline = typeof window !== "undefined" && 
+      sessionStorage.getItem("backend_offline") === "true" &&
+      (window.location.hostname === "localhost" || 
+       window.location.hostname === "127.0.0.1" || 
+       window.location.hostname.includes("loca.lt") || 
+       window.location.hostname.includes("ngrok"));
     if (isOffline) {
       return this.handleMockCall<T>(endpoint, options);
     }
@@ -616,8 +621,12 @@ class ApiClient {
         throw err;
       }
       
-      // Otherwise, it is a network connection error. Mark backend as offline and fallback to mock
-      if (typeof window !== "undefined") {
+      // Otherwise, it is a network connection error. Fallback to mock only in local development
+      if (typeof window !== "undefined" && 
+          (window.location.hostname === "localhost" || 
+           window.location.hostname === "127.0.0.1" || 
+           window.location.hostname.includes("loca.lt") || 
+           window.location.hostname.includes("ngrok"))) {
         sessionStorage.setItem("backend_offline", "true");
         console.warn("API server unreachable. Falling back to local Client Database.", err);
         return this.handleMockCall<T>(endpoint, options);

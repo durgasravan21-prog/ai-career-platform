@@ -509,7 +509,11 @@ export default function DashboardPage() {
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   const sendSignal = (msg: any) => {
-    const isOffline = sessionStorage.getItem("backend_offline") === "true";
+    const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
+      (window.location.hostname === "localhost" || 
+       window.location.hostname === "127.0.0.1" || 
+       window.location.hostname.includes("loca.lt") || 
+       window.location.hostname.includes("ngrok"));
     const payload = JSON.stringify(msg);
     if (isOffline) {
       if (broadcastChannelRef.current) {
@@ -901,7 +905,13 @@ export default function DashboardPage() {
       } finally {
         setIsLoadingData(false);
         if (typeof window !== "undefined") {
-          setIsOfflineMode(sessionStorage.getItem("backend_offline") === "true");
+          setIsOfflineMode(
+            sessionStorage.getItem("backend_offline") === "true" &&
+            (window.location.hostname === "localhost" || 
+             window.location.hostname === "127.0.0.1" || 
+             window.location.hostname.includes("loca.lt") || 
+             window.location.hostname.includes("ngrok"))
+          );
         }
       }
     };
@@ -1009,7 +1019,11 @@ export default function DashboardPage() {
       return;
     }
 
-    const isOffline = sessionStorage.getItem("backend_offline") === "true";
+    const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
+      (window.location.hostname === "localhost" || 
+       window.location.hostname === "127.0.0.1" || 
+       window.location.hostname.includes("loca.lt") || 
+       window.location.hostname.includes("ngrok"));
     const pcConfig = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
