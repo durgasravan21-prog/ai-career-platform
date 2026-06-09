@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import { cn, getTimeGreeting, formatDualCurrency, formatDualCurrencyAmount } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ import {
   X,
   DollarSign,
   Award,
+  Bell,
   ShieldAlert,
   Shield,
   Lock,
@@ -57,11 +58,13 @@ import {
   MicOff,
   VideoOff,
   Laptop,
+  Circle,
+  Square,
 } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [roadmap, setRoadmap] = useState<RoadmapResult | null>(null);
@@ -494,6 +497,128 @@ export default function DashboardPage() {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerVideoRef = useRef<HTMLVideoElement | null>(null);
 
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<"transcript" | "chat">("transcript");
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInputText, setChatInputText] = useState<string>("");
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const signalingSocketRef = useRef<WebSocket | null>(null);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
+  const sendSignal = (msg: any) => {
+    const isOffline = sessionStorage.getItem("backend_offline") === "true";
+    const payload = JSON.stringify(msg);
+    if (isOffline) {
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.postMessage(payload);
+      }
+    } else {
+      if (signalingSocketRef.current && signalingSocketRef.current.readyState === WebSocket.OPEN) {
+        signalingSocketRef.current.send(payload);
+      }
+    }
+  };
+
+  const sendChatMessage = () => {
+    if (!chatInputText.trim()) return;
+    const senderName = user?.name || user?.email?.split("@")[0] || "User";
+    const newMsg = {
+      sender: senderName,
+      text: chatInputText,
+      timestamp: new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+    };
+    setChatMessages((prev) => [...prev, newMsg]);
+    sendSignal({
+      type: "chat",
+      message: newMsg
+    });
+    setChatInputText("");
+  };
+
+  const [dismissedReminderId, setDismissedReminderId] = useState<any>(null);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isPeerOfflineAlertVisible, setIsPeerOfflineAlertVisible] = useState<boolean>(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+
+  const handleSendReminder = async (sessionId: string | number) => {
+    try {
+      await api.mentors.sendJoinReminder(sessionId);
+      alert("Join reminder sent successfully to student!");
+      const sessionsData = await api.mentors.getMySessions();
+      setMentorSessions(sessionsData || []);
+    } catch (err) {
+      console.error("Failed to send join reminder:", err);
+      alert("Error sending joining reminder.");
+    }
+  };
+
+  const startRecording = () => {
+    if (!localStream) return;
+    recordedChunksRef.current = [];
+    const streamsToRecord = new MediaStream();
+    localStream.getTracks().forEach((track) => streamsToRecord.addTrack(track));
+    if (remoteStream) {
+      remoteStream.getTracks().forEach((track) => streamsToRecord.addTrack(track));
+    }
+
+    try {
+      const mimeTypes = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4"
+      ];
+      let selectedMimeType = "";
+      for (const type of mimeTypes) {
+        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
+          selectedMimeType = type;
+          break;
+        }
+      }
+      
+      const options = selectedMimeType ? { mimeType: selectedMimeType } : undefined;
+      const recorder = new MediaRecorder(streamsToRecord, options);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        const mimeUsed = recorder.mimeType || "video/webm";
+        const extension = mimeUsed.includes("mp4") ? "mp4" : "webm";
+        const blob = new Blob(recordedChunksRef.current, { type: mimeUsed });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        document.body.appendChild(a);
+        a.style.display = "none";
+        a.href = url;
+        a.download = `mentoring_session_${activeVideoSession?.id || "record"}.${extension}`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert("Session recording saved to downloads!");
+      };
+      recorder.start(1000);
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Failed to start MediaRecorder:", err);
+      alert("Recording is not fully supported in this browser.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleLeaveCall = () => {
+    stopRecording();
+    setIsVideoCallOpen(false);
+  };
+
   // CV Upload state
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvAnalysis, setCvAnalysis] = useState<CVAnalysis | null>(null);
@@ -549,20 +674,101 @@ export default function DashboardPage() {
     }
   };
 
-  // Auth guard and incomplete profile redirection for students
+  // Auth guard, incomplete profile redirection, and auto-restore backup for students
   useEffect(() => {
-    if (!authLoading) {
-      if (!isAuthenticated) {
-        router.push("/?login=true");
-      } else if (user && user.role !== "mentor" && user.email.toLowerCase() !== "durgasravan21@gmail.com") {
-        const targetRoleId = user.profile?.target_role_id;
-        const skills = user.profile?.skills || [];
-        if (!targetRoleId || skills.length === 0) {
-          router.push("/onboarding");
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      router.push("/?login=true");
+      return;
+    }
+
+    if (user && user.role !== "mentor" && user.email.toLowerCase() !== "durgasravan21@gmail.com") {
+      const targetRoleId = user.profile?.target_role_id;
+      const skills = user.profile?.skills || [];
+
+      if (!targetRoleId || skills.length === 0) {
+        // Try to auto-restore from local backup to prevent loop if DB reset (e.g. Render sleep)
+        const backupStr = localStorage.getItem(`completed_onboarding_${user.email.toLowerCase()}`);
+        if (backupStr) {
+          try {
+            const backup = JSON.parse(backupStr);
+            if (backup.target_role_id && backup.skills && backup.skills.length > 0) {
+              console.log("Auto-restoring target role and skills from local storage backup...");
+              const restoreOnboarding = async () => {
+                try {
+                  await api.user.updateSkills({ skills: backup.skills });
+                  await api.user.updateProfile({ target_role_id: backup.target_role_id });
+                  await api.career.generateRoadmap(backup.target_role_id);
+                  await refreshUser();
+                } catch (restoreErr) {
+                  console.error("Auto-restore failed:", restoreErr);
+                  router.push("/onboarding");
+                }
+              };
+              restoreOnboarding();
+              return;
+            }
+          } catch (e) {
+            console.error("Backup JSON parsing failed:", e);
+          }
         }
+        router.push("/onboarding");
       }
     }
   }, [authLoading, isAuthenticated, user, router]);
+
+  // Keep onboarding local backup updated whenever valid user profile data is loaded
+  useEffect(() => {
+    if (user && user.profile?.target_role_id && user.profile?.skills && user.profile.skills.length > 0) {
+      const backupData = {
+        target_role_id: user.profile.target_role_id,
+        skills: user.profile.skills.map((us: any) => ({
+          skill_id: us.skill_id,
+          proficiency: us.proficiency_level
+        }))
+      };
+      localStorage.setItem(`completed_onboarding_${user.email.toLowerCase()}`, JSON.stringify(backupData));
+    }
+  }, [user]);
+
+  // Background sessions polling hook (polls every 8 seconds when not actively in a call)
+  useEffect(() => {
+    if (!isAuthenticated || isVideoCallOpen) return;
+
+    const pollSessions = async () => {
+      try {
+        const sessionsData = await api.mentors.getMySessions();
+        setMentorSessions(sessionsData || []);
+      } catch (pollErr) {
+        console.warn("Sessions polling failed:", pollErr);
+      }
+    };
+
+    const interval = setInterval(pollSessions, 8000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, isVideoCallOpen]);
+
+  // 1-minute peer connection offline detection timer
+  useEffect(() => {
+    if (!isVideoCallOpen) {
+      setIsPeerOfflineAlertVisible(false);
+      return;
+    }
+
+    if (remoteStream) {
+      setIsPeerOfflineAlertVisible(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (!remoteStream) {
+        setIsPeerOfflineAlertVisible(true);
+      }
+    }, 60000); // 60 seconds
+
+    return () => clearTimeout(timer);
+  }, [isVideoCallOpen, remoteStream]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -765,24 +971,156 @@ export default function DashboardPage() {
     }
   }, [isVideoMuted, localStream]);
 
+  // WebRTC Peer Connection & Signaling handler
+  useEffect(() => {
+    if (!isVideoCallOpen || !activeVideoSession || !localStream) {
+      setRemoteStream(null);
+      setChatMessages([]);
+      return;
+    }
+
+    const isOffline = sessionStorage.getItem("backend_offline") === "true";
+    const pcConfig = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" }
+      ]
+    };
+
+    const pc = new RTCPeerConnection(pcConfig);
+    peerConnectionRef.current = pc;
+
+    // Add local tracks to peer connection
+    localStream.getTracks().forEach(track => {
+      pc.addTrack(track, localStream);
+    });
+
+    // Handle remote stream tracks
+    pc.ontrack = (event) => {
+      if (event.streams && event.streams[0]) {
+        setRemoteStream(event.streams[0]);
+      }
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendSignal({ type: "candidate", candidate: event.candidate });
+      }
+    };
+
+    const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
+                      String(activeVideoSession.mentee_id) === String(user?.id);
+
+    const handleSignal = async (dataStr: string) => {
+      try {
+        const msg = JSON.parse(dataStr);
+        if (msg.type === "offer") {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendSignal({ type: "answer", sdp: answer });
+        } else if (msg.type === "answer") {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+        } else if (msg.type === "candidate") {
+          if (msg.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+          }
+        } else if (msg.type === "join") {
+          if (isStudent) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignal({ type: "offer", sdp: offer });
+          }
+        } else if (msg.type === "chat") {
+          setChatMessages(prev => [...prev, msg.message]);
+        }
+      } catch (err) {
+        console.error("Error handling WebRTC signaling:", err);
+      }
+    };
+
+    if (isOffline) {
+      const channel = new BroadcastChannel(`webrtc_signal_${activeVideoSession.id}`);
+      broadcastChannelRef.current = channel;
+      channel.onmessage = (event) => {
+        handleSignal(event.data);
+      };
+
+      setTimeout(() => {
+        sendSignal({ type: "join", isStudent });
+        if (isStudent) {
+          pc.createOffer().then(async (offer) => {
+            await pc.setLocalDescription(offer);
+            sendSignal({ type: "offer", sdp: offer });
+          });
+        }
+      }, 500);
+    } else {
+      const wsUrl = API_URL.replace("/api/v1", "").replace("http://", "ws://").replace("https://", "wss://") + `/ws/signal/${activeVideoSession.id}`;
+      const ws = new WebSocket(wsUrl);
+      signalingSocketRef.current = ws;
+
+      ws.onopen = () => {
+        console.log("WebRTC signaling WS connected.");
+        sendSignal({ type: "join", isStudent });
+        if (isStudent) {
+          pc.createOffer().then(async (offer) => {
+            await pc.setLocalDescription(offer);
+            sendSignal({ type: "offer", sdp: offer });
+          });
+        }
+      };
+
+      ws.onmessage = (event) => {
+        handleSignal(event.data);
+      };
+
+      ws.onerror = (err) => {
+        console.error("Signaling socket error:", err);
+      };
+
+      ws.onclose = () => {
+        console.log("Signaling socket closed.");
+      };
+    }
+
+    return () => {
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+      if (signalingSocketRef.current) {
+        signalingSocketRef.current.close();
+      }
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.close();
+      }
+    };
+  }, [isVideoCallOpen, activeVideoSession, localStream]);
+
   // Bind local stream to video elements on mount/unmute
   useEffect(() => {
     if (isVideoCallOpen && localStream) {
       if (!isVideoMuted && localVideoRef.current) {
         localVideoRef.current.srcObject = localStream;
       }
-      if (peerVideoRef.current) {
-        peerVideoRef.current.srcObject = localStream;
-      }
     }
   }, [localStream, isVideoMuted, isVideoCallOpen]);
+
+  // Bind remote stream to peer video element on track addition
+  useEffect(() => {
+    if (isVideoCallOpen && remoteStream && peerVideoRef.current) {
+      peerVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream, isVideoCallOpen]);
 
   // Auto-scroll transcription logs to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [transcriptionLogs]);
+  }, [transcriptionLogs, chatMessages]);
 
   if (authLoading || !isAuthenticated) {
     return (
@@ -2742,6 +3080,10 @@ Signed Digitally by:
       (s) => s.status === "completed" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
     );
 
+    const activeSessions = [...pendingBookings, ...upcomingBookings].sort(
+      (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+    );
+
     // Calculate mentoring payout details (base rate * hours)
     const baseRate = mentorProfile?.hourly_rate ?? 0;
     const completedHours = completedBookings.reduce((sum, s) => sum + s.duration_minutes / 60, 0);
@@ -2776,6 +3118,20 @@ Signed Digitally by:
       } catch (err) {
         const apiErr = err as ApiError;
         setError(apiErr.message || "Failed to update session status.");
+      }
+    };
+
+    const handleSendJoinReminder = async (sessionId: string | number) => {
+      setError("");
+      setSuccess("");
+      try {
+        await api.mentors.sendJoinReminder(sessionId);
+        const sessionsData = await api.mentors.getMySessions();
+        setMentorSessions(sessionsData || []);
+        setSuccess("Joining reminder sent to student successfully!");
+      } catch (err) {
+        const apiErr = err as ApiError;
+        setError(apiErr.message || "Failed to send joining reminder.");
       }
     };
 
@@ -3015,7 +3371,7 @@ Signed Digitally by:
             <div className="lg:col-span-2 space-y-6">
               
               {/* Confirmed Sessions Quick Join (Highly Visible on Mobile) */}
-              {upcomingBookings.length > 0 && (
+              {activeSessions.length > 0 && (
                 <Card className="p-6 border-success/30 bg-gradient-to-r from-surface to-success/5 animate-pulse-slow">
                   <CardTitle className="mb-4 flex items-center justify-between text-success">
                     <span className="flex items-center gap-2">
@@ -3023,20 +3379,27 @@ Signed Digitally by:
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-success"></span>
                       </span>
-                      Confirmed Sessions & Join Options
+                      Active Sessions & Join Options
                     </span>
                     <Badge variant="success" className="animate-pulse">Active Session Available</Badge>
                   </CardTitle>
                   <div className="space-y-4">
-                    {upcomingBookings.map((session) => (
+                    {activeSessions.map((session) => (
                       <div
                         key={session.id}
                         className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                       >
                         <div className="space-y-1">
-                          <h4 className="font-bold text-foreground text-sm">
-                            {session.student_name ? `${session.student_name} (#${session.mentee_id})` : `Student #${session.mentee_id}`}
-                          </h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-foreground text-sm">
+                              {session.student_name ? `${session.student_name} (#${session.mentee_id})` : `Student #${session.mentee_id}`}
+                            </h4>
+                            {session.status === "confirmed" ? (
+                              <Badge variant="success" className="text-[10px]">Confirmed</Badge>
+                            ) : (
+                              <Badge variant="warning" className="text-[10px]">Pending</Badge>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-4 text-xs text-muted">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3.5 w-3.5 text-success" />
@@ -3049,18 +3412,36 @@ Signed Digitally by:
                           </div>
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto">
+                          {session.status === "pending" && (
+                            <button
+                              onClick={() => handleUpdateSessionStatus(session.id, "confirmed")}
+                              className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-success/20 hover:bg-success/30 text-success font-medium transition-colors text-xs border border-success/20"
+                            >
+                              Accept
+                            </button>
+                          )}
                           <button
                             onClick={() => handleUpdateSessionStatus(session.id, "cancelled")}
                             className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-error/10 hover:bg-error/20 text-error font-medium transition-colors text-xs border border-error/20"
                           >
                             Cancel
                           </button>
-                          <button
-                            onClick={() => handleUpdateSessionStatus(session.id, "completed")}
-                            className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-xs border border-primary/20"
-                          >
-                            Complete
-                          </button>
+                          {session.status === "confirmed" && (
+                            <button
+                              onClick={() => handleUpdateSessionStatus(session.id, "completed")}
+                              className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-xs border border-primary/20"
+                            >
+                              Complete
+                            </button>
+                          )}
+                          {session.status === "confirmed" && (
+                            <button
+                              onClick={() => handleSendJoinReminder(session.id)}
+                              className="flex-1 sm:flex-initial py-2 px-4 rounded-xl bg-warning/20 hover:bg-warning/30 text-warning font-medium transition-colors text-xs border border-warning/20 flex items-center justify-center gap-1"
+                            >
+                              <Bell className="h-3.5 w-3.5" /> Remind
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -3128,6 +3509,16 @@ Signed Digitally by:
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
                           </Button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveVideoSession(session);
+                              setIsVideoCallOpen(true);
+                            }}
+                            className="flex-1 py-1.5 px-3 rounded-lg bg-success/20 hover:bg-success/30 text-success font-bold transition-all text-xs flex items-center justify-center gap-1 border border-success/30 active:scale-95"
+                          >
+                            <Video className="h-3.5 w-3.5" /> Join Call
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -3160,6 +3551,12 @@ Signed Digitally by:
                             className="flex-1 sm:flex-initial py-1.5 px-3 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-[10px] border border-primary/20"
                           >
                             Mark Done
+                          </button>
+                          <button
+                            onClick={() => handleSendJoinReminder(session.id)}
+                            className="flex-1 sm:flex-initial py-1.5 px-3 rounded-lg bg-warning/20 hover:bg-warning/30 text-warning font-medium transition-colors text-[10px] border border-warning/20 flex items-center justify-center gap-1"
+                          >
+                            <Bell className="h-3 w-3" /> Remind
                           </button>
                           <button
                             type="button"
@@ -3449,18 +3846,18 @@ Signed Digitally by:
             {/* Right Column (Profile & Schedule) */}
             <div className="space-y-6">
               
-              {/* Confirmed Schedule */}
+              {/* Mentoring Join Panel */}
               <Card className="p-6">
                 <CardTitle className="mb-4 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-success" />
-                  Confirmed Schedule ({upcomingBookings.length})
+                  <Video className="h-5 w-5 text-primary" />
+                  Mentoring Join Panel ({activeSessions.length})
                 </CardTitle>
 
-                {upcomingBookings.length === 0 ? (
-                  <p className="text-xs text-muted italic">No upcoming confirmed sessions.</p>
+                {activeSessions.length === 0 ? (
+                  <p className="text-xs text-muted italic">No upcoming or pending mentoring sessions.</p>
                 ) : (
                   <div className="space-y-4">
-                    {upcomingBookings.map((session) => (
+                    {activeSessions.map((session) => (
                       <div
                         key={session.id}
                         className="p-3 bg-white/[0.01] border border-white/5 rounded-xl text-xs space-y-2"
@@ -3470,7 +3867,11 @@ Signed Digitally by:
                             {session.student_name ? `${session.student_name} (#${session.mentee_id})` : `Student #${session.mentee_id}`}
                           </span>
                           <div className="flex items-center gap-2">
-                            <Badge variant="success">Scheduled</Badge>
+                            {session.status === "confirmed" ? (
+                              <Badge variant="success">Confirmed</Badge>
+                            ) : (
+                              <Badge variant="warning">Pending</Badge>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleOpenReportStudentModal((session as any).student_id || session.mentee_id, session.student_name || `Student #${session.mentee_id}`)}
@@ -3490,26 +3891,44 @@ Signed Digitally by:
                             {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)
                           </div>
                         </div>
-                        <div className="flex gap-2 pt-1.5">
+                        <div className="flex flex-wrap gap-1.5 pt-1.5">
+                          {session.status === "pending" && (
+                            <button
+                              onClick={() => handleUpdateSessionStatus(session.id, "confirmed")}
+                              className="flex-1 py-1 rounded bg-success/20 hover:bg-success/30 text-success font-medium transition-colors text-[10px] flex items-center justify-center gap-0.5"
+                            >
+                              <Check className="h-3 w-3" /> Accept
+                            </button>
+                          )}
                           <button
                             onClick={() => handleUpdateSessionStatus(session.id, "cancelled")}
                             className="flex-1 py-1 rounded bg-error/10 hover:bg-error/20 text-error font-medium transition-colors text-[10px]"
                           >
-                            Cancel Call
+                            Cancel
                           </button>
-                          <button
-                            onClick={() => handleUpdateSessionStatus(session.id, "completed")}
-                            className="flex-1 py-1 rounded bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-[10px]"
-                          >
-                            Mark Done
-                          </button>
+                          {session.status === "confirmed" && (
+                            <button
+                              onClick={() => handleUpdateSessionStatus(session.id, "completed")}
+                              className="flex-1 py-1 rounded bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-[10px]"
+                            >
+                              Mark Done
+                            </button>
+                          )}
+                          {session.status === "confirmed" && (
+                            <button
+                              onClick={() => handleSendJoinReminder(session.id)}
+                              className="flex-1 py-1 rounded bg-warning/20 hover:bg-warning/30 text-warning font-medium transition-colors text-[10px] flex items-center justify-center gap-0.5 border border-warning/10"
+                            >
+                              <Bell className="h-3 w-3" /> Remind
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
                               setActiveVideoSession(session);
                               setIsVideoCallOpen(true);
                             }}
-                            className="flex-1 py-1 rounded bg-success/20 hover:bg-success/30 text-success font-bold transition-all text-[10px] flex items-center justify-center gap-1"
+                            className="flex-1 py-1 rounded bg-success hover:bg-success/80 text-white font-bold transition-all text-[10px] flex items-center justify-center gap-1"
                           >
                             <Video className="h-3 w-3" /> Join Call
                           </button>
@@ -3687,9 +4106,45 @@ Signed Digitally by:
   };
 
   const renderStudentDashboard = () => {
+    // Check for active joining reminder sent within last 2 minutes
+    const activeReminderSession = mentorSessions.find((session) => {
+      if (session.status !== "confirmed") return false;
+      if (!session.reminder_sent || !session.reminder_sent_at) return false;
+      
+      const reminderTime = new Date(session.reminder_sent_at).getTime();
+      const now = Date.now();
+      return now - reminderTime < 2 * 60 * 1000;
+    });
+
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          
+          {activeReminderSession && (
+            <div className="mb-6 bg-warning/20 border-2 border-warning/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+              <div className="flex items-center gap-3">
+                <div className="bg-warning/30 p-2 rounded-xl text-warning">
+                  <Bell className="h-6 w-6 animate-bounce" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">🚨 Immediate Call Join Request</h4>
+                  <p className="text-xs text-muted">
+                    Your Coach <span className="text-warning font-semibold">{activeReminderSession.mentor_name || "your mentor"}</span> is waiting for you in the video call. Please join immediately.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setActiveVideoSession(activeReminderSession);
+                  setIsVideoCallOpen(true);
+                }}
+                className="w-full sm:w-auto bg-warning hover:bg-warning/80 text-background font-bold text-xs"
+              >
+                <Video className="h-3.5 w-3.5 mr-1" /> Join Call Now
+              </Button>
+            </div>
+          )}
           
           {/* Mentor Application Status Banners */}
           {mentorProfile && mentorProfile.verification_status === "pending" && (
@@ -4331,7 +4786,7 @@ Signed Digitally by:
                               >
                                 Report
                               </button>
-                              {session.status === "confirmed" && (
+                              {(session.status === "confirmed" || session.status === "pending") && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -4569,13 +5024,18 @@ Signed Digitally by:
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-bold tracking-wider animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-error" />
-                REC 00:04
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[10px] font-bold uppercase tracking-wider">
+              {isRecording && (
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-bold tracking-wider animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-error" />
+                  REC ACTIVE
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[10px] font-bold uppercase tracking-wider group relative cursor-help">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 E2EE Secured
+                <div className="absolute top-full left-0 mt-2 hidden group-hover:block bg-[#0a0a0f] border border-white/10 text-muted p-2 rounded-lg text-[10px] w-64 z-50 normal-case leading-relaxed shadow-xl">
+                  Your communication is secured end-to-end using WebRTC DTLS-SRTP encryption standards.
+                </div>
               </div>
               <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
                 <span className="text-primary">1-on-1 Mentoring Room</span>
@@ -4584,7 +5044,7 @@ Signed Digitally by:
               </h3>
             </div>
             <button
-              onClick={() => setIsVideoCallOpen(false)}
+              onClick={handleLeaveCall}
               className="text-muted hover:text-foreground p-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               <X className="h-5 w-5" />
@@ -4594,8 +5054,15 @@ Signed Digitally by:
           {/* Main Workspace */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
             {/* Webcam Grid */}
-            <div className="flex-1 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/45 overflow-y-auto">
-              {/* User Webcam Frame */}
+            <div className="flex-1 p-6 flex flex-col gap-4 bg-black/45 overflow-y-auto">
+              {isPeerOfflineAlertVisible && (
+                <div className="bg-error/20 border border-error/40 text-error px-4 py-3 rounded-xl flex items-center justify-between text-xs font-bold animate-pulse">
+                  <span>🚨 The other participant is currently offline. They will be notified to join soon.</span>
+                  <button onClick={() => setIsPeerOfflineAlertVisible(false)} className="hover:text-foreground">Dismiss</button>
+                </div>
+              )}
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* User Webcam Frame */}
               <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
                 {isVideoMuted ? (
                   <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-3">
@@ -4629,7 +5096,7 @@ Signed Digitally by:
 
               {/* Peer (Coach/Student) Webcam Frame */}
               <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
-                {localStream ? (
+                {remoteStream ? (
                   <video
                     ref={peerVideoRef}
                     autoPlay
@@ -4641,6 +5108,9 @@ Signed Digitally by:
                     <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-3xl">
                       {peerInitials}
                     </div>
+                    <span className="text-xs text-muted font-medium animate-pulse">
+                      Waiting for peer connection...
+                    </span>
                   </div>
                 )}
                 <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2">
@@ -4655,57 +5125,138 @@ Signed Digitally by:
                 </span>
               </div>
             </div>
+          </div>
 
-            {/* AI Live Transcription Sidebar */}
+            {/* Sidebar (AI Live Transcription & Text Chat) */}
             <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 flex flex-col h-[350px] md:h-full bg-white/[0.02] backdrop-blur-lg">
-              <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                <span className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                  AI Live Transcription
-                </span>
-                <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-primary/30 text-primary">
-                  Beta
-                </Badge>
+              {/* Sidebar Tab Header */}
+              <div className="grid grid-cols-2 border-b border-white/10 bg-white/5 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab("transcript")}
+                  className={cn(
+                    "py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all text-center flex items-center justify-center gap-1.5",
+                    sidebarTab === "transcript"
+                      ? "bg-white/10 text-foreground shadow"
+                      : "text-muted hover:text-foreground"
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", sidebarTab === "transcript" ? "bg-primary animate-pulse" : "bg-muted")} />
+                  AI Transcript
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab("chat")}
+                  className={cn(
+                    "py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all text-center flex items-center justify-center gap-1.5",
+                    sidebarTab === "chat"
+                      ? "bg-white/10 text-foreground shadow"
+                      : "text-muted hover:text-foreground"
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", sidebarTab === "chat" ? "bg-success animate-pulse" : "bg-muted")} />
+                  Room Chat
+                </button>
               </div>
 
-              {/* Transcription Logs Container */}
-              <div
-                ref={scrollRef}
-                className="flex-1 p-5 overflow-y-auto space-y-4 text-xs font-sans scrollbar-thin"
-              >
-                {transcriptionLogs.map((log, idx) => {
-                  const isSystem = log.startsWith("System:");
-                  const isMentor = log.startsWith("Mentor:");
-                  const isStudent = log.startsWith("Student:");
+              {sidebarTab === "transcript" ? (
+                /* Transcription Logs Container */
+                <div
+                  ref={scrollRef}
+                  className="flex-1 p-5 overflow-y-auto space-y-4 text-xs font-sans scrollbar-thin"
+                >
+                  {transcriptionLogs.map((log, idx) => {
+                    const isSystem = log.startsWith("System:");
+                    const isMentor = log.startsWith("Mentor:");
+                    const isStudent = log.startsWith("Student:");
 
-                  let content = log;
-                  let sender = "";
-                  let bubbleStyle = "bg-white/5 text-muted border-white/5";
+                    let content = log;
+                    let sender = "";
+                    let bubbleStyle = "bg-white/5 text-muted border-white/5";
 
-                  if (isSystem) {
-                    sender = "AI Copilot";
-                    content = log.substring(7).trim();
-                    bubbleStyle = "bg-warning/10 text-warning border-warning/20 border";
-                  } else if (isMentor) {
-                    sender = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? "You" : peerName;
-                    content = log.substring(7).trim();
-                    bubbleStyle = "bg-secondary/15 text-[#e2e8f0] border-secondary/30 border";
-                  } else if (isStudent) {
-                    sender = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? peerName : "You";
-                    content = log.substring(8).trim();
-                    bubbleStyle = "bg-primary/15 text-[#e2e8f0] border-primary/30 border";
-                  }
+                    if (isSystem) {
+                      sender = "AI Copilot";
+                      content = log.substring(7).trim();
+                      bubbleStyle = "bg-warning/10 text-warning border-warning/20 border";
+                    } else if (isMentor) {
+                      sender = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? "You" : peerName;
+                      content = log.substring(7).trim();
+                      bubbleStyle = "bg-secondary/15 text-[#e2e8f0] border-secondary/30 border";
+                    } else if (isStudent) {
+                      sender = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified") ? peerName : "You";
+                      content = log.substring(8).trim();
+                      bubbleStyle = "bg-primary/15 text-[#e2e8f0] border-primary/30 border";
+                    }
 
-                  return (
-                    <div key={idx} className={cn("flex flex-col gap-1", isSystem ? "items-center text-center" : "items-start")}>
-                      <span className="text-[10px] text-muted font-bold px-1">{sender}</span>
-                      <div className={cn("px-3.5 py-2.5 rounded-2xl text-[11px] leading-relaxed max-w-[90%]", bubbleStyle)}>
-                        {content}
+                    return (
+                      <div key={idx} className={cn("flex flex-col gap-1", isSystem ? "items-center text-center" : "items-start")}>
+                        <span className="text-[10px] text-muted font-bold px-1">{sender}</span>
+                        <div className={cn("px-3.5 py-2.5 rounded-2xl text-[11px] leading-relaxed max-w-[90%]", bubbleStyle)}>
+                          {content}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Room Chat Container */
+                <div className="flex-1 flex flex-col min-h-0 bg-black/20">
+                  {/* Messages list */}
+                  <div className="flex-1 p-5 overflow-y-auto space-y-4 text-xs scrollbar-thin">
+                    {chatMessages.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                        <span className="text-muted italic text-[11px]">No chat messages yet.</span>
+                        <span className="text-[10px] text-muted mt-1 leading-relaxed">Send a message to speak with the other participant in real time.</span>
+                      </div>
+                    ) : (
+                      chatMessages.map((msg, idx) => {
+                        const isMe = msg.sender === (user?.name || user?.email?.split("@")[0]);
+                        return (
+                          <div key={idx} className={cn("flex flex-col gap-1", isMe ? "items-end" : "items-start")}>
+                            <div className="flex items-center gap-1.5 text-[9px] text-muted px-1">
+                              <span className="font-bold">{msg.sender}</span>
+                              <span>·</span>
+                              <span>{msg.timestamp}</span>
+                            </div>
+                            <div
+                              className={cn(
+                                "px-3 py-2 rounded-2xl text-[11px] max-w-[85%] break-words border",
+                                isMe
+                                  ? "bg-gradient-to-br from-primary/20 to-secondary/20 text-foreground border-primary/30 rounded-tr-none"
+                                  : "bg-white/5 text-[#e2e8f0] border-white/10 rounded-tl-none"
+                              )}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  {/* Message Input Box */}
+                  <div className="p-3 border-t border-white/10 bg-white/5 flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Type a message..."
+                      value={chatInputText}
+                      onChange={(e) => setChatInputText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          sendChatMessage();
+                        }
+                      }}
+                      className="flex-1 bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted"
+                    />
+                    <button
+                      type="button"
+                      onClick={sendChatMessage}
+                      className="px-3.5 bg-primary hover:bg-primary/80 text-white text-[11px] font-bold rounded-xl active:scale-95 transition-all"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -4722,6 +5273,25 @@ Signed Digitally by:
               >
                 <Laptop className="h-4 w-4 mr-2" /> Share Screen
               </Button>
+              {isRecording ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white"
+                  onClick={stopRecording}
+                >
+                  <Square className="h-4 w-4 fill-white" /> Stop Recording
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20"
+                  onClick={startRecording}
+                >
+                  <Circle className="h-4 w-4 fill-error text-error animate-pulse" /> Record Session
+                </Button>
+              )}
             </div>
 
             {/* Core Mic & Video Controls */}
@@ -4753,7 +5323,7 @@ Signed Digitally by:
             {/* Leave button */}
             <div>
               <button
-                onClick={() => setIsVideoCallOpen(false)}
+                onClick={handleLeaveCall}
                 className="bg-error hover:bg-red-600 text-white font-bold text-sm px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg hover:shadow-error/25 transition-all duration-200 active:scale-95"
               >
                 <PhoneOff className="h-4 w-4" /> End Call

@@ -26,7 +26,7 @@ import type {
   CVAnalysis,
 } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://durga-career-ai.loca.lt/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://durga-career-ai.loca.lt/api/v1";
 
 const MOCK_PROJECTS = [
   { id: 1, title: "E-Commerce Cloud Architecture", description: "Design a highly available microservices platform.", difficulty: "Advanced", tech_stack: ["AWS", "Kubernetes", "Docker", "Terraform"], estimated_hours: 40, career_relevance_score: 95.0 },
@@ -1678,6 +1678,23 @@ class ApiClient {
               return;
             }
 
+            // Auto-expire mock sessions that are confirmed/pending and started more than 1 hour ago
+            const now = new Date();
+            let mockModified = false;
+            mockSessions.forEach((s: any) => {
+              if (s.status === "pending" || s.status === "confirmed") {
+                const sched = new Date(s.scheduled_at);
+                const duration = s.duration_minutes || 60;
+                if (now.getTime() > (sched.getTime() + duration * 60 * 1000)) {
+                  s.status = "completed";
+                  mockModified = true;
+                }
+              }
+            });
+            if (mockModified) {
+              localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
+            }
+
             const mentorProfile = mockMentors.find((m: any) => 
               String(m.user_id) === String(currentUser.id) || 
               (m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
@@ -1838,6 +1855,25 @@ class ApiClient {
             const session = mockSessions.find((s: any) => s.id === sessionId);
             if (session) {
               session.status = newStatus;
+              if (newStatus === "confirmed") {
+                session.scheduled_at = new Date().toISOString();
+              }
+              localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
+              resolve(session as any);
+            } else {
+              reject({ message: "Session not found", status: 404 });
+            }
+            return;
+          }
+
+          if (path.startsWith("/mentors/sessions/") && path.endsWith("/remind") && method === "POST") {
+            const parts = path.split("/");
+            const sessionId = parseInt(parts[3]);
+
+            const session = mockSessions.find((s: any) => s.id === sessionId);
+            if (session) {
+              session.reminder_sent = true;
+              session.reminder_sent_at = new Date().toISOString();
               localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
               resolve(session as any);
             } else {
@@ -2361,6 +2397,12 @@ class ApiClient {
       return this.fetchApi<MentorSession>(`/mentors/sessions/${sessionId}/status`, {
         method: "POST",
         body: JSON.stringify({ status }),
+      });
+    },
+
+    sendJoinReminder: async (sessionId: string | number): Promise<MentorSession> => {
+      return this.fetchApi<MentorSession>(`/mentors/sessions/${sessionId}/remind`, {
+        method: "POST",
       });
     },
 

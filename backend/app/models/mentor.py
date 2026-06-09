@@ -154,6 +154,8 @@ class MentorSession(Base):
     )
     stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     amount_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

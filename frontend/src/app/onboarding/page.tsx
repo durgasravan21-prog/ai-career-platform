@@ -87,12 +87,46 @@ export default function OnboardingPage() {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [skillsLoading, setSkillsLoading] = useState(false);
 
-  // Redirect if already authenticated (and not in onboarding flow)
+  // Auto-restore onboarding preferences from local storage if database reset occurred
+  const [isRestoring, setIsRestoring] = useState(false);
+
   useEffect(() => {
-    if (isAuthenticated && currentStep === 1) {
-      setCurrentStep(3); // Skip to role selection if already logged in
+    if (!isAuthenticated || !user) return;
+
+    const backupStr = localStorage.getItem(`completed_onboarding_${user.email.toLowerCase()}`);
+    if (backupStr) {
+      try {
+        const backup = JSON.parse(backupStr);
+        if (backup.target_role_id && backup.skills && backup.skills.length > 0) {
+          console.log("Auto-restoring target role and skills in onboarding page...");
+          setIsRestoring(true);
+          const restoreOnboarding = async () => {
+            try {
+              await api.user.updateSkills({ skills: backup.skills });
+              await api.user.updateProfile({ target_role_id: backup.target_role_id });
+              await api.career.generateRoadmap(backup.target_role_id);
+              await refreshUser();
+              router.push("/dashboard");
+            } catch (restoreErr) {
+              console.error("Auto-restore failed in onboarding page:", restoreErr);
+              setIsRestoring(false);
+              setCurrentStep(3); // Fallback to manual onboarding step 3
+            }
+          };
+          restoreOnboarding();
+        }
+      } catch (e) {
+        console.error("Backup JSON parsing failed on onboarding mount:", e);
+      }
+    } else {
+      // If user has a valid profile on the backend (e.g. they completed onboarding but database did not reset), redirect to dashboard!
+      if (user.profile?.target_role_id && user.profile?.skills && user.profile.skills.length > 0) {
+        router.push("/dashboard");
+      } else if (currentStep === 1) {
+        setCurrentStep(3); // Skip to role selection if already logged in
+      }
     }
-  }, [isAuthenticated, currentStep]);
+  }, [isAuthenticated, user, router, refreshUser]);
 
   // Fetch roles when reaching step 3
   useEffect(() => {
@@ -274,6 +308,19 @@ export default function OnboardingPage() {
       // Refresh user authentication context so local target_role_id and skills are updated
       await refreshUser();
 
+      // Save onboarding backup immediately in local storage to prevent loop on DB reset
+      const targetUserEmail = user?.email || email;
+      if (selectedRole && targetUserEmail) {
+        const skillPayload = Array.from(selectedSkills.entries()).map(
+          ([skill_id, proficiency]) => ({ skill_id, proficiency })
+        );
+        const backupData = {
+          target_role_id: selectedRole.id,
+          skills: skillPayload
+        };
+        localStorage.setItem(`completed_onboarding_${targetUserEmail.toLowerCase()}`, JSON.stringify(backupData));
+      }
+
       router.push("/dashboard");
     } catch (err) {
       const apiError = err as ApiError;
@@ -295,6 +342,29 @@ export default function OnboardingPage() {
     "advanced",
     "expert",
   ];
+
+  if (isRestoring) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="text-center space-y-6 max-w-md">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center mx-auto animate-pulse">
+            <Rocket className="h-10 w-10 text-white" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-foreground">
+              Restoring Your Profile
+            </h1>
+            <p className="text-muted text-sm">
+              We detected your saved preferences for <span className="text-primary font-medium">{user?.email}</span>. Setting up your AI Career Roadmap now...
+            </p>
+          </div>
+          <div className="flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

@@ -134,6 +134,8 @@ class SessionResponse(BaseModel):
     mentor_name: Optional[str] = None
     student_name: Optional[str] = None
     is_reviewed: bool = False
+    reminder_sent: bool = False
+    reminder_sent_at: Optional[datetime] = None
 
 
 class ReviewRequest(BaseModel):

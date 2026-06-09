@@ -76,6 +76,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Added screenshot_url column to mentor_reports.")
         except Exception:
             pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN reminder_sent BOOLEAN DEFAULT FALSE"))
+            logger.info("Added reminder_sent column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN reminder_sent_at TIMESTAMP"))
+            logger.info("Added reminder_sent_at column to mentor_sessions.")
+        except Exception:
+            pass
     logger.info("Database tables ensured.")
     yield
     logger.info("Shutting down...")
@@ -153,3 +163,44 @@ async def root() -> dict:
 async def health_check() -> dict:
     """Health-check endpoint for load balancers and monitoring."""
     return {"status": "healthy"}
+
+
+from fastapi import WebSocket, WebSocketDisconnect
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, session_id: str, websocket: WebSocket):
+        await websocket.accept()
+        if session_id not in self.active_connections:
+            self.active_connections[session_id] = []
+        self.active_connections[session_id].append(websocket)
+
+    def disconnect(self, session_id: str, websocket: WebSocket):
+        if session_id in self.active_connections:
+            if websocket in self.active_connections[session_id]:
+                self.active_connections[session_id].remove(websocket)
+            if not self.active_connections[session_id]:
+                del self.active_connections[session_id]
+
+    async def broadcast(self, session_id: str, message: str, sender_ws: WebSocket):
+        if session_id in self.active_connections:
+            for connection in self.active_connections[session_id]:
+                if connection != sender_ws:
+                    try:
+                        await connection.send_text(message)
+                    except Exception:
+                        pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/signal/{session_id}")
+async def websocket_signal_endpoint(websocket: WebSocket, session_id: str):
+    await manager.connect(session_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await manager.broadcast(session_id, data, websocket)
+    except WebSocketDisconnect:
+        manager.disconnect(session_id, websocket)

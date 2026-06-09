@@ -307,6 +307,8 @@ export interface MentorSession {
   review?: Review;
   is_reviewed?: boolean;
   student_name?: string;
+  reminder_sent?: boolean;
+  reminder_sent_at?: string;
   created_at: string;
 }
 

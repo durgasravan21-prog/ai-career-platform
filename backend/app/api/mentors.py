@@ -377,6 +377,8 @@ async def book_session(
         created_at=session.created_at,
         mentor_name=mentor.user.name if mentor.user else None,
         is_reviewed=False,
+        reminder_sent=session.reminder_sent if hasattr(session, "reminder_sent") else False,
+        reminder_sent_at=session.reminder_sent_at if hasattr(session, "reminder_sent_at") else None,
     )
 
 
@@ -498,6 +500,22 @@ async def get_my_sessions(
             if ms.id not in existing_ids:
                 sessions.append(ms)
 
+    # Auto-expire sessions that are confirmed/pending and started more than 1 hour ago (duration)
+    from datetime import timedelta, timezone
+    now = datetime.now(timezone.utc)
+    modified = False
+    for s in sessions:
+        if s.status in [SessionStatus.pending, SessionStatus.confirmed]:
+            sched = s.scheduled_at
+            if sched.tzinfo is None:
+                sched = sched.replace(tzinfo=timezone.utc)
+            duration = s.duration_minutes or 60
+            if now > sched + timedelta(minutes=duration):
+                s.status = SessionStatus.completed
+                modified = True
+    if modified:
+        await db.commit()
+
     return [
         SessionResponse(
             id=s.id,
@@ -513,6 +531,8 @@ async def get_my_sessions(
             mentor_name=s.mentor.user.name if s.mentor and s.mentor.user else None,
             student_name=s.student.name if s.student else None,
             is_reviewed=len(s.reviews) > 0 if s.reviews else False,
+            reminder_sent=s.reminder_sent if hasattr(s, "reminder_sent") else False,
+            reminder_sent_at=s.reminder_sent_at if hasattr(s, "reminder_sent_at") else None,
         )
         for s in sessions
     ]
@@ -964,7 +984,10 @@ async def update_session_status(
         )
 
     session.status = SessionStatus(new_status)
-    await db.flush()
+    if new_status == "confirmed":
+        from datetime import datetime, timezone
+        session.scheduled_at = datetime.now(timezone.utc)
+    await db.commit()
 
     return SessionResponse(
         id=session.id,
@@ -979,6 +1002,64 @@ async def update_session_status(
         created_at=session.created_at,
         mentor_name=mentor.user.name if mentor and mentor.user else None,
         is_reviewed=len(session.reviews) > 0 if session.reviews else False,
+        reminder_sent=session.reminder_sent if hasattr(session, "reminder_sent") else False,
+        reminder_sent_at=session.reminder_sent_at if hasattr(session, "reminder_sent_at") else None,
+    )
+
+
+@router.post(
+    "/mentors/sessions/{session_id}/remind",
+    response_model=SessionResponse,
+    summary="Send call joining reminder to student",
+)
+async def send_join_reminder(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    """Send call joining reminder (mentor action)."""
+    result = await db.execute(
+        select(MentorSession).where(MentorSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session with id {session_id} not found",
+        )
+
+    # Verify user is the mentor for this session
+    result_m = await db.execute(
+        select(MentorProfile).where(MentorProfile.id == session.mentor_id)
+    )
+    mentor = result_m.scalar_one_or_none()
+    if not mentor or mentor.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the mentor of this session can send join reminders.",
+        )
+
+    from datetime import datetime, timezone
+    session.reminder_sent = True
+    session.reminder_sent_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return SessionResponse(
+        id=session.id,
+        student_id=session.student_id,
+        mentor_id=session.mentor_id,
+        project_id=session.project_id,
+        scheduled_at=session.scheduled_at,
+        duration_minutes=session.duration_minutes,
+        status=session.status.value if hasattr(session.status, "value") else session.status,
+        amount_cents=session.amount_cents,
+        stripe_payment_intent_id=session.stripe_payment_intent_id,
+        created_at=session.created_at,
+        mentor_name=mentor.user.name if mentor and mentor.user else None,
+        student_name=session.student.name if session.student else None,
+        is_reviewed=len(session.reviews) > 0 if session.reviews else False,
+        reminder_sent=session.reminder_sent,
+        reminder_sent_at=session.reminder_sent_at,
     )
 
 
