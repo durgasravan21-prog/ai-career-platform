@@ -511,6 +511,7 @@ export default function DashboardPage() {
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const [callConnectionState, setCallConnectionState] = useState<"connecting" | "ringing" | "connected" | "reconnecting" | "failed">("connecting");
 
   const sendSignal = async (msg: any) => {
     const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
@@ -1064,16 +1065,72 @@ export default function DashboardPage() {
        window.location.hostname === "127.0.0.1" || 
        window.location.hostname.includes("loca.lt") || 
        window.location.hostname.includes("ngrok"));
-    const pcConfig = {
+    const pcConfig: RTCConfiguration = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
-      ]
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
+        // Free TURN relay servers for NAT traversal
+        {
+          urls: "turn:openrelay.metered.ca:80",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+        {
+          urls: "turn:openrelay.metered.ca:443",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+        {
+          urls: "turn:openrelay.metered.ca:443?transport=tcp",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },
+      ],
+      iceCandidatePoolSize: 10,
     };
 
+    setCallConnectionState("connecting");
     const pc = new RTCPeerConnection(pcConfig);
     peerConnectionRef.current = pc;
+
+    // Track WebRTC connection state for UI feedback
+    pc.onconnectionstatechange = () => {
+      console.log("WebRTC connection state:", pc.connectionState);
+      switch (pc.connectionState) {
+        case "connecting":
+          setCallConnectionState("ringing");
+          break;
+        case "connected":
+          setCallConnectionState("connected");
+          break;
+        case "disconnected":
+          setCallConnectionState("reconnecting");
+          break;
+        case "failed":
+          setCallConnectionState("failed");
+          break;
+        case "closed":
+          break;
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE connection state:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        setCallConnectionState("connected");
+      } else if (pc.iceConnectionState === "checking") {
+        setCallConnectionState("ringing");
+      } else if (pc.iceConnectionState === "disconnected") {
+        setCallConnectionState("reconnecting");
+      } else if (pc.iceConnectionState === "failed") {
+        setCallConnectionState("failed");
+        // Attempt ICE restart on failure
+        pc.restartIce();
+      }
+    };
 
     // Add local tracks to peer connection
     localStream.getTracks().forEach(track => {
@@ -5274,11 +5331,26 @@ Signed Digitally by:
                   REC ACTIVE
                 </div>
               )}
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[10px] font-bold uppercase tracking-wider group relative cursor-help">
+              <div className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider group relative cursor-help border",
+                callConnectionState === "connected" && "bg-success/15 border-success/30 text-success",
+                callConnectionState === "connecting" && "bg-muted/15 border-white/10 text-muted animate-pulse",
+                callConnectionState === "ringing" && "bg-primary/15 border-primary/30 text-primary animate-pulse",
+                callConnectionState === "reconnecting" && "bg-warning/15 border-warning/30 text-warning animate-pulse",
+                callConnectionState === "failed" && "bg-error/15 border-error/30 text-error",
+              )}>
                 <ShieldCheck className="h-3.5 w-3.5" />
-                E2EE Secured
+                {callConnectionState === "connected" ? "E2EE Connected" 
+                  : callConnectionState === "ringing" ? "Ringing..." 
+                  : callConnectionState === "reconnecting" ? "Reconnecting..."
+                  : callConnectionState === "failed" ? "Connection Failed"
+                  : "Connecting..."}
                 <div className="absolute top-full left-0 mt-2 hidden group-hover:block bg-[#0a0a0f] border border-white/10 text-muted p-2 rounded-lg text-[10px] w-64 z-50 normal-case leading-relaxed shadow-xl">
-                  Your communication is secured end-to-end using WebRTC DTLS-SRTP encryption standards.
+                  {callConnectionState === "connected" 
+                    ? "Your video call is live and secured end-to-end using WebRTC DTLS-SRTP encryption with TURN relay for reliable connectivity."
+                    : callConnectionState === "failed"
+                    ? "Connection could not be established. Try refreshing or check your network."
+                    : "Establishing a secure peer-to-peer connection via STUN/TURN servers..."}
                 </div>
               </div>
               <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
@@ -5358,13 +5430,51 @@ Signed Digitally by:
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-3">
-                    <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-3xl">
+                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
+                    <div className={cn(
+                      "w-24 h-24 rounded-full border-2 flex items-center justify-center text-white font-extrabold text-3xl transition-all duration-500",
+                      callConnectionState === "connecting" && "bg-white/5 border-white/10 animate-pulse",
+                      callConnectionState === "ringing" && "bg-primary/10 border-primary/40 animate-pulse ring-4 ring-primary/20",
+                      callConnectionState === "reconnecting" && "bg-warning/10 border-warning/40 animate-pulse",
+                      callConnectionState === "failed" && "bg-error/10 border-error/40",
+                    )}>
                       {peerInitials}
                     </div>
-                    <span className="text-xs text-muted font-medium animate-pulse">
-                      Waiting for peer connection...
-                    </span>
+                    <div className="flex flex-col items-center gap-2">
+                      <span className={cn(
+                        "text-xs font-semibold",
+                        callConnectionState === "connecting" && "text-muted animate-pulse",
+                        callConnectionState === "ringing" && "text-primary animate-pulse",
+                        callConnectionState === "reconnecting" && "text-warning animate-pulse",
+                        callConnectionState === "failed" && "text-error",
+                      )}>
+                        {callConnectionState === "connecting" && "📡 Establishing connection..."}
+                        {callConnectionState === "ringing" && "📞 Ringing..."}
+                        {callConnectionState === "reconnecting" && "🔄 Reconnecting..."}
+                        {callConnectionState === "failed" && "❌ Connection failed"}
+                      </span>
+                      {callConnectionState === "ringing" && (
+                        <div className="flex gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0s" }} />
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0.15s" }} />
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0.3s" }} />
+                        </div>
+                      )}
+                      {callConnectionState === "failed" && (
+                        <button
+                          onClick={() => {
+                            // Retry by re-opening the call
+                            setIsVideoCallOpen(false);
+                            setTimeout(() => {
+                              setIsVideoCallOpen(true);
+                            }, 500);
+                          }}
+                          className="mt-2 px-4 py-1.5 bg-primary hover:bg-primary/80 text-white text-xs font-bold rounded-lg transition-all active:scale-95"
+                        >
+                          Retry Connection
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2">
