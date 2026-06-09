@@ -66,7 +66,9 @@ def save_base64_file(base64_str: str, file_prefix: str, user_id: int) -> str:
         elif "jpeg" in header.lower():
             ext = ".jpeg"
             
-        upload_dir = Path("uploads")
+        import os
+        is_vercel = os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")
+        upload_dir = Path("/tmp/uploads") if is_vercel else Path("uploads")
         upload_dir.mkdir(exist_ok=True)
         
         filename = f"{file_prefix}_{user_id}_{int(datetime.now(timezone.utc).timestamp())}{ext}"

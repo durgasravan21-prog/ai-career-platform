@@ -141,8 +141,12 @@ app.include_router(webhooks_router)
 from fastapi.staticfiles import StaticFiles
 import os
 
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+uploads_dir = "/tmp/uploads" if (os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")) else "uploads"
+try:
+    os.makedirs(uploads_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+except Exception as e:
+    logger.error(f"Failed to mount uploads directory: {e}")
 
 
 # ── Root Endpoint ─────────────────────────────────────────────────────
