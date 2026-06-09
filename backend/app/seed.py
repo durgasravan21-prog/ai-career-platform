@@ -506,6 +506,25 @@ def run_seed() -> None:
     # Ensure tables exist
     Base.metadata.create_all(sync_engine)
 
+    # Ensure dynamic columns exist for SQLite database compatibility
+    from sqlalchemy import text
+    with sync_engine.begin() as conn:
+        alter_queries = [
+            "ALTER TABLE mentor_profiles ADD COLUMN original_price FLOAT",
+            "ALTER TABLE mentor_profiles ADD COLUMN price_edited_by_admin BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE mentor_profiles ADD COLUMN has_premium_subscription BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE mentor_profiles ADD COLUMN video_calls_active BOOLEAN DEFAULT TRUE",
+            "ALTER TABLE mentor_reports ADD COLUMN reported_by VARCHAR(50) DEFAULT 'student'",
+            "ALTER TABLE mentor_reports ADD COLUMN screenshot_url VARCHAR(500)",
+            "ALTER TABLE mentor_sessions ADD COLUMN reminder_sent BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE mentor_sessions ADD COLUMN reminder_sent_at TIMESTAMP",
+        ]
+        for query in alter_queries:
+            try:
+                conn.execute(text(query))
+            except Exception:
+                pass
+
     with SyncSession() as session:
         try:
             print("  -> Seeding skills...")

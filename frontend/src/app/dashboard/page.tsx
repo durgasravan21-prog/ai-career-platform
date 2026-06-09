@@ -1087,6 +1087,7 @@ export default function DashboardPage() {
           });
         }
       }, 500);
+    } else {
       let wsUrl = "";
       if (API_URL.startsWith("http://") || API_URL.startsWith("https://")) {
         wsUrl = API_URL.replace("/api/v1", "").replace("http://", "ws://").replace("https://", "wss://") + `/ws/signal/${activeVideoSession.id}`;
@@ -5435,7 +5436,7 @@ Signed Digitally by:
     <>
       {isOfflineMode && (
         <div className="bg-warning/20 border-b border-warning/30 text-warning px-4 py-2.5 text-center text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 animate-fadeIn z-45 sticky top-[73px] backdrop-blur-md">
-          <span>⚠️ Offline Mode: LocalTunnel backend is unavailable (or returned 503). Verify the localtunnel client is running on your laptop.</span>
+          <span>⚠️ Offline Mode: The backend server is currently unreachable. You are viewing cached offline data.</span>
           <button 
             onClick={() => {
               sessionStorage.removeItem("backend_offline");

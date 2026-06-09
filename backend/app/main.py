@@ -90,6 +90,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Added reminder_sent_at column to mentor_sessions.")
         except Exception:
             pass
+    # Auto-seed database if it is empty (specifically, if no roles are seeded)
+    try:
+        from app.core.database import async_session_factory
+        from sqlalchemy import select
+        from app.models.career import Role
+        async with async_session_factory() as session:
+            result = await session.execute(select(Role).limit(1))
+            first_role = result.fetchone()
+            if not first_role:
+                logger.info("No roles found in database. Auto-seeding default data...")
+                from app.seed import run_seed
+                run_seed()
+                logger.info("Auto-seeding completed successfully!")
+    except Exception as seed_err:
+        logger.error(f"Auto-seeding check/execution failed: {seed_err}")
+
     logger.info("Database tables ensured.")
     yield
     logger.info("Shutting down...")

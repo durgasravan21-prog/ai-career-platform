@@ -52,9 +52,11 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         import os
         if os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV"):
-            if "sqlite" in self.DATABASE_URL:
+            env_db_url = os.environ.get("DATABASE_URL")
+            if not env_db_url or "sqlite" in env_db_url or "localhost" in env_db_url or "127.0.0.1" in env_db_url:
                 self.DATABASE_URL = "sqlite+aiosqlite:////tmp/ai_career.db"
                 self.DATABASE_URL_SYNC = "sqlite:////tmp/ai_career.db"
+
 
 
 settings = Settings()
