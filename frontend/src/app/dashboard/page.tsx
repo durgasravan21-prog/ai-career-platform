@@ -490,6 +490,9 @@ export default function DashboardPage() {
   const [transcriptionLogs, setTranscriptionLogs] = useState<string[]>([]);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const peerVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // CV Upload state
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -688,12 +691,30 @@ export default function DashboardPage() {
     loadMyTemplates();
   }, [isAuthenticated, mentorProfile, success]);
 
-  // Live video transcription simulation effect
+  // Live video transcription simulation & Webcam capture effect
   useEffect(() => {
     if (!isVideoCallOpen) {
       setTranscriptionLogs([]);
+      setLocalStream(null);
       return;
     }
+
+    let activeStream: MediaStream | null = null;
+
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        activeStream = stream;
+        setLocalStream(stream);
+      } catch (err) {
+        console.warn("Camera/Mic access not granted or unavailable:", err);
+      }
+    };
+
+    startCamera();
 
     const dialogue = [
       "System: [AI Assistant Active - Transcription & Summarization Enabled]",
@@ -719,8 +740,42 @@ export default function DashboardPage() {
       }
     }, 4000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, [isVideoCallOpen]);
+
+  // Sync active stream tracks with Mute toggles
+  useEffect(() => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach((track) => {
+        track.enabled = !isMuted;
+      });
+    }
+  }, [isMuted, localStream]);
+
+  useEffect(() => {
+    if (localStream) {
+      localStream.getVideoTracks().forEach((track) => {
+        track.enabled = !isVideoMuted;
+      });
+    }
+  }, [isVideoMuted, localStream]);
+
+  // Bind local stream to video elements on mount/unmute
+  useEffect(() => {
+    if (isVideoCallOpen && localStream) {
+      if (!isVideoMuted && localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      if (peerVideoRef.current) {
+        peerVideoRef.current.srcObject = localStream;
+      }
+    }
+  }, [localStream, isVideoMuted, isVideoCallOpen]);
 
   // Auto-scroll transcription logs to bottom
   useEffect(() => {
@@ -3023,29 +3078,33 @@ Signed Digitally by:
                 </Card>
               )}
 
-              {/* Incoming Session Requests */}
+              {/* Incoming Requests & Active Sessions (Direct Accept & Join Options) */}
               <Card className="p-6">
                 <CardTitle className="mb-4 flex items-center gap-2 text-warning">
-                  <AlertCircle className="h-5 w-5" />
-                  Incoming Session Requests ({pendingBookings.length})
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Mentoring Session Requests & Active Calls ({pendingBookings.length + upcomingBookings.length})
                 </CardTitle>
 
-                {pendingBookings.length === 0 ? (
+                {pendingBookings.length === 0 && upcomingBookings.length === 0 ? (
                   <div className="text-center py-8 text-muted text-sm bg-white/[0.01] rounded-2xl border border-white/5">
-                    No new session requests. Keep your profile updated to attract bookings!
+                    No new session requests or active calls. Keep your profile updated to attract bookings!
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    {/* Render pending requests */}
                     {pendingBookings.map((session) => (
                       <div
                         key={session.id}
                         className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                       >
                         <div>
-                          <h4 className="font-bold text-foreground text-sm">Request from Student #{session.mentee_id}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-foreground text-sm">Request from {session.student_name || `Student #${session.mentee_id}`}</h4>
+                            <Badge variant="warning" className="text-[10px]">Pending</Badge>
+                          </div>
                           <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted">
-                            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{new Date(session.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)</span>
+                            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-warning" />{new Date(session.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-warning" />{new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)</span>
                           </div>
                           {session.notes && (
                             <p className="text-xs text-muted mt-2 leading-relaxed bg-white/5 p-2 rounded-lg italic">
@@ -3069,6 +3128,49 @@ Signed Digitally by:
                           >
                             <X className="h-3.5 w-3.5 mr-1" /> Decline
                           </Button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Render confirmed active calls directly in the list */}
+                    {upcomingBookings.map((session) => (
+                      <div
+                        key={session.id}
+                        className="p-4 rounded-xl border border-success/30 bg-success/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-foreground text-sm">Confirmed with {session.student_name || `Student #${session.mentee_id}`}</h4>
+                            <Badge variant="success" className="text-[10px]">Confirmed</Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted">
+                            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-success" />{new Date(session.scheduled_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                            <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-success" />{new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} ({session.duration_minutes}m)</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            onClick={() => handleUpdateSessionStatus(session.id, "cancelled")}
+                            className="flex-1 sm:flex-initial py-1.5 px-3 rounded-lg bg-error/10 hover:bg-error/20 text-error font-medium transition-colors text-[10px] border border-error/20"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdateSessionStatus(session.id, "completed")}
+                            className="flex-1 sm:flex-initial py-1.5 px-3 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-colors text-[10px] border border-primary/20"
+                          >
+                            Mark Done
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveVideoSession(session);
+                              setIsVideoCallOpen(true);
+                            }}
+                            className="flex-[2] sm:flex-initial py-1.5 px-4 rounded-lg bg-success hover:bg-success/80 text-white font-bold transition-all text-[10px] flex items-center justify-center gap-1 shadow-[0_0_10px_rgba(34,197,94,0.2)] active:scale-95 animate-pulse"
+                          >
+                            <Video className="h-3.5 w-3.5" /> Join Call
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -4506,14 +4608,15 @@ Signed Digitally by:
                   </div>
                 ) : (
                   <>
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-[#0a0a0f] to-secondary/10 opacity-70 animate-pulse" />
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-primary to-secondary p-[1px] flex items-center justify-center relative z-10 shadow-lg">
-                      <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center text-white font-extrabold text-3xl">
-                        {myInitials}
-                      </div>
-                    </div>
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+                    />
                     <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10">
-                      You (Camera Active)
+                      You (Live Camera)
                     </span>
                   </>
                 )}
@@ -4526,14 +4629,22 @@ Signed Digitally by:
 
               {/* Peer (Coach/Student) Webcam Frame */}
               <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
-                <div className="absolute inset-0 bg-gradient-to-br from-secondary/15 via-[#0a0a0f] to-accent/15 opacity-70" />
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-secondary to-accent p-[1px] flex items-center justify-center relative z-10 shadow-lg">
-                  <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center text-white font-extrabold text-3xl">
-                    {peerInitials}
+                {localStream ? (
+                  <video
+                    ref={peerVideoRef}
+                    autoPlay
+                    playsInline
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-3">
+                    <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white font-extrabold text-3xl">
+                      {peerInitials}
+                    </div>
                   </div>
-                </div>
+                )}
                 <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2">
-                  <span>{peerName}</span>
+                  <span>{peerName} (Live Stream)</span>
                   {/* Waveform talk animation */}
                   <div className="flex items-center gap-[3px] h-3.5 w-6">
                     <div className="w-[3px] bg-success h-2 rounded-full animate-bounce" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }} />
