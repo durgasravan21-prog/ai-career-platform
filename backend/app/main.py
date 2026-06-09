@@ -96,6 +96,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await engine.dispose()
 
 
+root_path = "/_/backend" if (os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")) else ""
 app = FastAPI(
     title="AI Career & Project Intelligence Platform",
     description=(
@@ -107,6 +108,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
+    root_path=root_path,
 )
 
 # ── CORS Middleware ───────────────────────────────────────────────────
