@@ -60,6 +60,7 @@ import {
   Laptop,
   Circle,
   Square,
+  Edit,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -491,6 +492,7 @@ export default function DashboardPage() {
 
   // Published templates and video call sandbox states
   const [myTemplates, setMyTemplates] = useState<any[]>([]);
+  const [editingProject, setEditingProject] = useState<any | null>(null);
   const [isVideoCallOpen, setIsVideoCallOpen] = useState<boolean>(false);
   const [activeVideoSession, setActiveVideoSession] = useState<any | null>(null);
   const [transcriptionLogs, setTranscriptionLogs] = useState<string[]>([]);
@@ -508,7 +510,7 @@ export default function DashboardPage() {
   const signalingSocketRef = useRef<WebSocket | null>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
-  const sendSignal = (msg: any) => {
+  const sendSignal = async (msg: any) => {
     const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
       (window.location.hostname === "localhost" || 
        window.location.hostname === "127.0.0.1" || 
@@ -522,6 +524,12 @@ export default function DashboardPage() {
     } else {
       if (signalingSocketRef.current && signalingSocketRef.current.readyState === WebSocket.OPEN) {
         signalingSocketRef.current.send(payload);
+      } else {
+        try {
+          await api.mentors.postSignal(activeVideoSession.id, payload);
+        } catch (err) {
+          console.error("HTTP postSignal failed:", err);
+        }
       }
     }
   };
@@ -921,15 +929,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const loadMyTemplates = () => {
+    const loadMyTemplates = async () => {
       try {
-        const allProjs = JSON.parse(localStorage.getItem("mock_projects") || "[]");
-        const mentorKeywords = mentorProfile?.expertise || [];
-        const filtered = allProjs.filter((p: any) => 
-          p.id > 10 || 
-          p.tech_stack?.some((t: string) => mentorKeywords.some((k: string) => k.toLowerCase() === t.toLowerCase()))
-        );
-        setMyTemplates(filtered.slice(0, 4));
+        const res = await api.projects.getAll();
+        const allProjs = res?.data || [];
+        const filtered = allProjs.filter((p: any) => p.id > 10);
+        setMyTemplates(filtered);
       } catch (e) {
         console.error("Failed to load mentor templates:", e);
       }
@@ -1057,6 +1062,8 @@ export default function DashboardPage() {
     const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
                       String(activeVideoSession.mentee_id) === String(user?.id);
 
+    const iceCandidatesQueue: any[] = [];
+
     const handleSignal = async (dataStr: string) => {
       try {
         const msg = JSON.parse(dataStr);
@@ -1065,11 +1072,37 @@ export default function DashboardPage() {
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           sendSignal({ type: "answer", sdp: answer });
+          
+          // Process queued candidates
+          while (iceCandidatesQueue.length > 0) {
+            const cand = iceCandidatesQueue.shift();
+            if (cand) {
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e => 
+                console.warn("Failed to add queued candidate:", e)
+              );
+            }
+          }
         } else if (msg.type === "answer") {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          
+          // Process queued candidates
+          while (iceCandidatesQueue.length > 0) {
+            const cand = iceCandidatesQueue.shift();
+            if (cand) {
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e => 
+                console.warn("Failed to add queued candidate:", e)
+              );
+            }
+          }
         } else if (msg.type === "candidate") {
           if (msg.candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            if (pc.remoteDescription) {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(e => 
+                console.warn("Failed to add candidate:", e)
+              );
+            } else {
+              iceCandidatesQueue.push(msg.candidate);
+            }
           }
         } else if (msg.type === "join") {
           if (isStudent) {
@@ -1111,11 +1144,54 @@ export default function DashboardPage() {
         const basePath = API_URL.replace("/api/v1", "");
         wsUrl = `${protocol}//${host}${basePath}/ws/signal/${activeVideoSession.id}`;
       }
+
+      let wsConnected = false;
+      let pollingInterval: any = null;
+      let lastSignalId = 0;
+
+      const startPolling = () => {
+        if (pollingInterval) return;
+        console.log("Starting WebRTC HTTP signaling polling fallback...");
+        
+        // Immediate first poll
+        api.mentors.getSignals(activeVideoSession.id, lastSignalId).then((signals) => {
+          if (signals && signals.length > 0) {
+            signals.forEach((sig) => {
+              if (sig.id > lastSignalId) {
+                lastSignalId = sig.id;
+              }
+              if (String(sig.sender_id) !== String(user?.id)) {
+                handleSignal(sig.payload);
+              }
+            });
+          }
+        }).catch((err) => console.error("Initial signaling poll failed:", err));
+
+        pollingInterval = setInterval(async () => {
+          try {
+            const signals = await api.mentors.getSignals(activeVideoSession.id, lastSignalId);
+            if (signals && signals.length > 0) {
+              signals.forEach((sig) => {
+                if (sig.id > lastSignalId) {
+                  lastSignalId = sig.id;
+                }
+                if (String(sig.sender_id) !== String(user?.id)) {
+                  handleSignal(sig.payload);
+                }
+              });
+            }
+          } catch (err) {
+            console.error("HTTP signals polling failed:", err);
+          }
+        }, 1200);
+      };
+
       const ws = new WebSocket(wsUrl);
       signalingSocketRef.current = ws;
 
       ws.onopen = () => {
         console.log("WebRTC signaling WS connected.");
+        wsConnected = true;
         sendSignal({ type: "join", isStudent });
         if (isStudent) {
           pc.createOffer().then(async (offer) => {
@@ -1130,25 +1206,38 @@ export default function DashboardPage() {
       };
 
       ws.onerror = (err) => {
-        console.error("Signaling socket error:", err);
+        console.error("Signaling socket error, switching to HTTP polling:", err);
+        startPolling();
       };
 
       ws.onclose = () => {
-        console.log("Signaling socket closed.");
+        console.log("Signaling socket closed. Fallback to HTTP polling...");
+        startPolling();
+      };
+
+      const wsFallbackTimeout = setTimeout(() => {
+        if (!wsConnected) {
+          console.warn("WS connection timed out. Forcing HTTP polling fallback...");
+          startPolling();
+        }
+      }, 2500);
+
+      return () => {
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.close();
+        }
+        if (signalingSocketRef.current) {
+          signalingSocketRef.current.close();
+        }
+        if (broadcastChannelRef.current) {
+          broadcastChannelRef.current.close();
+        }
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+        }
+        clearTimeout(wsFallbackTimeout);
       };
     }
-
-    return () => {
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-      if (signalingSocketRef.current) {
-        signalingSocketRef.current.close();
-      }
-      if (broadcastChannelRef.current) {
-        broadcastChannelRef.current.close();
-      }
-    };
   }, [isVideoCallOpen, activeVideoSession, localStream]);
 
   // Bind local stream to video elements on mount/unmute
@@ -3251,14 +3340,28 @@ Signed Digitally by:
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean);
-        await api.projects.create({
-          title: projTitle,
-          description: projDesc,
-          difficulty: projDifficulty,
-          estimated_hours: projHours,
-          tech_stack: techStackArray,
-        });
-        setSuccess(`Project "${projTitle}" template created successfully!`);
+        
+        if (editingProject) {
+          await api.projects.update(editingProject.id, {
+            title: projTitle,
+            description: projDesc,
+            difficulty: projDifficulty,
+            estimated_hours: projHours,
+            tech_stack: techStackArray,
+          });
+          setSuccess(`Project "${projTitle}" template updated successfully!`);
+          setEditingProject(null);
+        } else {
+          await api.projects.create({
+            title: projTitle,
+            description: projDesc,
+            difficulty: projDifficulty,
+            estimated_hours: projHours,
+            tech_stack: techStackArray,
+          });
+          setSuccess(`Project "${projTitle}" template created successfully!`);
+        }
+        
         setProjTitle("");
         setProjDesc("");
         setProjDifficulty("beginner");
@@ -3266,9 +3369,23 @@ Signed Digitally by:
         setProjHours(40);
       } catch (err) {
         const apiErr = err as ApiError;
-        setError(apiErr.message || "Failed to create project template.");
+        setError(apiErr.message || "Failed to save project template.");
       } finally {
         setIsCreatingProject(false);
+      }
+    };
+
+    const handleEditClick = (p: any) => {
+      setEditingProject(p);
+      setProjTitle(p.title);
+      setProjDesc(p.description || "");
+      setProjDifficulty(p.difficulty || "beginner");
+      setProjTechStack(p.tech_stack ? p.tech_stack.join(", ") : "");
+      setProjHours(p.estimated_hours || 40);
+      
+      const formElement = document.getElementById("project-template-form");
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: "smooth" });
       }
     };
 
@@ -3742,10 +3859,10 @@ Signed Digitally by:
               </Card>
 
               {/* Upload / Create Project Template */}
-              <Card className="p-6">
+              <Card id="project-template-form" className="p-6">
                 <CardTitle className="mb-4 flex items-center gap-2">
                   <UploadCloud className="h-5 w-5 text-accent" />
-                  Upload Project Template
+                  {editingProject ? "Edit Project Template" : "Upload Project Template"}
                 </CardTitle>
                 <form onSubmit={handleCreateProject} className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -3812,9 +3929,27 @@ Signed Digitally by:
                     />
                   </div>
 
-                  <Button type="submit" disabled={isCreatingProject} isLoading={isCreatingProject} className="w-full">
-                    Upload Template
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="submit" disabled={isCreatingProject} isLoading={isCreatingProject} className="flex-1">
+                      {editingProject ? "Save Changes" : "Upload Template"}
+                    </Button>
+                    {editingProject && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingProject(null);
+                          setProjTitle("");
+                          setProjDesc("");
+                          setProjDifficulty("beginner");
+                          setProjTechStack("");
+                          setProjHours(40);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
                 </form>
               </Card>
 
@@ -3839,7 +3974,17 @@ Signed Digitally by:
                         <div>
                           <div className="flex justify-between items-start gap-1">
                             <h4 className="font-bold text-foreground text-sm line-clamp-1">{p.title}</h4>
-                            {getDifficultyBadge(p.difficulty)}
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {getDifficultyBadge(p.difficulty)}
+                              <button
+                                type="button"
+                                onClick={() => handleEditClick(p)}
+                                className="p-1 rounded bg-white/5 hover:bg-white/10 text-muted hover:text-foreground transition-all"
+                                title="Edit Template"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
                           <p className="text-xs text-muted line-clamp-2 mt-1 leading-relaxed">{p.description}</p>
                         </div>

@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
+from sqlalchemy.pool import NullPool
+from fastapi import Request
+
 from app.core.config import settings
 
 # ── Engine & Session Factory ─────────────────────────────────────────
@@ -26,9 +29,7 @@ else:
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=False,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
+        poolclass=NullPool,
         connect_args={"statement_cache_size": 0},
     )
 
@@ -46,12 +47,13 @@ class Base(DeclarativeBase):
 
 
 # ── FastAPI Dependency ───────────────────────────────────────────────
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db(request: Request = None) -> AsyncGenerator[AsyncSession, None]:
     """Yield an async database session and ensure it is closed after use."""
     async with async_session_factory() as session:
         try:
             yield session
-            await session.commit()
+            if (request and request.method not in ("GET", "HEAD")) or session.new or session.dirty or session.deleted:
+                await session.commit()
         except Exception:
             await session.rollback()
             raise

@@ -499,6 +499,78 @@ async def create_project(
     return _project_to_response(project)
 
 
+@router.put(
+    "/{project_id}",
+    response_model=ProjectResponse,
+    summary="Update a project template (Mentor)",
+)
+async def update_project(
+    project_id: int,
+    body: CreateProjectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProjectResponse:
+    """Update a project template. Restricted to verified mentors or admins."""
+    result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found."
+        )
+
+    isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
+    if not isAdmin:
+        result_m = await db.execute(
+            select(MentorProfile).where(
+                MentorProfile.user_id == current_user.id,
+                MentorProfile.verification_status == "verified",
+            )
+        )
+        mentor = result_m.scalar_one_or_none()
+        if not mentor:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only verified mentors can update project templates.",
+            )
+
+    project.title = body.title
+    project.description = body.description
+    project.difficulty = ProjectDifficulty(body.difficulty)
+    project.estimated_hours = body.estimated_hours
+    project.tech_stack = {tech: {} for tech in body.tech_stack}
+
+    from sqlalchemy import delete
+    await db.execute(
+        delete(ProjectSkill).where(ProjectSkill.project_id == project.id)
+    )
+    
+    for tech in body.tech_stack:
+        result_s = await db.execute(select(Skill).where(Skill.name.ilike(tech)))
+        skill = result_s.scalar_one_or_none()
+        if not skill:
+            skill = Skill(
+                name=tech,
+                category="Custom",
+                description=f"Custom skill for {tech}",
+            )
+            db.add(skill)
+            await db.flush()
+
+        project_skill = ProjectSkill(
+            project_id=project.id,
+            skill_id=skill.id,
+            is_primary=True,
+        )
+        db.add(project_skill)
+
+    await db.flush()
+    await db.refresh(project)
+    return _project_to_response(project)
+
+
 @router.get(
     "/submissions/pending",
     response_model=list[dict],

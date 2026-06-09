@@ -28,10 +28,13 @@ const navLinks = [
 ];
 
 export function Navbar() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, isLoading } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  
+  const token = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+  const isUserAuthenticated = isAuthenticated || !!token;
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -87,7 +90,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-2">
+          <Link href={isUserAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center">
               <span className="text-white font-bold text-sm">C</span>
             </div>
@@ -95,7 +98,7 @@ export function Navbar() {
           </Link>
 
           {/* Desktop Navigation */}
-          {isAuthenticated && (
+          {isUserAuthenticated && (
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => {
                 const Icon = link.icon;
@@ -121,7 +124,9 @@ export function Navbar() {
 
           {/* Right Side */}
           <div className="flex items-center gap-3">
-            {isAuthenticated && user ? (
+            {isLoading && token ? (
+              <div className="h-8 w-24 bg-white/5 rounded-xl animate-pulse" />
+            ) : isUserAuthenticated && user ? (
               <>
                 {/* Notification Bell */}
                 <div className="relative">
@@ -297,7 +302,7 @@ export function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-white/5 bg-surface/95 backdrop-blur-xl animate-slideDown">
           <div className="px-4 py-3 space-y-1">
-            {isAuthenticated ? (
+            {isUserAuthenticated ? (
               <>
                 {navLinks.map((link) => {
                   const Icon = link.icon;

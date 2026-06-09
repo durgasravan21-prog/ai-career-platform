@@ -2252,6 +2252,14 @@ class ApiClient {
       return this.normalizeProject(res);
     },
 
+    update: async (id: string | number, payload: any): Promise<Project> => {
+      const res = await this.fetchApi<Project>(`/projects/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      return this.normalizeProject(res);
+    },
+
     getPendingSubmissions: async (): Promise<any[]> => {
       return this.fetchApi<any[]>("/projects/submissions/pending");
     },
@@ -2456,6 +2464,17 @@ class ApiClient {
 
     getActiveUsers: async (): Promise<any[]> => {
       return this.fetchApi<any[]>("/admin/users/active");
+    },
+
+    postSignal: async (sessionId: string | number, payload: string): Promise<any> => {
+      return this.fetchApi<any>(`/mentors/sessions/${sessionId}/signal`, {
+        method: "POST",
+        body: JSON.stringify({ payload }),
+      });
+    },
+
+    getSignals: async (sessionId: string | number, afterId?: number): Promise<any[]> => {
+      return this.fetchApi<any[]>(`/mentors/sessions/${sessionId}/signals${afterId !== undefined ? `?after_id=${afterId}` : ""}`);
     },
   };
 }

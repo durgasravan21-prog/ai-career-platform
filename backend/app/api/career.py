@@ -382,3 +382,36 @@ async def list_skills_root(db: AsyncSession = Depends(get_db)):
     skills = result.scalars().all()
     return [SkillResponse.model_validate(s) for s in skills]
 
+
+@router_root.get(
+    "/notifications",
+    summary="Get user's notifications",
+)
+async def get_notifications(
+    current_user: User = Depends(get_current_user),
+):
+    """Get all notifications for the current user."""
+    return []
+
+
+@router_root.post(
+    "/notifications/read",
+    summary="Mark all notifications as read",
+)
+async def mark_notifications_read(
+    current_user: User = Depends(get_current_user),
+):
+    """Mark all notifications as read."""
+    return {"status": "success"}
+
+
+@router_root.post(
+    "/notifications/clear",
+    summary="Clear all notifications",
+)
+async def clear_notifications(
+    current_user: User = Depends(get_current_user),
+):
+    """Clear all notifications."""
+    return {"status": "success"}
+

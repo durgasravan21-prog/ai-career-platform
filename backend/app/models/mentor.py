@@ -242,3 +242,22 @@ class MentorReport(Base):
 
     def __repr__(self) -> str:
         return f"<MentorReport id={self.id} mentor_id={self.mentor_id} student_id={self.student_id}>"
+
+
+class WebRTCSignal(Base):
+    """Temporary WebRTC signaling messages stored in database for serverless environment compatibility."""
+
+    __tablename__ = "webrtc_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mentor_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    sender_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[str] = mapped_column(Text, nullable=False) # JSON-stringified payload
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+

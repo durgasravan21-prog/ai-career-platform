@@ -1065,6 +1065,83 @@ async def send_join_reminder(
     )
 
 
+class WebRTCSignalRequest(BaseModel):
+    payload: str
+
+
+@router.post(
+    "/mentors/sessions/{session_id}/signal",
+    summary="Post WebRTC signaling message",
+)
+async def post_webrtc_signal(
+    session_id: int,
+    body: WebRTCSignalRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(MentorSession).where(MentorSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found."
+        )
+
+    from app.models.mentor import WebRTCSignal
+    new_signal = WebRTCSignal(
+        session_id=session_id,
+        sender_id=current_user.id,
+        payload=body.payload,
+    )
+    db.add(new_signal)
+    await db.commit()
+    return {"status": "success"}
+
+
+@router.get(
+    "/mentors/sessions/{session_id}/signals",
+    summary="Get WebRTC signaling messages",
+)
+async def get_webrtc_signals(
+    session_id: int,
+    after_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.mentor import WebRTCSignal
+    query = select(WebRTCSignal).where(WebRTCSignal.session_id == session_id)
+    if after_id is not None:
+        query = query.where(WebRTCSignal.id > after_id)
+    
+    query = query.order_by(WebRTCSignal.id.asc())
+    result = await db.execute(query)
+    signals = result.scalars().all()
+
+    # Automatically clean up old signals for this session older than 2 minutes
+    from datetime import datetime, timezone, timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=2)
+    from sqlalchemy import delete
+    try:
+        await db.execute(delete(WebRTCSignal).where(WebRTCSignal.session_id == session_id, WebRTCSignal.created_at < cutoff))
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Error cleaning up old WebRTC signals: {e}")
+
+    return [
+        {
+            "id": s.id,
+            "session_id": s.session_id,
+            "sender_id": s.sender_id,
+            "payload": s.payload,
+            "created_at": s.created_at,
+        }
+        for s in signals
+    ]
+
+
+
 @router.post(
     "/mentors/{mentor_id}/report",
     response_model=MentorReportResponse,
@@ -1311,6 +1388,65 @@ async def resolve_mentor_report(
         mentor_name=mentor_name,
         student_name=student_name,
     )
+
+
+@router.get(
+    "/admin/users/active",
+    summary="Get active users registry for admin review",
+)
+async def get_active_users_registry(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the platform admin can view active users registry.",
+        )
+
+    from app.models.user import User as UserModel
+    result = await db.execute(select(UserModel))
+    users = result.scalars().all()
+
+    active_users = []
+    for u in users:
+        active_path = None
+        for path in u.career_paths:
+            path_status = path.status.value if hasattr(path.status, "value") else path.status
+            if path_status == "active":
+                active_path = path
+                break
+        
+        dream_role = "Not Configured"
+        skill_progress = 0
+        if active_path:
+            if active_path.target_role:
+                dream_role = active_path.target_role.title
+            skill_progress = int(active_path.completion_percentage)
+
+        active_proj_title = "None"
+        for up in u.projects:
+            up_status = up.status.value if hasattr(up.status, "value") else up.status
+            if up_status != "reviewed":
+                if up.project:
+                    active_proj_title = up.project.title
+                break
+
+        user_status = "Active Now" if u.is_active else "Idle"
+
+        active_users.append({
+            "id": u.id,
+            "name": u.name or u.email.split("@")[0],
+            "email": u.email,
+            "role": u.role,
+            "dream_role": dream_role,
+            "skill_progress": skill_progress,
+            "active_project": active_proj_title,
+            "status": user_status
+        })
+
+    return active_users
+
 
 
 
