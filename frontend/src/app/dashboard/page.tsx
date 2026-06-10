@@ -507,11 +507,18 @@ export default function DashboardPage() {
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [peerIsMuted, setPeerIsMuted] = useState<boolean>(false);
   const [peerIsVideoMuted, setPeerIsVideoMuted] = useState<boolean>(false);
+  const [peerIsRecording, setPeerIsRecording] = useState<boolean>(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const clientIdRef = useRef<string>(Math.random().toString(36).substring(2, 15));
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerVideoRef = useRef<HTMLVideoElement | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+
+  const isStudent = activeVideoSession
+    ? (String(activeVideoSession.student_id) === String(user?.id) || 
+       String(activeVideoSession.mentee_id) === String(user?.id) ||
+       (user?.email?.toLowerCase() !== "durgasravan21@gmail.com" && user?.role !== "mentor"))
+    : false;
 
   const localVideoCallbackRef = useCallback((node: HTMLVideoElement | null) => {
     localVideoRef.current = node;
@@ -658,6 +665,7 @@ export default function DashboardPage() {
       const payload = JSON.stringify({
         type: "recording_state",
         isRecording: true,
+        isStudent: isStudent,
         clientId: clientIdRef.current,
         timestamp: Date.now()
       });
@@ -680,6 +688,7 @@ export default function DashboardPage() {
       const payload = JSON.stringify({
         type: "recording_state",
         isRecording: false,
+        isStudent: isStudent,
         clientId: clientIdRef.current,
         timestamp: Date.now()
       });
@@ -698,6 +707,9 @@ export default function DashboardPage() {
       screenStreamRef.current = null;
       setIsScreenSharing(false);
     }
+    setPeerIsMuted(false);
+    setPeerIsVideoMuted(false);
+    setPeerIsRecording(false);
     setIsVideoCallOpen(false);
   };
 
@@ -1489,12 +1501,13 @@ export default function DashboardPage() {
             }
           }
         }
-        // Handle recording state updates from Mentor
+        // Handle recording state updates from peer
         else if (msg.type === "recording_state") {
-          setIsRecording(!!msg.isRecording);
+          setPeerIsRecording(!!msg.isRecording);
           setTranscriptionLogs(prev => {
             const status = msg.isRecording ? "started" : "stopped";
-            return [...prev, `System: [Mentor has ${status} recording the session]`];
+            const roleStr = msg.isStudent ? "Student" : "Mentor";
+            return [...prev, `System: [${roleStr} has ${status} recording the session]`];
           });
         }
       } catch (err) {
@@ -6002,83 +6015,84 @@ Signed Digitally by:
                 <Laptop className="h-4 w-4 mr-2" /> {isScreenSharing ? "Stop Sharing" : "Share Screen"}
               </Button>
               
-              {!isStudent ? (
-                <>
-                  {isRecording ? (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white"
-                      onClick={stopRecording}
-                    >
-                      <Square className="h-4 w-4 fill-white" /> Stop Recording
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20"
-                      onClick={startRecording}
-                    >
-                      <Circle className="h-4 w-4 fill-error text-error animate-pulse" /> Record Session
-                    </Button>
-                  )}
-
-                  {/* Mentor Remote Controls for Student */}
-                  <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
-                    <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wider font-bold">Student:</span>
-                    <button
-                      onClick={() => {
-                        sendSignal({
-                          type: "remote_control",
-                          action: peerIsMuted ? "unmute_audio" : "mute_audio",
-                          clientId: clientIdRef.current
-                        });
-                        setPeerIsMuted(!peerIsMuted);
-                      }}
-                      className={cn(
-                        "p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all",
-                        peerIsMuted
-                          ? "bg-error/10 hover:bg-error/20 border-error/30 text-error"
-                          : "bg-white/5 hover:bg-white/10 border-white/10 text-muted-foreground"
-                      )}
-                      title={peerIsMuted ? "Unmute Student Mic" : "Mute Student Mic"}
-                    >
-                      {peerIsMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      onClick={() => {
-                        sendSignal({
-                          type: "remote_control",
-                          action: peerIsVideoMuted ? "unmute_video" : "mute_video",
-                          clientId: clientIdRef.current
-                        });
-                        setPeerIsVideoMuted(!peerIsVideoMuted);
-                      }}
-                      className={cn(
-                        "p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all",
-                        peerIsVideoMuted
-                          ? "bg-error/10 hover:bg-error/20 border-error/30 text-error"
-                          : "bg-white/5 hover:bg-white/10 border-white/10 text-muted-foreground"
-                      )}
-                      title={peerIsVideoMuted ? "Enable Student Camera" : "Disable Student Camera"}
-                    >
-                      {peerIsVideoMuted ? <VideoOff className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                </>
+              {/* Recording Controls (Available to both Coach and Student) */}
+              {isRecording ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white"
+                  onClick={stopRecording}
+                >
+                  <Square className="h-4 w-4 fill-white" /> Stop Recording
+                </Button>
               ) : (
-                /* Student: View recording status only */
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20"
+                  onClick={startRecording}
+                >
+                  <Circle className="h-4 w-4 fill-error text-error animate-pulse" /> Record Session
+                </Button>
+              )}
+
+              {/* Status Badges & Remote Controls */}
+              {!isStudent ? (
+                /* Mentor Remote Controls for Student & Peer Recording Status */
+                <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
+                  {peerIsRecording && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-extrabold uppercase tracking-wider animate-pulse mr-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping" />
+                      STUDENT RECORDING
+                    </div>
+                  )}
+                  <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wider font-bold">Student:</span>
+                  <button
+                    onClick={() => {
+                      sendSignal({
+                        type: "remote_control",
+                        action: peerIsMuted ? "unmute_audio" : "mute_audio",
+                        clientId: clientIdRef.current
+                      });
+                      setPeerIsMuted(!peerIsMuted);
+                    }}
+                    className={cn(
+                      "p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all",
+                      peerIsMuted
+                        ? "bg-error/10 hover:bg-error/20 border-error/30 text-error"
+                        : "bg-white/5 hover:bg-white/10 border-white/10 text-muted-foreground"
+                    )}
+                    title={peerIsMuted ? "Unmute Student Mic" : "Mute Student Mic"}
+                  >
+                    {peerIsMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      sendSignal({
+                        type: "remote_control",
+                        action: peerIsVideoMuted ? "unmute_video" : "mute_video",
+                        clientId: clientIdRef.current
+                      });
+                      setPeerIsVideoMuted(!peerIsVideoMuted);
+                    }}
+                    className={cn(
+                      "p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all",
+                      peerIsVideoMuted
+                        ? "bg-error/10 hover:bg-error/20 border-error/30 text-error"
+                        : "bg-white/5 hover:bg-white/10 border-white/10 text-muted-foreground"
+                    )}
+                    title={peerIsVideoMuted ? "Enable Student Camera" : "Disable Student Camera"}
+                  >
+                    {peerIsVideoMuted ? <VideoOff className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              ) : (
+                /* Student: Peer Recording Status Only */
                 <div className="flex items-center gap-2 border-l border-white/10 pl-3">
-                  {isRecording ? (
+                  {peerIsRecording && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-extrabold uppercase tracking-wider animate-pulse">
                       <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping" />
-                      REC LIVE
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/25" />
-                      NOT RECORDING
+                      COACH RECORDING
                     </div>
                   )}
                 </div>
