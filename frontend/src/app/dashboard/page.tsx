@@ -501,6 +501,7 @@ export default function DashboardPage() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const clientIdRef = useRef<string>(Math.random().toString(36).substring(2, 15));
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerVideoRef = useRef<HTMLVideoElement | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -1172,8 +1173,19 @@ export default function DashboardPage() {
 
     // Handle remote stream tracks
     pc.ontrack = (event) => {
+      console.log("[WebRTC] Received remote track:", event.track.kind);
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
+      } else {
+        setRemoteStream(prev => {
+          if (prev) {
+            try { prev.addTrack(event.track); } catch (e) {}
+            return prev;
+          }
+          const newStream = new MediaStream();
+          newStream.addTrack(event.track);
+          return newStream;
+        });
       }
     };
 
@@ -1181,13 +1193,13 @@ export default function DashboardPage() {
                       String(activeVideoSession.mentee_id) === String(user?.id);
 
     const iceCandidatesQueue: any[] = [];
-    let negotiationDone = false;
 
     // ─── Unified signal sender: BroadcastChannel + HTTP ───
     const broadcastSend = (msg: any) => {
       const payloadObj = {
         ...msg,
         senderId: user.id,
+        clientId: clientIdRef.current,
         timestamp: Date.now()
       };
       const payload = JSON.stringify(payloadObj);
@@ -1214,28 +1226,26 @@ export default function DashboardPage() {
         const msg = typeof dataStr === "object" ? dataStr : JSON.parse(dataStr);
         if (!msg) return;
 
-        // Reject self-sent signals immediately to prevent loops and self-connection
-        if (msg.senderId && String(msg.senderId) === String(user.id)) {
+        // Reject self-sent signals from the same browser tab immediately to prevent loops
+        if (msg.clientId && msg.clientId === clientIdRef.current) {
           return;
         }
 
-        if (msg.type === "offer" && !negotiationDone) {
+        if (msg.type === "offer") {
           console.log("[Signal] Received offer, creating answer...");
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           broadcastSend({ type: "answer", sdp: answer });
-          negotiationDone = true;
           
           // Process queued ICE candidates
           while (iceCandidatesQueue.length > 0) {
             const cand = iceCandidatesQueue.shift();
             if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
           }
-        } else if (msg.type === "answer" && !negotiationDone) {
+        } else if (msg.type === "answer") {
           console.log("[Signal] Received answer");
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          negotiationDone = true;
           
           // Process queued ICE candidates
           while (iceCandidatesQueue.length > 0) {
@@ -1250,7 +1260,7 @@ export default function DashboardPage() {
               iceCandidatesQueue.push(msg.candidate);
             }
           }
-        } else if (msg.type === "join" && !negotiationDone) {
+        } else if (msg.type === "join") {
           // Peer joined — student creates the offer
           if (isStudent && pc.signalingState === "stable") {
             console.log("[Signal] Peer joined, creating offer (student role)...");
@@ -1275,32 +1285,34 @@ export default function DashboardPage() {
     };
 
     // ─── HTTP Polling: for cross-device signaling ───
-    let lastSignalId = -1;
+    let lastSignalId = 0;
     let pollingActive = true;
+    const sessionStartTime = Date.now();
 
     const pollSignals = async () => {
       if (!pollingActive) return;
       try {
-        if (lastSignalId === -1) {
-          // First poll: get all existing signals to find the latest ID, but do NOT process them
-          const signals = await api.mentors.getSignals(sessionId);
-          if (signals && signals.length > 0) {
-            const maxId = Math.max(...signals.map((s: any) => s.id));
-            lastSignalId = maxId;
-          } else {
-            lastSignalId = 0;
-          }
-          console.log("[Signal] Initialized lastSignalId to:", lastSignalId);
-          return;
-        }
-
         const signals = await api.mentors.getSignals(sessionId, lastSignalId);
         if (signals && signals.length > 0) {
           signals.forEach((sig: any) => {
-            if (sig.id > lastSignalId) lastSignalId = sig.id;
-            // Only process signals from the other user
-            if (String(sig.sender_id) !== String(user?.id)) {
-              handleSignal(sig.payload);
+            if (sig.id > lastSignalId) {
+              lastSignalId = sig.id;
+            }
+            
+            // Extract payload
+            let msgObj: any = null;
+            try {
+              msgObj = typeof sig.payload === "object" ? sig.payload : JSON.parse(sig.payload);
+            } catch (e) {}
+
+            // Process if it didn't originate from this exact tab/client instance
+            const isLocalClient = msgObj && msgObj.clientId === clientIdRef.current;
+            if (!isLocalClient) {
+              // Only process fresh signals created within 30 seconds of joining
+              const sigTime = new Date(sig.created_at).getTime();
+              if (!isNaN(sigTime) && sigTime > sessionStartTime - 30000) {
+                handleSignal(sig.payload);
+              }
             }
           });
         }
