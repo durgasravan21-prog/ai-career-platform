@@ -6033,11 +6033,11 @@ Signed Digitally by:
 
           {/* Footer Controls Toolbar */}
           <div className="px-3 sm:px-6 py-3 sm:py-5 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-between gap-2">
-            <div className="hidden sm:flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <Button
                 size="sm"
                 variant={isScreenSharing ? "destructive" : "outline"}
-                className={cn("text-xs", isScreenSharing ? "bg-primary text-white animate-pulse" : "text-muted")}
+                className={cn("text-xs px-2.5 sm:px-3", isScreenSharing ? "bg-primary text-white animate-pulse" : "text-muted")}
                 onClick={async () => {
                   if (isScreenSharing) {
                     // Stop screen sharing
@@ -6096,8 +6096,10 @@ Signed Digitally by:
                     }
                   }
                 }}
+                title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
               >
-                <Laptop className="h-4 w-4 mr-2" /> {isScreenSharing ? "Stop Sharing" : "Share Screen"}
+                <Laptop className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">{isScreenSharing ? "Stop Sharing" : "Share Screen"}</span>
               </Button>
               
               {/* Recording Controls (Available to both Coach and Student) */}
@@ -6105,33 +6107,38 @@ Signed Digitally by:
                 <Button
                   size="sm"
                   variant="destructive"
-                  className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white"
+                  className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white px-2.5 sm:px-3"
                   onClick={stopRecording}
+                  title="Stop Recording"
                 >
-                  <Square className="h-4 w-4 fill-white" /> Stop Recording
+                  <Square className="h-4 w-4 fill-white sm:mr-1" />
+                  <span className="hidden sm:inline">Stop Recording</span>
                 </Button>
               ) : (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20"
+                  className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20 px-2.5 sm:px-3"
                   onClick={startRecording}
+                  title="Record Session"
                 >
-                  <Circle className="h-4 w-4 fill-error text-error animate-pulse" /> Record Session
+                  <Circle className="h-4 w-4 fill-error text-error animate-pulse sm:mr-1" />
+                  <span className="hidden sm:inline">Record Session</span>
                 </Button>
               )}
 
               {/* Status Badges & Remote Controls */}
               {!isStudent ? (
                 /* Mentor Remote Controls for Student & Peer Recording Status */
-                <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
+                <div className="flex items-center gap-1.5 sm:border-l sm:border-white/10 sm:pl-3">
                   {peerIsRecording && (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-extrabold uppercase tracking-wider animate-pulse mr-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping" />
-                      STUDENT RECORDING
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-error/15 border border-error/30 text-error text-[8px] sm:text-[10px] font-extrabold uppercase tracking-wider animate-pulse mr-1 sm:mr-2" title="Student is recording">
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-error animate-ping" />
+                      <span className="hidden sm:inline">STUDENT RECORDING</span>
+                      <span className="sm:hidden">REC</span>
                     </div>
                   )}
-                  <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wider font-bold">Student:</span>
+                  <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wider font-bold hidden sm:inline">Student:</span>
                   <button
                     onClick={() => {
                       sendSignal({
@@ -6173,11 +6180,12 @@ Signed Digitally by:
                 </div>
               ) : (
                 /* Student: Peer Recording Status Only */
-                <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+                <div className="flex items-center gap-2 sm:border-l sm:border-white/10 sm:pl-3">
                   {peerIsRecording && (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-extrabold uppercase tracking-wider animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping" />
-                      COACH RECORDING
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-error/15 border border-error/30 text-error text-[8px] sm:text-[10px] font-extrabold uppercase tracking-wider animate-pulse" title="Coach is recording">
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-error animate-ping" />
+                      <span className="hidden sm:inline">COACH RECORDING</span>
+                      <span className="sm:hidden">COACH REC</span>
                     </div>
                   )}
                 </div>
@@ -6200,7 +6208,7 @@ Signed Digitally by:
               <button
                 onClick={() => setIsVideoMuted(!isVideoMuted)}
                 className={cn(
-                  "w-12 h-12 rounded-full border flex items-center justify-center transition-all shadow-md active:scale-90",
+                  "w-10 h-10 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center transition-all shadow-md active:scale-90",
                   isVideoMuted
                     ? "bg-error/20 hover:bg-error/30 text-error border-error/40"
                     : "bg-white/5 hover:bg-white/10 text-foreground border-white/10"
