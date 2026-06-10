@@ -50,112 +50,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Create all tables if they don't exist (dev convenience).
         # In production, use Alembic migrations instead.
         await conn.run_sync(Base.metadata.create_all)
-        
-        # Add new columns to mentor_profiles table dynamically for SQLite database compatibility
-        from sqlalchemy import text
+
+    # Add new columns to tables dynamically in separate transactions (to prevent Postgres transaction aborts)
+    from sqlalchemy import text
+    alterations = [
+        ("mentor_profiles", "original_price", "FLOAT"),
+        ("mentor_profiles", "price_edited_by_admin", "BOOLEAN DEFAULT FALSE"),
+        ("mentor_profiles", "has_premium_subscription", "BOOLEAN DEFAULT FALSE"),
+        ("mentor_profiles", "video_calls_active", "BOOLEAN DEFAULT TRUE"),
+        ("mentor_profiles", "upi_id", "VARCHAR(255)"),
+        ("mentor_profiles", "is_visible", "BOOLEAN DEFAULT TRUE"),
+        ("mentor_profiles", "agreement_pdf_path", "VARCHAR(500)"),
+        ("mentor_profiles", "commission_paid_until", "TIMESTAMP"),
+        ("mentor_reports", "reported_by", "VARCHAR(50) DEFAULT 'student'"),
+        ("mentor_reports", "screenshot_url", "VARCHAR(500)"),
+        ("mentor_reports", "appeal_message", "TEXT"),
+        ("mentor_reports", "admin_message", "TEXT"),
+        ("mentor_reports", "resolved_at", "TIMESTAMP"),
+        ("mentor_sessions", "reminder_sent", "BOOLEAN DEFAULT FALSE"),
+        ("mentor_sessions", "reminder_sent_at", "TIMESTAMP"),
+        ("mentor_sessions", "payment_screenshot_url", "VARCHAR(500)"),
+        ("mentor_sessions", "payment_amount_paid", "FLOAT"),
+        ("mentor_sessions", "payment_status", "VARCHAR(50) DEFAULT 'unpaid'"),
+        ("mentor_sessions", "payment_validation_error", "TEXT"),
+        ("mentor_sessions", "raise_hand_active", "BOOLEAN DEFAULT FALSE"),
+        ("mentor_sessions", "screen_sharing_active", "BOOLEAN DEFAULT FALSE"),
+    ]
+
+    for table, col, col_type in alterations:
         try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN original_price FLOAT"))
-            logger.info("Added original_price column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN price_edited_by_admin BOOLEAN DEFAULT FALSE"))
-            logger.info("Added price_edited_by_admin column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN has_premium_subscription BOOLEAN DEFAULT FALSE"))
-            logger.info("Added has_premium_subscription column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN video_calls_active BOOLEAN DEFAULT TRUE"))
-            logger.info("Added video_calls_active column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN upi_id VARCHAR(255)"))
-            logger.info("Added upi_id column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN is_visible BOOLEAN DEFAULT TRUE"))
-            logger.info("Added is_visible column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN agreement_pdf_path VARCHAR(500)"))
-            logger.info("Added agreement_pdf_path column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN commission_paid_until TIMESTAMP"))
-            logger.info("Added commission_paid_until column to mentor_profiles.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN reported_by VARCHAR(50) DEFAULT 'student'"))
-            logger.info("Added reported_by column to mentor_reports.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN screenshot_url VARCHAR(500)"))
-            logger.info("Added screenshot_url column to mentor_reports.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN appeal_message TEXT"))
-            logger.info("Added appeal_message column to mentor_reports.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN admin_message TEXT"))
-            logger.info("Added admin_message column to mentor_reports.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN resolved_at TIMESTAMP"))
-            logger.info("Added resolved_at column to mentor_reports.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN reminder_sent BOOLEAN DEFAULT FALSE"))
-            logger.info("Added reminder_sent column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN reminder_sent_at TIMESTAMP"))
-            logger.info("Added reminder_sent_at column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_screenshot_url VARCHAR(500)"))
-            logger.info("Added payment_screenshot_url column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_amount_paid FLOAT"))
-            logger.info("Added payment_amount_paid column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_status VARCHAR(50) DEFAULT 'unpaid'"))
-            logger.info("Added payment_status column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_validation_error TEXT"))
-            logger.info("Added payment_validation_error column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN raise_hand_active BOOLEAN DEFAULT FALSE"))
-            logger.info("Added raise_hand_active column to mentor_sessions.")
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN screen_sharing_active BOOLEAN DEFAULT FALSE"))
-            logger.info("Added screen_sharing_active column to mentor_sessions.")
+            async with engine.begin() as conn:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                logger.info(f"Added column {col} to {table}.")
         except Exception:
             pass
     # Auto-seed database if it is empty (specifically, if no roles are seeded)
