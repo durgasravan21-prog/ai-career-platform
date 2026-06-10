@@ -1138,6 +1138,14 @@ export default function DashboardPage() {
     const pc = new RTCPeerConnection(pcConfig);
     peerConnectionRef.current = pc;
 
+    const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
+                      String(activeVideoSession.mentee_id) === String(user?.id);
+
+    // Perfect Negotiation State Variables
+    let makingOffer = false;
+    let ignoreOffer = false;
+    const polite = !isStudent; // Mentor is polite, Student is impolite
+
     // Track WebRTC connection state for UI feedback
     pc.onconnectionstatechange = () => {
       console.log("[WebRTC] Connection state:", pc.connectionState);
@@ -1153,6 +1161,11 @@ export default function DashboardPage() {
           break;
         case "failed":
           setCallConnectionState("failed");
+          // Student triggers ICE restart if connection fails
+          if (isStudent) {
+            console.log("[WebRTC] Connection failed. Student initiating ICE restart...");
+            initiateOffer(true);
+          }
           break;
       }
     };
@@ -1167,7 +1180,12 @@ export default function DashboardPage() {
         setCallConnectionState("reconnecting");
       } else if (pc.iceConnectionState === "failed") {
         setCallConnectionState("failed");
-        try { pc.restartIce(); } catch (e) { console.warn("[WebRTC] ICE restart failed:", e); }
+        if (isStudent) {
+          console.log("[WebRTC] ICE failed. Student initiating ICE restart...");
+          initiateOffer(true);
+        } else {
+          try { pc.restartIce(); } catch (e) { console.warn("[WebRTC] ICE restart failed:", e); }
+        }
       }
     };
 
@@ -1194,11 +1212,6 @@ export default function DashboardPage() {
       }
     };
 
-    const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
-                      String(activeVideoSession.mentee_id) === String(user?.id);
-
-    const iceCandidatesQueue: any[] = [];
-
     // ─── Unified signal sender: BroadcastChannel + HTTP ───
     const broadcastSend = (msg: any) => {
       const payloadObj = {
@@ -1208,11 +1221,9 @@ export default function DashboardPage() {
         timestamp: Date.now()
       };
       const payload = JSON.stringify(payloadObj);
-      // Always send on BroadcastChannel for same-browser
       try {
         broadcastChannelRef.current?.postMessage(payload);
       } catch (e) { /* ignore */ }
-      // Also send via HTTP for cross-device
       api.mentors.postSignal(sessionId, payload).catch((err: any) => {
         console.warn("[Signal] HTTP post failed (non-critical):", err);
       });
@@ -1225,55 +1236,88 @@ export default function DashboardPage() {
       }
     };
 
+    // Initiate Offer helper with optional ICE restart
+    const initiateOffer = async (iceRestart = false) => {
+      if (makingOffer) return;
+      try {
+        makingOffer = true;
+        console.log(`[WebRTC] Creating offer (iceRestart=${iceRestart})...`);
+        const offer = await pc.createOffer({ iceRestart });
+        await pc.setLocalDescription(offer);
+        broadcastSend({ type: "description", sdp: pc.localDescription });
+      } catch (err) {
+        console.error("[WebRTC] Error creating offer:", err);
+      } finally {
+        makingOffer = false;
+      }
+    };
+
+    // Trigger offer automatically on negotiation needed (if signaling state is stable)
+    pc.onnegotiationneeded = () => {
+      if (isStudent && pc.signalingState === "stable") {
+        initiateOffer(false);
+      }
+    };
+
     // ─── Signal message handler ───
     const handleSignal = async (dataStr: string) => {
       try {
         const msg = typeof dataStr === "object" ? dataStr : JSON.parse(dataStr);
         if (!msg) return;
 
-        // Reject self-sent signals from the same browser tab immediately to prevent loops
+        // Reject self-sent signals immediately to prevent loops
         if (msg.clientId && msg.clientId === clientIdRef.current) {
           return;
         }
 
-        if (msg.type === "offer") {
-          console.log("[Signal] Received offer, creating answer...");
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          broadcastSend({ type: "answer", sdp: answer });
+        // Handle descriptions (offers and answers)
+        if (msg.type === "description" || msg.type === "offer" || msg.type === "answer") {
+          const sdp = msg.sdp || msg; // Support legacy and wrapped format
+          const type = sdp.type;
           
-          // Process queued ICE candidates
-          while (iceCandidatesQueue.length > 0) {
-            const cand = iceCandidatesQueue.shift();
-            if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          const offerCollision = (type === "offer") && 
+                                 (makingOffer || pc.signalingState !== "stable");
+
+          ignoreOffer = !polite && offerCollision;
+          if (ignoreOffer) {
+            console.log("[WebRTC] Collision detected. Impolite peer ignoring remote offer.");
+            return;
           }
-        } else if (msg.type === "answer") {
-          console.log("[Signal] Received answer");
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          
-          // Process queued ICE candidates
-          while (iceCandidatesQueue.length > 0) {
-            const cand = iceCandidatesQueue.shift();
-            if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+
+          if (offerCollision) {
+            console.log("[WebRTC] Collision detected. Polite peer rolling back local offer.");
+            await pc.setLocalDescription({ type: "rollback" });
           }
-        } else if (msg.type === "candidate") {
+
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          if (type === "offer") {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            broadcastSend({ type: "description", sdp: pc.localDescription });
+          }
+        } 
+        // Handle candidates
+        else if (msg.type === "candidate") {
           if (msg.candidate) {
-            if (pc.remoteDescription) {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
-            } else {
-              iceCandidatesQueue.push(msg.candidate);
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            } catch (err) {
+              if (!ignoreOffer) {
+                console.warn("[WebRTC] Failed to add ICE candidate:", err);
+              }
             }
           }
-        } else if (msg.type === "join") {
-          // Peer joined — student creates the offer
-          if (isStudent && pc.signalingState === "stable") {
-            console.log("[Signal] Peer joined, creating offer (student role)...");
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            broadcastSend({ type: "offer", sdp: offer });
+        } 
+        // Handle peer joined
+        else if (msg.type === "join") {
+          console.log(`[WebRTC] Peer joined signal received (isStudent=${msg.isStudent})`);
+          // If we are the student, send a fresh offer to connect with the newly joined peer
+          if (isStudent) {
+            initiateOffer(true);
           }
-        } else if (msg.type === "chat") {
+        } 
+        // Handle chat messages
+        else if (msg.type === "chat") {
           setChatMessages(prev => [...prev, msg.message]);
         }
       } catch (err) {
@@ -1304,13 +1348,11 @@ export default function DashboardPage() {
               lastSignalId = sig.id;
             }
             
-            // Extract payload
             let msgObj: any = null;
             try {
               msgObj = typeof sig.payload === "object" ? sig.payload : JSON.parse(sig.payload);
             } catch (e) {}
 
-            // Process if it didn't originate from this exact tab/client instance
             const isLocalClient = msgObj && msgObj.clientId === clientIdRef.current;
             if (!isLocalClient) {
               // Only process fresh signals created within 10 minutes of joining
@@ -1322,7 +1364,6 @@ export default function DashboardPage() {
           });
         }
       } catch (err) {
-        // Non-critical: HTTP polling might fail if backend is unreachable
         console.warn("[Signal] HTTP poll failed:", err);
       }
     };
@@ -1331,22 +1372,19 @@ export default function DashboardPage() {
     pollSignals();
     const pollingInterval = setInterval(pollSignals, 1500);
 
-    // ─── Send join signal after short delay ───
+    // Send join signal and initial offer if student
     const joinTimeout = setTimeout(async () => {
       try {
         broadcastSend({ type: "join", isStudent });
-        // Student creates offer proactively
         if (isStudent) {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          broadcastSend({ type: "offer", sdp: offer });
+          initiateOffer(true);
         }
       } catch (err) {
         console.error("[Signal] Failed to send initial join/offer:", err);
       }
     }, 800);
 
-    // ─── Cleanup ───
+    // Cleanup
     return () => {
       pollingActive = false;
       clearInterval(pollingInterval);
@@ -5459,22 +5497,22 @@ Signed Digitally by:
           {/* Main Workspace */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
             {/* Webcam Grid */}
-            <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4 bg-black/45 overflow-y-auto">
+            <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4 bg-black/45 md:overflow-y-auto max-md:overflow-hidden relative min-h-0">
               {isPeerOfflineAlertVisible && (
-                <div className="bg-error/20 border border-error/40 text-error px-4 py-3 rounded-xl flex items-center justify-between text-xs font-bold animate-pulse">
+                <div className="bg-error/20 border border-error/40 text-error px-4 py-3 rounded-xl flex items-center justify-between text-xs font-bold animate-pulse z-30">
                   <span>🚨 The other participant is currently offline. They will be notified to join soon.</span>
                   <button onClick={() => setIsPeerOfflineAlertVisible(false)} className="hover:text-foreground">Dismiss</button>
                 </div>
               )}
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4 md:gap-6">
-                {/* User Webcam Frame */}
-              <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video">
+              <div className="flex-1 relative md:grid md:grid-cols-2 gap-2 sm:gap-4 md:gap-6 min-h-0">
+                {/* User Webcam Frame (Local) */}
+              <div className="rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center transition-all duration-300 md:relative md:aspect-auto md:h-full max-md:absolute max-md:bottom-4 max-md:right-4 max-md:w-32 max-md:h-24 max-md:z-20 max-md:shadow-xl max-md:border-white/20">
                 {isVideoMuted ? (
-                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-3">
-                    <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted font-bold text-2xl">
+                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-1.5 md:gap-3">
+                    <div className="w-8 h-8 md:w-20 md:h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted font-bold text-xs md:text-2xl">
                       {myInitials}
                     </div>
-                    <span className="text-xs text-muted font-medium flex items-center gap-1.5">
+                    <span className="text-[9px] md:text-xs text-muted font-medium flex items-center gap-1.5 max-md:hidden">
                       <VideoOff className="h-3.5 w-3.5 text-error" /> Camera is off
                     </span>
                   </div>
@@ -5487,20 +5525,20 @@ Signed Digitally by:
                       muted
                       className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
                     />
-                    <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10">
+                    <span className="absolute bottom-1 left-1 md:bottom-4 md:left-4 bg-black/60 backdrop-blur-md px-2 py-0.5 md:px-3 md:py-1 rounded-lg text-[9px] md:text-xs font-semibold text-foreground border border-white/10 z-10">
                       You (Live Camera)
                     </span>
                   </>
                 )}
                 {isMuted && (
-                  <span className="absolute top-4 right-4 bg-error/20 border border-error/30 text-error p-1.5 rounded-full z-10">
-                    <MicOff className="h-3.5 w-3.5" />
+                  <span className="absolute top-1 right-1 md:top-4 md:right-4 bg-error/20 border border-error/30 text-error p-1 md:p-1.5 rounded-full z-10">
+                    <MicOff className="h-2.5 w-2.5 md:h-3.5 md:w-3.5" />
                   </span>
                 )}
               </div>
 
-              {/* Peer (Coach/Student) Webcam Frame */}
-              <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video">
+              {/* Peer (Coach/Student) Webcam Frame (Remote) */}
+              <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center transition-all duration-300 md:aspect-auto md:h-full max-md:w-full max-md:h-full max-md:absolute max-md:inset-0 max-md:z-10">
                 {remoteStream ? (
                   <video
                     ref={peerVideoCallbackRef}
@@ -5556,7 +5594,7 @@ Signed Digitally by:
                     </div>
                   </div>
                 )}
-                <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2">
+                <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2 max-md:bottom-16 max-md:left-2 max-md:px-2 max-md:py-0.5 max-md:text-[10px] max-md:z-30">
                   <span>{peerName} (Live Stream)</span>
                   {/* Waveform talk animation */}
                   <div className="flex items-center gap-[3px] h-3.5 w-6">
@@ -5567,8 +5605,8 @@ Signed Digitally by:
                   </div>
                 </span>
               </div>
+              </div>
             </div>
-          </div>
 
             {/* Sidebar (AI Live Transcription & Text Chat) */}
             <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 flex flex-col h-[200px] sm:h-[300px] md:h-full bg-white/[0.02] backdrop-blur-lg">

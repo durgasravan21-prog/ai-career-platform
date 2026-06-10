@@ -54,8 +54,27 @@ class Settings(BaseSettings):
         if os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV"):
             env_db_url = os.environ.get("DATABASE_URL")
             if env_db_url and "sqlite" not in env_db_url and "localhost" not in env_db_url and "127.0.0.1" not in env_db_url:
-                self.DATABASE_URL = env_db_url
-                self.DATABASE_URL_SYNC = env_db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+                # Format async URL (must use postgresql+asyncpg://)
+                async_url = env_db_url
+                if async_url.startswith("postgres://"):
+                    async_url = async_url.replace("postgres://", "postgresql+asyncpg://", 1)
+                elif async_url.startswith("postgresql://"):
+                    async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                elif "asyncpg" not in async_url:
+                    if async_url.startswith("postgresql://"):
+                        async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                self.DATABASE_URL = async_url
+
+                # Format sync URL (must use postgresql+psycopg2://)
+                sync_url = env_db_url
+                if sync_url.startswith("postgres://"):
+                    sync_url = sync_url.replace("postgres://", "postgresql+psycopg2://", 1)
+                elif sync_url.startswith("postgresql://"):
+                    sync_url = sync_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+                elif "psycopg2" not in sync_url:
+                    if sync_url.startswith("postgresql://"):
+                        sync_url = sync_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+                self.DATABASE_URL_SYNC = sync_url
             else:
                 self.DATABASE_URL = "sqlite+aiosqlite:////tmp/ai_career.db"
                 self.DATABASE_URL_SYNC = "sqlite:////tmp/ai_career.db"
