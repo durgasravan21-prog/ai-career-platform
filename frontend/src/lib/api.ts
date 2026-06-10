@@ -549,13 +549,19 @@ class ApiClient {
       ...(options.headers || {}),
     };
 
-    // Use mock client if backend is marked as offline in this session (local dev only)
-    const isOffline = typeof window !== "undefined" && 
-      sessionStorage.getItem("backend_offline") === "true" &&
-      (window.location.hostname === "localhost" || 
-       window.location.hostname === "127.0.0.1" || 
-       window.location.hostname.includes("loca.lt") || 
-       window.location.hostname.includes("ngrok"));
+    // Detect if no real backend is configured (API_URL is the default fallback path)
+    const noBackendConfigured = API_URL === "/_/backend/api/v1";
+
+    // Use mock client if backend is marked as offline in this session, or no backend is configured
+    const isOffline = typeof window !== "undefined" && (
+      noBackendConfigured ||
+      (sessionStorage.getItem("backend_offline") === "true" &&
+        (window.location.hostname === "localhost" || 
+         window.location.hostname === "127.0.0.1" || 
+         window.location.hostname.includes("loca.lt") || 
+         window.location.hostname.includes("ngrok") ||
+         window.location.hostname.includes("vercel.app")))
+    );
     if (isOffline) {
       return this.handleMockCall<T>(endpoint, options);
     }
@@ -621,12 +627,13 @@ class ApiClient {
         throw err;
       }
       
-      // Otherwise, it is a network connection error. Fallback to mock only in local development
+      // Otherwise, it is a network connection error. Fallback to mock
       if (typeof window !== "undefined" && 
           (window.location.hostname === "localhost" || 
            window.location.hostname === "127.0.0.1" || 
            window.location.hostname.includes("loca.lt") || 
-           window.location.hostname.includes("ngrok"))) {
+           window.location.hostname.includes("ngrok") ||
+           window.location.hostname.includes("vercel.app"))) {
         sessionStorage.setItem("backend_offline", "true");
         console.warn("API server unreachable. Falling back to local Client Database.", err);
         return this.handleMockCall<T>(endpoint, options);
