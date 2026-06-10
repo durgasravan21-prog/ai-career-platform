@@ -507,14 +507,14 @@ export default function DashboardPage() {
 
   const localVideoCallbackRef = useCallback((node: HTMLVideoElement | null) => {
     localVideoRef.current = node;
-    if (node && localStream) {
+    if (node) {
       node.srcObject = localStream;
     }
   }, [localStream]);
 
   const peerVideoCallbackRef = useCallback((node: HTMLVideoElement | null) => {
     peerVideoRef.current = node;
-    if (node && remoteStream) {
+    if (node) {
       node.srcObject = remoteStream;
     }
   }, [remoteStream]);
@@ -1094,7 +1094,7 @@ export default function DashboardPage() {
 
   // WebRTC Peer Connection & Signaling handler
   useEffect(() => {
-    if (!isVideoCallOpen || !activeVideoSession || !localStream) {
+    if (!isVideoCallOpen || !activeVideoSession || !localStream || !user) {
       setRemoteStream(null);
       setChatMessages([]);
       return;
@@ -1185,7 +1185,12 @@ export default function DashboardPage() {
 
     // ─── Unified signal sender: BroadcastChannel + HTTP ───
     const broadcastSend = (msg: any) => {
-      const payload = JSON.stringify(msg);
+      const payloadObj = {
+        ...msg,
+        senderId: user.id,
+        timestamp: Date.now()
+      };
+      const payload = JSON.stringify(payloadObj);
       // Always send on BroadcastChannel for same-browser
       try {
         broadcastChannelRef.current?.postMessage(payload);
@@ -1207,7 +1212,13 @@ export default function DashboardPage() {
     const handleSignal = async (dataStr: string) => {
       try {
         const msg = typeof dataStr === "object" ? dataStr : JSON.parse(dataStr);
-        
+        if (!msg) return;
+
+        // Reject self-sent signals immediately to prevent loops and self-connection
+        if (msg.senderId && String(msg.senderId) === String(user.id)) {
+          return;
+        }
+
         if (msg.type === "offer" && !negotiationDone) {
           console.log("[Signal] Received offer, creating answer...");
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
@@ -1331,7 +1342,7 @@ export default function DashboardPage() {
         }
       } catch (e) { /* ignore */ }
     };
-  }, [isVideoCallOpen, activeVideoSession, localStream]);
+  }, [isVideoCallOpen, activeVideoSession, localStream, user]);
 
 
 
