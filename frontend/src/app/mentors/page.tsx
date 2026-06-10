@@ -472,14 +472,14 @@ export default function MentorsPage() {
                         <div className="text-center py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-primary font-semibold">
                           This is You
                         </div>
-                      ) : user?.role === "mentor" ? (
-                        <div className="text-center py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-muted font-semibold">
-                          Mentors cannot book sessions
-                        </div>
                       ) : isAdmin ? (
                         <Button size="sm" variant="outline" onClick={() => setBookingMentor(match.mentor)} className="w-full">
                           View Profile
                         </Button>
+                      ) : user?.role === "mentor" ? (
+                        <div className="text-center py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-muted font-semibold">
+                          Mentors cannot book sessions
+                        </div>
                       ) : (
                         <Button size="sm" onClick={() => handleOpenBookingModal(match.mentor)} className="w-full">
                           Book Session Now
@@ -698,13 +698,13 @@ export default function MentorsPage() {
                             <Button size="sm" variant="outline" disabled className="opacity-50">
                               This is You
                             </Button>
-                          ) : user?.role === "mentor" ? (
-                            <Button size="sm" variant="outline" disabled className="opacity-50">
-                              Booking Disabled
-                            </Button>
                           ) : isAdmin ? (
                             <Button size="sm" variant="outline" onClick={() => setBookingMentor(mentor)}>
                               View Profile
+                            </Button>
+                          ) : user?.role === "mentor" ? (
+                            <Button size="sm" variant="outline" disabled className="opacity-50">
+                              Booking Disabled
                             </Button>
                           ) : (
                             <Button size="sm" onClick={() => handleOpenBookingModal(mentor)}>

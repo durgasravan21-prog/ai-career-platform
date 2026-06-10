@@ -91,7 +91,7 @@ export default function DashboardPage() {
   const [leaveCooldown, setLeaveCooldown] = useState<number>(0);
 
   // Admin Dashboard States
-  const [adminActiveTab, setAdminActiveTab] = useState<"reviews" | "users" | "sessions" | "performance" | "pricing" | "agreements">("reviews");
+  const [adminActiveTab, setAdminActiveTab] = useState<"reviews" | "users" | "sessions" | "performance" | "pricing" | "commission" | "agreements">("reviews");
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
   const [allMentors, setAllMentors] = useState<Mentor[]>([]);
   const [editingMentorPricing, setEditingMentorPricing] = useState<string | null>(null);
@@ -1993,6 +1993,9 @@ Signed Digitally by:
                 <Video className="h-4 w-4 mr-2" /> Switch to Coach View
               </Button>
               <Button variant="outline" onClick={() => router.push("/profile")}>
+                <Users className="h-4 w-4 mr-2" /> View Profile
+              </Button>
+              <Button variant="outline" onClick={() => router.push("/profile")}>
                 <Settings className="h-4 w-4 mr-2" /> Admin Settings
               </Button>
             </div>
@@ -2110,6 +2113,17 @@ Signed Digitally by:
               )}
             >
               Pricing Control
+            </button>
+            <button
+              onClick={() => setAdminActiveTab("commission")}
+              className={cn(
+                "py-3 px-6 font-semibold text-sm border-b-2 transition-all whitespace-nowrap",
+                adminActiveTab === "commission"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-foreground"
+              )}
+            >
+              Commission & Revenue
             </button>
             <button
               onClick={() => setAdminActiveTab("agreements")}
@@ -2795,7 +2809,254 @@ Signed Digitally by:
             </Card>
           )}
 
-          {/* TAB 5: ONBOARDING AGREEMENTS */}
+          {/* TAB 6: COMMISSION & REVENUE TRACKING */}
+          {adminActiveTab === "commission" && (
+            <div className="space-y-8 animate-fadeIn">
+              {/* Commission Overview Stats */}
+              <div className="grid gap-6 md:grid-cols-4">
+                <Card className="p-5 bg-white/5 border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-success/10 border border-success/20 flex items-center justify-center text-success">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted uppercase tracking-wider block">Total Platform Revenue</span>
+                      <span className="text-lg font-bold text-foreground">
+                        {formatDualCurrencyAmount(
+                          allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
+                            const sessionEarnings = (m.total_sessions || 0) * (m.hourly_rate || 50);
+                            const revEarnings = m.review_earnings ?? ((m.reviewed_count || 0) * 0.75);
+                            return sum + sessionEarnings + revEarnings;
+                          }, 0)
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-5 bg-white/5 border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                      <TrendingUp className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted uppercase tracking-wider block">Platform Commission (15%)</span>
+                      <span className="text-lg font-bold text-success">
+                        {formatDualCurrencyAmount(
+                          allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
+                            const sessionEarnings = (m.total_sessions || 0) * (m.hourly_rate || 50);
+                            const revEarnings = m.review_earnings ?? ((m.reviewed_count || 0) * 0.75);
+                            return sum + (sessionEarnings + revEarnings) * 0.15;
+                          }, 0)
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-5 bg-white/5 border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/10 border border-secondary/20 flex items-center justify-center text-secondary">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted uppercase tracking-wider block">Active Coaches</span>
+                      <span className="text-lg font-bold text-foreground">
+                        {allMentors.filter(m => m.verification_status === "verified").length}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-5 bg-white/5 border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-warning/10 border border-warning/20 flex items-center justify-center text-warning">
+                      <Bell className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted uppercase tracking-wider block">Pending Payouts</span>
+                      <span className="text-lg font-bold text-warning">
+                        {allMentors.filter(m => m.verification_status === "verified" && (m.total_sessions || 0) > 0).length} coaches
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Commission Reminder Banner */}
+              <Card className="p-5 bg-gradient-to-r from-warning/5 to-primary/5 border-warning/20">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-warning/15 border border-warning/25 flex items-center justify-center text-warning">
+                      <Bell className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground">Commission Settlement Reminder</h4>
+                      <p className="text-xs text-muted mt-0.5">
+                        Platform commission rate is set at <strong className="text-primary">15%</strong> on all coaching sessions and <strong className="text-primary">10%</strong> on peer code reviews.
+                        Ensure timely settlements to maintain coach satisfaction and platform health.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge className="bg-warning/20 text-warning border-warning/30 text-[10px] whitespace-nowrap">
+                    Next Settlement: Monthly
+                  </Badge>
+                </div>
+              </Card>
+
+              {/* Per-Coach Commission Breakdown */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-success" />
+                  Per-Coach Commission Breakdown
+                </CardTitle>
+
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-4">Coach ID</th>
+                        <th className="p-4">Coach Name</th>
+                        <th className="p-4">Company</th>
+                        <th className="p-4 text-center">Total Sessions</th>
+                        <th className="p-4 text-center">Gross Earnings</th>
+                        <th className="p-4 text-center">Commission (15%)</th>
+                        <th className="p-4 text-center">Review Commission (10%)</th>
+                        <th className="p-4 text-center">Net Coach Payout</th>
+                        <th className="p-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {allMentors.filter(m => m.verification_status === "verified").map((m) => {
+                        const baseRate = m.hourly_rate || 50;
+                        const sessionsCount = m.total_sessions || 0;
+                        const reviewCount = m.reviewed_count || 0;
+                        const sessionGross = sessionsCount * baseRate;
+                        const reviewGross = m.review_earnings ?? (reviewCount * 0.75);
+                        const sessionCommission = sessionGross * 0.15;
+                        const reviewCommission = reviewGross * 0.10;
+                        const totalGross = sessionGross + reviewGross;
+                        const totalCommission = sessionCommission + reviewCommission;
+                        const netPayout = totalGross - totalCommission;
+                        const hasPendingPayout = sessionsCount > 0;
+
+                        return (
+                          <tr key={m.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                            <td className="p-4 font-mono font-bold text-primary">{m.mentor_id || `MNT-${m.id}`}</td>
+                            <td className="p-4">
+                              <div className="font-semibold text-foreground">{m.mentor_name || m.name}</div>
+                              <div className="text-muted text-[10px]">{m.email}</div>
+                            </td>
+                            <td className="p-4 text-muted">{m.company_name || "Self-Employed"}</td>
+                            <td className="p-4 text-center font-semibold">{sessionsCount}</td>
+                            <td className="p-4 text-center font-semibold text-foreground">{formatDualCurrencyAmount(totalGross)}</td>
+                            <td className="p-4 text-center font-bold text-primary">{formatDualCurrencyAmount(sessionCommission)}</td>
+                            <td className="p-4 text-center font-bold text-secondary">{formatDualCurrencyAmount(reviewCommission)}</td>
+                            <td className="p-4 text-center font-bold text-success">{formatDualCurrencyAmount(netPayout)}</td>
+                            <td className="p-4 text-center">
+                              {hasPendingPayout ? (
+                                <Badge className="bg-warning/20 text-warning border-warning/30 text-[10px]">
+                                  Pending Settlement
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-white/5 text-muted border-white/10 text-[10px]">
+                                  No Activity
+                                </Badge>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {allMentors.filter(m => m.verification_status === "verified").length === 0 && (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center text-muted italic">No verified coaches with commission data.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    {allMentors.filter(m => m.verification_status === "verified").length > 0 && (
+                      <tfoot>
+                        <tr className="bg-white/5 border-t border-white/10 font-bold text-foreground">
+                          <td className="p-4" colSpan={4}>TOTALS</td>
+                          <td className="p-4 text-center">
+                            {formatDualCurrencyAmount(
+                              allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
+                                return sum + ((m.total_sessions || 0) * (m.hourly_rate || 50)) + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75));
+                              }, 0)
+                            )}
+                          </td>
+                          <td className="p-4 text-center text-primary">
+                            {formatDualCurrencyAmount(
+                              allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
+                                return sum + ((m.total_sessions || 0) * (m.hourly_rate || 50)) * 0.15;
+                              }, 0)
+                            )}
+                          </td>
+                          <td className="p-4 text-center text-secondary">
+                            {formatDualCurrencyAmount(
+                              allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
+                                return sum + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75)) * 0.10;
+                              }, 0)
+                            )}
+                          </td>
+                          <td className="p-4 text-center text-success">
+                            {formatDualCurrencyAmount(
+                              allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
+                                const gross = ((m.total_sessions || 0) * (m.hourly_rate || 50)) + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75));
+                                const commission = ((m.total_sessions || 0) * (m.hourly_rate || 50)) * 0.15 + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75)) * 0.10;
+                                return sum + gross - commission;
+                              }, 0)
+                            )}
+                          </td>
+                          <td className="p-4"></td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </Card>
+
+              {/* Commission Rate Configuration Card */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-accent" />
+                  Commission Rate Policy
+                </CardTitle>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4 text-primary" />
+                      <h4 className="text-sm font-bold text-foreground">Coaching Session Commission</h4>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted">Commission Rate</span>
+                      <span className="text-lg font-extrabold text-primary">15%</span>
+                    </div>
+                    <p className="text-[11px] text-muted leading-relaxed">
+                      Applied to all paid 1-on-1 video coaching sessions. Commission is deducted before mentor payout.
+                    </p>
+                    <div className="bg-primary/5 border border-primary/15 rounded-xl p-3">
+                      <p className="text-[10px] text-primary font-semibold">Example: $100/hr session → $15 commission → $85 coach payout</p>
+                    </div>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <FolderKanban className="h-4 w-4 text-secondary" />
+                      <h4 className="text-sm font-bold text-foreground">Peer Review Commission</h4>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted">Commission Rate</span>
+                      <span className="text-lg font-extrabold text-secondary">10%</span>
+                    </div>
+                    <p className="text-[11px] text-muted leading-relaxed">
+                      Applied to all peer code review payouts. Lower rate to incentivize community reviews.
+                    </p>
+                    <div className="bg-secondary/5 border border-secondary/15 rounded-xl p-3">
+                      <p className="text-[10px] text-secondary font-semibold">Example: $3 review payout → $0.30 commission → $2.70 coach payout</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* TAB 7: ONBOARDING AGREEMENTS */}
           {adminActiveTab === "agreements" && (
             <Card className="p-6">
               <CardTitle className="mb-6 flex items-center gap-2">
@@ -3437,7 +3698,7 @@ Signed Digitally by:
                     <p>1. <strong>Coaching Obligations:</strong> The Mentor agrees to provide constructive code reviews, target-role roadmap advice, and structured project feedback to platform students.</p>
                     <p>2. <strong>Intellectual Property:</strong> The Mentor acknowledges that all code repositories, solutions, and files submitted by students are the sole property of the students. Mentors may not copy, share, or redistribute student code.</p>
                     <p>3. <strong>Availability Integrity:</strong> The Mentor agrees to maintain up-to-date availability calendars and attend booked 1-on-1 calls on time.</p>
-                    <p>4. <strong>Platform Commission:</strong> The Platform will process payments and credit rates directly. The Mentor agrees to the platform commission framework for paid slots.</p>
+                    <p>4. <strong>Platform Commission:</strong> The Platform will process payments and credit rates directly. The Mentor agrees to a <strong>15% platform commission</strong> on all paid coaching sessions and a <strong>10% commission</strong> on peer code review payouts. Commissions are deducted automatically before payout settlement. The Platform reserves the right to adjust commission rates with 30 days prior written notice.</p>
                   </div>
 
                   <label className="flex items-start gap-3 cursor-pointer select-none bg-white/5 border border-white/5 p-4 rounded-xl">
