@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -66,6 +67,10 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const { user, isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -5383,7 +5388,7 @@ Signed Digitally by:
   };
 
   const renderVideoCallModal = () => {
-    if (!activeVideoSession) return null;
+    if (!activeVideoSession || !isMounted) return null;
 
     const peerName = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified")
       ? (activeVideoSession.student_name || "Student")
@@ -5392,8 +5397,8 @@ Signed Digitally by:
     const peerInitials = peerName.split(" ").map((n: string) => n[0]).join("").toUpperCase();
     const myInitials = user?.name ? user.name.split(" ").map(n => n[0]).join("").toUpperCase() : "U";
 
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fadeIn">
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fadeIn">
         <div className="relative w-full h-full sm:max-w-6xl sm:h-[85vh] bg-[#0a0a0f]/90 border-0 sm:border border-white/10 sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl backdrop-blur-xl">
           {/* Header */}
           <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-white/5">
@@ -5834,7 +5839,8 @@ Signed Digitally by:
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   };
 
