@@ -30,6 +30,22 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBL
   ? process.env.NEXT_PUBLIC_API_URL
   : "/_/backend/api/v1";
 
+const SUPABASE_URL = "https://yczaawzduuegsurmzljk.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljemFhd3pkdXVlZ3N1cm16bGprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMDk4MTYsImV4cCI6MjA5NjU4NTgxNn0.WSqV-znpcCtca7x5c2mhV9WxfoAyy_dNA3WBXtIsTxk";
+
+export async function supabaseFetch(path: string, options: RequestInit = {}) {
+  const headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+  return fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    ...options,
+    headers
+  });
+}
+
 const MOCK_PROJECTS = [
   { id: 1, title: "E-Commerce Cloud Architecture", description: "Design a highly available microservices platform.", difficulty: "Advanced", tech_stack: ["AWS", "Kubernetes", "Docker", "Terraform"], estimated_hours: 40, career_relevance_score: 95.0 },
   { id: 2, title: "Real-time Chat Application", description: "Build a real-time messaging application with WebSockets.", difficulty: "Intermediate", tech_stack: ["React", "Node.js", "Express", "Socket.io"], estimated_hours: 25, career_relevance_score: 85.0 },
@@ -1778,25 +1794,71 @@ class ApiClient {
               });
               return;
             }
-            const newSession = {
-              id: mockSessions.length + 1,
-              student_id: currentUser.id,
-              mentee_id: currentUser.id,
-              student_name: currentUser.name || currentUser.email.split("@")[0],
-              mentor_id: body.mentor_id,
-              project_id: body.project_id || null,
-              scheduled_at: body.scheduled_at,
+
+            const status = mentor && mentor.hourly_rate === 0 ? "confirmed" : "pending";
+            const amountCents = mentor ? Math.floor(mentor.hourly_rate * 100) : 0;
+            const scheduledAt = body.scheduled_at;
+
+            const supabaseSession = {
+              student_id: parseInt(currentUser.id) || 9,
+              mentor_id: parseInt(String(body.mentor_id).replace(/\D/g, "")) || 4,
+              project_id: body.project_id ? parseInt(String(body.project_id).replace(/\D/g, "")) : null,
+              scheduled_at: scheduledAt,
               duration_minutes: body.duration_minutes || 60,
-              status: mentor && mentor.hourly_rate === 0 ? "confirmed" : "pending",
-              amount_cents: mentor ? Math.floor(mentor.hourly_rate * 100) : 0,
-              mentor_name: mentor ? mentor.name : "Coach",
-              is_reviewed: false,
+              status: status,
+              amount_cents: amountCents,
               created_at: new Date().toISOString()
             };
 
-            mockSessions.push(newSession);
-            localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
-            resolve(newSession as any);
+            supabaseFetch("/mentor_sessions", {
+              method: "POST",
+              headers: { "Prefer": "return=representation" },
+              body: JSON.stringify(supabaseSession)
+            })
+            .then(res => res.json())
+            .then(data => {
+              const inserted = data[0] || {};
+              const newSession = {
+                id: inserted.id || (mockSessions.length + 1),
+                student_id: currentUser.id,
+                mentee_id: currentUser.id,
+                student_name: currentUser.name || currentUser.email.split("@")[0],
+                mentor_id: body.mentor_id,
+                project_id: body.project_id || null,
+                scheduled_at: scheduledAt,
+                duration_minutes: body.duration_minutes || 60,
+                status: status,
+                amount_cents: amountCents,
+                mentor_name: mentor ? mentor.name : "Coach",
+                is_reviewed: false,
+                created_at: new Date().toISOString()
+              };
+
+              mockSessions.push(newSession);
+              localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
+              resolve(newSession as any);
+            })
+            .catch(err => {
+              console.error("Supabase bookSession error:", err);
+              const newSession = {
+                id: mockSessions.length + 1,
+                student_id: currentUser.id,
+                mentee_id: currentUser.id,
+                student_name: currentUser.name || currentUser.email.split("@")[0],
+                mentor_id: body.mentor_id,
+                project_id: body.project_id || null,
+                scheduled_at: scheduledAt,
+                duration_minutes: body.duration_minutes || 60,
+                status: status,
+                amount_cents: amountCents,
+                mentor_name: mentor ? mentor.name : "Coach",
+                is_reviewed: false,
+                created_at: new Date().toISOString()
+              };
+              mockSessions.push(newSession);
+              localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
+              resolve(newSession as any);
+            });
             return;
           }
 
@@ -1806,68 +1868,93 @@ class ApiClient {
               return;
             }
 
-            // Auto-expire mock sessions that are confirmed/pending and started more than 1 hour ago
-            const now = new Date();
-            let mockModified = false;
-            mockSessions.forEach((s: any) => {
-              if (s.status === "pending" || s.status === "confirmed") {
-                const sched = new Date(s.scheduled_at);
-                const duration = s.duration_minutes || 60;
-                if (now.getTime() > (sched.getTime() + duration * 60 * 1000)) {
-                  s.status = "completed";
-                  mockModified = true;
+            supabaseFetch("/mentor_sessions?order=id.asc")
+              .then(res => res.json())
+              .then(remoteSessions => {
+                const mappedRemote = (remoteSessions || []).map((s: any) => {
+                  const mentor = mockMentors.find((m: any) => String(m.id) === String(s.mentor_id) || String(m.user_id) === String(s.mentor_id));
+                  return {
+                    id: s.id,
+                    mentor_id: String(s.mentor_id),
+                    mentor_name: mentor ? (mentor.mentor_name || mentor.name) : `Coach #${s.mentor_id}`,
+                    mentee_id: String(s.student_id),
+                    student_id: String(s.student_id),
+                    student_name: s.student_name || `Student #${s.student_id}`,
+                    project_id: s.project_id ? String(s.project_id) : null,
+                    scheduled_at: s.scheduled_at,
+                    duration_minutes: s.duration_minutes || 60,
+                    status: s.status || "pending",
+                    amount_cents: s.amount_cents || 0,
+                    price: (s.amount_cents || 0) / 100,
+                    is_reviewed: s.is_reviewed || false,
+                    created_at: s.created_at || new Date().toISOString()
+                  };
+                });
+
+                // Combine local storage mock sessions and mapped remote sessions.
+                // Filter out duplicates using the ID.
+                const combined = [...mockSessions];
+                mappedRemote.forEach((rs: any) => {
+                  const idx = combined.findIndex((s: any) => String(s.id) === String(rs.id));
+                  if (idx >= 0) {
+                    combined[idx] = rs;
+                  } else {
+                    combined.push(rs);
+                  }
+                });
+
+                // Update local storage
+                localStorage.setItem("mock_sessions", JSON.stringify(combined));
+
+                // Filter for currentUser
+                const mentorProfile = mockMentors.find((m: any) => 
+                  String(m.user_id) === String(currentUser.id) || 
+                  (m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
+                );
+                const mentorProfileId = mentorProfile ? String(mentorProfile.id) : null;
+
+                if (currentUser.email.toLowerCase() === "durgasravan21@gmail.com") {
+                  resolve(combined as any);
+                  return;
                 }
-              }
-            });
-            if (mockModified) {
-              localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
-            }
 
-            const mentorProfile = mockMentors.find((m: any) => 
-              String(m.user_id) === String(currentUser.id) || 
-              (m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
-            );
-            const mentorProfileId = mentorProfile ? String(mentorProfile.id) : null;
+                const userSessions = combined.filter((s: any) => {
+                  const isStudentMatch = String(s.student_id) === String(currentUser.id) || 
+                                         String(s.mentee_id) === String(currentUser.id);
+                  if (isStudentMatch) return true;
 
-            if (currentUser.email.toLowerCase() === "durgasravan21@gmail.com") {
-              resolve(mockSessions as any);
-              return;
-            }
+                  const sMentorIdStr = String(s.mentor_id);
+                  const curUserIdStr = String(currentUser.id);
 
-            const userSessions = mockSessions.filter((s: any) => {
-              // 1. Check if the user is the student
-              const isStudentMatch = String(s.student_id) === String(currentUser.id) || 
-                                     String(s.mentee_id) === String(currentUser.id);
-              if (isStudentMatch) return true;
+                  if (sMentorIdStr === curUserIdStr) return true;
+                  if (mentorProfileId && sMentorIdStr === mentorProfileId) return true;
 
-              // 2. Direct match on mentor ID
-              const sMentorIdStr = String(s.mentor_id);
-              const curUserIdStr = String(currentUser.id);
+                  const normSMentorId = sMentorIdStr.replace("mentor_", "");
+                  const normMentorProfileId = mentorProfileId ? mentorProfileId.replace("mentor_", "") : "";
+                  const normCurUserId = curUserIdStr.replace("mentor_", "");
 
-              if (sMentorIdStr === curUserIdStr) return true;
-              if (mentorProfileId && sMentorIdStr === mentorProfileId) return true;
+                  if (normSMentorId === normCurUserId) return true;
+                  if (normMentorProfileId && normSMentorId === normMentorProfileId) return true;
 
-              // 3. Normalized ID match (stripping 'mentor_' prefix)
-              const normSMentorId = sMentorIdStr.replace("mentor_", "");
-              const normMentorProfileId = mentorProfileId ? mentorProfileId.replace("mentor_", "") : "";
-              const normCurUserId = curUserIdStr.replace("mentor_", "");
+                  const sessionMentor = mockMentors.find((m: any) => 
+                    String(m.id) === sMentorIdStr || 
+                    String(m.id).replace("mentor_", "") === normSMentorId
+                  );
+                  if (sessionMentor) {
+                    if (String(sessionMentor.user_id) === curUserIdStr) return true;
+                    if (sessionMentor.email && currentUser.email && sessionMentor.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
+                  }
 
-              if (normSMentorId === normCurUserId) return true;
-              if (normMentorProfileId && normSMentorId === normMentorProfileId) return true;
+                  return false;
+                });
 
-              // 4. Look up the mentor in mockMentors list to verify if their email/user_id matches the logged-in user
-              const sessionMentor = mockMentors.find((m: any) => 
-                String(m.id) === sMentorIdStr || 
-                String(m.id).replace("mentor_", "") === normSMentorId
-              );
-              if (sessionMentor) {
-                if (String(sessionMentor.user_id) === curUserIdStr) return true;
-                if (sessionMentor.email && currentUser.email && sessionMentor.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
-              }
-
-              return false;
-            });
-            resolve(userSessions as any);
+                resolve(userSessions as any);
+              })
+              .catch(err => {
+                console.error("Supabase session fetch error:", err);
+                // Fallback to local sessions on error
+                resolve(mockSessions as any);
+              });
             return;
           }
 
@@ -2008,17 +2095,106 @@ class ApiClient {
             const sessionId = parseInt(parts[3]);
             const newStatus = body.status;
 
+            // Update in Supabase
+            supabaseFetch(`/mentor_sessions?id=eq.${sessionId}`, {
+              method: "PATCH",
+              body: JSON.stringify({
+                status: newStatus,
+                updated_at: new Date().toISOString()
+              })
+            }).catch(e => console.error("Supabase session status update failed:", e));
+
             const session = mockSessions.find((s: any) => s.id === sessionId);
             if (session) {
               session.status = newStatus;
-              if (newStatus === "confirmed") {
-                session.scheduled_at = new Date().toISOString();
-              }
               localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
               resolve(session as any);
             } else {
-              reject({ message: "Session not found", status: 404 });
+              resolve({
+                id: sessionId,
+                status: newStatus
+              } as any);
             }
+            return;
+          }
+
+          if (path.startsWith("/mentors/sessions/") && path.endsWith("/signal") && method === "POST") {
+            const parts = path.split("/");
+            const sessionId = parts[3];
+            const payload = body.payload;
+
+            const cleanSessionId = typeof sessionId === 'string' 
+              ? parseInt(sessionId.replace(/\D/g, "")) 
+              : sessionId;
+            const sessId = isNaN(cleanSessionId) ? 1 : cleanSessionId;
+
+            const senderId = currentUser ? parseInt(currentUser.id) : null;
+            const validSenderId = (senderId !== null && !isNaN(senderId)) ? senderId : null;
+
+            supabaseFetch("/webrtc_signals", {
+              method: "POST",
+              headers: { "Prefer": "return=representation" },
+              body: JSON.stringify({
+                session_id: sessId,
+                sender_id: validSenderId,
+                payload: payload,
+                created_at: new Date().toISOString()
+              })
+            })
+            .then(res => res.json())
+            .then(data => {
+              resolve(data[0] || {});
+            })
+            .catch(err => {
+              console.error("Supabase postSignal error:", err);
+              // Fallback to local storage
+              const mockSignals = JSON.parse(localStorage.getItem(`mock_signals_${sessionId}`) || "[]");
+              const newSig = {
+                id: mockSignals.length + 1,
+                session_id: sessionId,
+                sender_id: currentUser ? currentUser.id : "1",
+                payload: payload,
+                created_at: new Date().toISOString()
+              };
+              mockSignals.push(newSig);
+              localStorage.setItem(`mock_signals_${sessionId}`, JSON.stringify(mockSignals));
+              resolve(newSig as any);
+            });
+            return;
+          }
+
+          if (path.startsWith("/mentors/sessions/") && path.includes("/signals") && method === "GET") {
+            const parts = path.split("/");
+            const sessionId = parts[3];
+            const afterId = query.get("after_id");
+
+            const cleanSessionId = typeof sessionId === 'string' 
+              ? parseInt(sessionId.replace(/\D/g, "")) 
+              : sessionId;
+            const sessId = isNaN(cleanSessionId) ? 1 : cleanSessionId;
+
+            let url = `/webrtc_signals?session_id=eq.${sessId}`;
+            if (afterId) {
+              url += `&id=gt.${afterId}`;
+            }
+            url += `&order=id.asc`;
+
+            supabaseFetch(url)
+            .then(res => res.json())
+            .then(data => {
+              resolve(data || []);
+            })
+            .catch(err => {
+              console.error("Supabase getSignals error:", err);
+              // Fallback to local storage
+              const mockSignals = JSON.parse(localStorage.getItem(`mock_signals_${sessionId}`) || "[]");
+              if (afterId) {
+                const afterIdNum = parseInt(afterId);
+                resolve(mockSignals.filter((s: any) => s.id > afterIdNum) as any);
+              } else {
+                resolve(mockSignals as any);
+              }
+            });
             return;
           }
 
