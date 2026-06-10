@@ -1336,13 +1336,26 @@ export default function DashboardPage() {
     const startCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: { width: 640, height: 480, frameRate: { ideal: 15, max: 24 } },
           audio: true,
         });
         activeStream = stream;
         setLocalStream(stream);
       } catch (err) {
-        console.warn("Camera/Mic access not granted or unavailable:", err);
+        console.warn("Camera/Mic access not granted or unavailable, trying audio-only...", err);
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: true,
+          });
+          activeStream = audioStream;
+          setLocalStream(audioStream);
+          setIsVideoMuted(true);
+        } catch (audioErr) {
+          console.error("Audio-only access also failed:", audioErr);
+          // Set a fallback silent stream if supported, or let user connect without media
+          setTranscriptionLogs(prev => [...prev, "System: [Error: Microphone/Camera access denied. Please check permissions.]"]);
+        }
       }
     };
 
@@ -1819,7 +1832,7 @@ export default function DashboardPage() {
       }
     };
 
-    function startHttpFallback() {
+     function startHttpFallback() {
       if (pollingActive) return;
       console.log("[Signal] Starting HTTP polling fallback...");
       pollingActive = true;
@@ -1829,9 +1842,11 @@ export default function DashboardPage() {
         try {
           const signals = await api.mentors.getSignals(sessionId, lastSignalId);
           if (signals && signals.length > 0) {
+            let maxId = lastSignalId;
             signals.forEach((sig: any) => {
-              if (sig.id > lastSignalId) {
-                lastSignalId = sig.id;
+              const numericId = typeof sig.id === "string" ? parseInt(sig.id) : sig.id;
+              if (!isNaN(numericId) && numericId > maxId) {
+                maxId = numericId;
               }
               
               let msgObj: any = null;
@@ -1847,6 +1862,7 @@ export default function DashboardPage() {
                 }
               }
             });
+            lastSignalId = maxId;
           }
         } catch (err) {
           console.warn("[Signal] HTTP fallback poll failed:", err);
