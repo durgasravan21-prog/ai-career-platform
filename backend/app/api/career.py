@@ -295,13 +295,17 @@ async def generate_roadmap(
         db=db,
     )
 
-    # Persist career path (and deactivate old active paths)
-    from sqlalchemy import update
-    await db.execute(
-        update(CareerPath)
-        .where(CareerPath.user_id == current_user.id, CareerPath.status == CareerPathStatus.active)
-        .values(status=CareerPathStatus.paused)
+    # Persist career path (and deactivate old active paths) using select-and-update to keep ORM session consistent
+    result_cp = await db.execute(
+        select(CareerPath).where(
+            CareerPath.user_id == current_user.id,
+            CareerPath.status == CareerPathStatus.active
+        )
     )
+    active_paths = result_cp.scalars().all()
+    for cp in active_paths:
+        cp.status = CareerPathStatus.paused
+    await db.flush()
 
     career_path = CareerPath(
         user_id=current_user.id,

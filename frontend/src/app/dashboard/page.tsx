@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -53,6 +53,7 @@ import {
   Loader2,
   Video,
   Camera,
+  Phone,
   PhoneOff,
   Mic,
   MicOff,
@@ -495,14 +496,29 @@ export default function DashboardPage() {
   const [editingProject, setEditingProject] = useState<any | null>(null);
   const [isVideoCallOpen, setIsVideoCallOpen] = useState<boolean>(false);
   const [activeVideoSession, setActiveVideoSession] = useState<any | null>(null);
+  const [activeCallSessionAlert, setActiveCallSessionAlert] = useState<any | null>(null);
   const [transcriptionLogs, setTranscriptionLogs] = useState<string[]>([]);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerVideoRef = useRef<HTMLVideoElement | null>(null);
-
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+
+  const localVideoCallbackRef = useCallback((node: HTMLVideoElement | null) => {
+    localVideoRef.current = node;
+    if (node && localStream) {
+      node.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  const peerVideoCallbackRef = useCallback((node: HTMLVideoElement | null) => {
+    peerVideoRef.current = node;
+    if (node && remoteStream) {
+      node.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
   const [sidebarTab, setSidebarTab] = useState<"transcript" | "chat">("transcript");
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInputText, setChatInputText] = useState<string>("");
@@ -514,25 +530,17 @@ export default function DashboardPage() {
   const [callConnectionState, setCallConnectionState] = useState<"connecting" | "ringing" | "connected" | "reconnecting" | "failed">("connecting");
 
   const sendSignal = async (msg: any) => {
-    const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
-      (window.location.hostname === "localhost" || 
-       window.location.hostname === "127.0.0.1" || 
-       window.location.hostname.includes("loca.lt") || 
-       window.location.hostname.includes("ngrok"));
     const payload = JSON.stringify(msg);
-    if (isOffline) {
-      if (broadcastChannelRef.current) {
-        broadcastChannelRef.current.postMessage(payload);
-      }
-    } else {
-      if (signalingSocketRef.current && signalingSocketRef.current.readyState === WebSocket.OPEN) {
-        signalingSocketRef.current.send(payload);
-      } else {
-        try {
-          await api.mentors.postSignal(activeVideoSession.id, payload);
-        } catch (err) {
-          console.error("HTTP postSignal failed:", err);
-        }
+    // Always broadcast on BroadcastChannel for same-browser communication
+    try {
+      broadcastChannelRef.current?.postMessage(payload);
+    } catch (e) { /* channel may not be open yet */ }
+    // Also send via HTTP for cross-device signaling
+    if (activeVideoSession) {
+      try {
+        await api.mentors.postSignal(activeVideoSession.id, payload);
+      } catch (err) {
+        console.warn("[Signal] HTTP postSignal failed (non-critical):", err);
       }
     }
   };
@@ -776,20 +784,52 @@ export default function DashboardPage() {
 
   // Background sessions polling hook (polls every 8 seconds when not actively in a call)
   useEffect(() => {
-    if (!isAuthenticated || isVideoCallOpen) return;
+    if (!isAuthenticated || isVideoCallOpen) {
+      setActiveCallSessionAlert(null);
+      return;
+    }
 
     const pollSessions = async () => {
       try {
         const sessionsData = await api.mentors.getMySessions();
         setMentorSessions(sessionsData || []);
+
+        // Check if there is a call session active right now (starts within 30 mins, or started less than 1 hour ago)
+        const currentActive = (sessionsData || []).find((s: any) => {
+          if (s.status !== "confirmed") return false;
+          const schedTime = new Date(s.scheduled_at).getTime();
+          const now = Date.now();
+          return (now - schedTime > -30 * 60 * 1000) && (now - schedTime < 60 * 60 * 1000);
+        });
+
+        if (currentActive) {
+          // Poll signals for this active session to see if peer is in room
+          try {
+            const signals = await api.mentors.getSignals(currentActive.id);
+            const peerSignals = (signals || []).filter((sig: any) => String(sig.sender_id) !== String(user?.id));
+            if (peerSignals.length > 0) {
+              setActiveCallSessionAlert(currentActive);
+            } else {
+              setActiveCallSessionAlert(null);
+            }
+          } catch (e) {
+            setActiveCallSessionAlert(null);
+          }
+        } else {
+          setActiveCallSessionAlert(null);
+        }
       } catch (pollErr) {
         console.warn("Sessions polling failed:", pollErr);
       }
     };
 
+    pollSessions();
     const interval = setInterval(pollSessions, 8000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, isVideoCallOpen]);
+    return () => {
+      clearInterval(interval);
+      setActiveCallSessionAlert(null);
+    };
+  }, [isAuthenticated, isVideoCallOpen, user]);
 
   // 1-minute peer connection offline detection timer
   useEffect(() => {
@@ -1060,11 +1100,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const isOffline = sessionStorage.getItem("backend_offline") === "true" &&
-      (window.location.hostname === "localhost" || 
-       window.location.hostname === "127.0.0.1" || 
-       window.location.hostname.includes("loca.lt") || 
-       window.location.hostname.includes("ngrok"));
+    const sessionId = activeVideoSession.id;
     const pcConfig: RTCConfiguration = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -1098,7 +1134,7 @@ export default function DashboardPage() {
 
     // Track WebRTC connection state for UI feedback
     pc.onconnectionstatechange = () => {
-      console.log("WebRTC connection state:", pc.connectionState);
+      console.log("[WebRTC] Connection state:", pc.connectionState);
       switch (pc.connectionState) {
         case "connecting":
           setCallConnectionState("ringing");
@@ -1112,13 +1148,11 @@ export default function DashboardPage() {
         case "failed":
           setCallConnectionState("failed");
           break;
-        case "closed":
-          break;
       }
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log("ICE connection state:", pc.iceConnectionState);
+      console.log("[WebRTC] ICE state:", pc.iceConnectionState);
       if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
         setCallConnectionState("connected");
       } else if (pc.iceConnectionState === "checking") {
@@ -1127,8 +1161,7 @@ export default function DashboardPage() {
         setCallConnectionState("reconnecting");
       } else if (pc.iceConnectionState === "failed") {
         setCallConnectionState("failed");
-        // Attempt ICE restart on failure
-        pc.restartIce();
+        try { pc.restartIce(); } catch (e) { console.warn("[WebRTC] ICE restart failed:", e); }
       }
     };
 
@@ -1144,209 +1177,163 @@ export default function DashboardPage() {
       }
     };
 
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        sendSignal({ type: "candidate", candidate: event.candidate });
-      }
-    };
-
     const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
                       String(activeVideoSession.mentee_id) === String(user?.id);
 
     const iceCandidatesQueue: any[] = [];
+    let negotiationDone = false;
 
+    // ─── Unified signal sender: BroadcastChannel + HTTP ───
+    const broadcastSend = (msg: any) => {
+      const payload = JSON.stringify(msg);
+      // Always send on BroadcastChannel for same-browser
+      try {
+        broadcastChannelRef.current?.postMessage(payload);
+      } catch (e) { /* ignore */ }
+      // Also send via HTTP for cross-device
+      api.mentors.postSignal(sessionId, payload).catch((err: any) => {
+        console.warn("[Signal] HTTP post failed (non-critical):", err);
+      });
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        broadcastSend({ type: "candidate", candidate: event.candidate });
+      }
+    };
+
+    // ─── Signal message handler ───
     const handleSignal = async (dataStr: string) => {
       try {
-        const msg = JSON.parse(dataStr);
-        if (msg.type === "offer") {
+        const msg = typeof dataStr === "object" ? dataStr : JSON.parse(dataStr);
+        
+        if (msg.type === "offer" && !negotiationDone) {
+          console.log("[Signal] Received offer, creating answer...");
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          sendSignal({ type: "answer", sdp: answer });
+          broadcastSend({ type: "answer", sdp: answer });
+          negotiationDone = true;
           
-          // Process queued candidates
+          // Process queued ICE candidates
           while (iceCandidatesQueue.length > 0) {
             const cand = iceCandidatesQueue.shift();
-            if (cand) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e => 
-                console.warn("Failed to add queued candidate:", e)
-              );
-            }
+            if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
           }
-        } else if (msg.type === "answer") {
+        } else if (msg.type === "answer" && !negotiationDone) {
+          console.log("[Signal] Received answer");
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          negotiationDone = true;
           
-          // Process queued candidates
+          // Process queued ICE candidates
           while (iceCandidatesQueue.length > 0) {
             const cand = iceCandidatesQueue.shift();
-            if (cand) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e => 
-                console.warn("Failed to add queued candidate:", e)
-              );
-            }
+            if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
           }
         } else if (msg.type === "candidate") {
           if (msg.candidate) {
             if (pc.remoteDescription) {
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(e => 
-                console.warn("Failed to add candidate:", e)
-              );
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
             } else {
               iceCandidatesQueue.push(msg.candidate);
             }
           }
-        } else if (msg.type === "join") {
-          if (isStudent) {
+        } else if (msg.type === "join" && !negotiationDone) {
+          // Peer joined — student creates the offer
+          if (isStudent && pc.signalingState === "stable") {
+            console.log("[Signal] Peer joined, creating offer (student role)...");
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            sendSignal({ type: "offer", sdp: offer });
+            broadcastSend({ type: "offer", sdp: offer });
           }
         } else if (msg.type === "chat") {
           setChatMessages(prev => [...prev, msg.message]);
         }
       } catch (err) {
-        console.error("Error handling WebRTC signaling:", err);
+        console.error("[Signal] Error handling signal:", err);
       }
     };
 
-    if (isOffline) {
-      const channel = new BroadcastChannel(`webrtc_signal_${activeVideoSession.id}`);
-      broadcastChannelRef.current = channel;
-      channel.onmessage = (event) => {
-        handleSignal(event.data);
-      };
+    // ─── BroadcastChannel: ALWAYS active for same-browser ───
+    const channelName = `webrtc_signal_${sessionId}`;
+    const channel = new BroadcastChannel(channelName);
+    broadcastChannelRef.current = channel;
+    channel.onmessage = (event) => {
+      handleSignal(event.data);
+    };
 
-      setTimeout(() => {
-        sendSignal({ type: "join", isStudent });
-        if (isStudent) {
-          pc.createOffer().then(async (offer) => {
-            await pc.setLocalDescription(offer);
-            sendSignal({ type: "offer", sdp: offer });
-          });
-        }
-      }, 500);
-    } else {
-      let wsUrl = "";
-      if (API_URL.startsWith("http://") || API_URL.startsWith("https://")) {
-        wsUrl = API_URL.replace("/api/v1", "").replace("http://", "ws://").replace("https://", "wss://") + `/ws/signal/${activeVideoSession.id}`;
-      } else {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const host = window.location.host;
-        const basePath = API_URL.replace("/api/v1", "");
-        wsUrl = `${protocol}//${host}${basePath}/ws/signal/${activeVideoSession.id}`;
-      }
+    // ─── HTTP Polling: for cross-device signaling ───
+    let lastSignalId = -1;
+    let pollingActive = true;
 
-      let wsConnected = false;
-      let pollingInterval: any = null;
-      let lastSignalId = 0;
-
-      const startPolling = () => {
-        if (pollingInterval) return;
-        console.log("Starting WebRTC HTTP signaling polling fallback...");
-        
-        // Immediate first poll
-        api.mentors.getSignals(activeVideoSession.id, lastSignalId).then((signals) => {
+    const pollSignals = async () => {
+      if (!pollingActive) return;
+      try {
+        if (lastSignalId === -1) {
+          // First poll: get all existing signals to find the latest ID, but do NOT process them
+          const signals = await api.mentors.getSignals(sessionId);
           if (signals && signals.length > 0) {
-            signals.forEach((sig) => {
-              if (sig.id > lastSignalId) {
-                lastSignalId = sig.id;
-              }
-              if (String(sig.sender_id) !== String(user?.id)) {
-                handleSignal(sig.payload);
-              }
-            });
+            const maxId = Math.max(...signals.map((s: any) => s.id));
+            lastSignalId = maxId;
+          } else {
+            lastSignalId = 0;
           }
-        }).catch((err) => console.error("Initial signaling poll failed:", err));
+          console.log("[Signal] Initialized lastSignalId to:", lastSignalId);
+          return;
+        }
 
-        pollingInterval = setInterval(async () => {
-          try {
-            const signals = await api.mentors.getSignals(activeVideoSession.id, lastSignalId);
-            if (signals && signals.length > 0) {
-              signals.forEach((sig) => {
-                if (sig.id > lastSignalId) {
-                  lastSignalId = sig.id;
-                }
-                if (String(sig.sender_id) !== String(user?.id)) {
-                  handleSignal(sig.payload);
-                }
-              });
+        const signals = await api.mentors.getSignals(sessionId, lastSignalId);
+        if (signals && signals.length > 0) {
+          signals.forEach((sig: any) => {
+            if (sig.id > lastSignalId) lastSignalId = sig.id;
+            // Only process signals from the other user
+            if (String(sig.sender_id) !== String(user?.id)) {
+              handleSignal(sig.payload);
             }
-          } catch (err) {
-            console.error("HTTP signals polling failed:", err);
-          }
-        }, 1200);
-      };
-
-      const ws = new WebSocket(wsUrl);
-      signalingSocketRef.current = ws;
-
-      ws.onopen = () => {
-        console.log("WebRTC signaling WS connected.");
-        wsConnected = true;
-        sendSignal({ type: "join", isStudent });
-        if (isStudent) {
-          pc.createOffer().then(async (offer) => {
-            await pc.setLocalDescription(offer);
-            sendSignal({ type: "offer", sdp: offer });
           });
         }
-      };
+      } catch (err) {
+        // Non-critical: HTTP polling might fail if backend is unreachable
+        console.warn("[Signal] HTTP poll failed:", err);
+      }
+    };
 
-      ws.onmessage = (event) => {
-        handleSignal(event.data);
-      };
+    // Start polling immediately, then every 1.5s
+    pollSignals();
+    const pollingInterval = setInterval(pollSignals, 1500);
 
-      ws.onerror = (err) => {
-        console.error("Signaling socket error, switching to HTTP polling:", err);
-        startPolling();
-      };
-
-      ws.onclose = () => {
-        console.log("Signaling socket closed. Fallback to HTTP polling...");
-        startPolling();
-      };
-
-      const wsFallbackTimeout = setTimeout(() => {
-        if (!wsConnected) {
-          console.warn("WS connection timed out. Forcing HTTP polling fallback...");
-          startPolling();
+    // ─── Send join signal after short delay ───
+    const joinTimeout = setTimeout(async () => {
+      try {
+        broadcastSend({ type: "join", isStudent });
+        // Student creates offer proactively
+        if (isStudent) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          broadcastSend({ type: "offer", sdp: offer });
         }
-      }, 2500);
+      } catch (err) {
+        console.error("[Signal] Failed to send initial join/offer:", err);
+      }
+    }, 800);
 
-      return () => {
+    // ─── Cleanup ───
+    return () => {
+      pollingActive = false;
+      clearInterval(pollingInterval);
+      clearTimeout(joinTimeout);
+      try { channel.close(); } catch (e) { /* ignore */ }
+      try {
         if (peerConnectionRef.current) {
           peerConnectionRef.current.close();
+          peerConnectionRef.current = null;
         }
-        if (signalingSocketRef.current) {
-          signalingSocketRef.current.close();
-        }
-        if (broadcastChannelRef.current) {
-          broadcastChannelRef.current.close();
-        }
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-        }
-        clearTimeout(wsFallbackTimeout);
-      };
-    }
+      } catch (e) { /* ignore */ }
+    };
   }, [isVideoCallOpen, activeVideoSession, localStream]);
 
-  // Bind local stream to video elements on mount/unmute
-  useEffect(() => {
-    if (isVideoCallOpen && localStream) {
-      if (!isVideoMuted && localVideoRef.current) {
-        localVideoRef.current.srcObject = localStream;
-      }
-    }
-  }, [localStream, isVideoMuted, isVideoCallOpen]);
 
-  // Bind remote stream to peer video element on track addition
-  useEffect(() => {
-    if (isVideoCallOpen && remoteStream && peerVideoRef.current) {
-      peerVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream, isVideoCallOpen]);
 
   // Auto-scroll transcription logs to bottom
   useEffect(() => {
@@ -5383,10 +5370,10 @@ Signed Digitally by:
     const myInitials = user?.name ? user.name.split(" ").map(n => n[0]).join("").toUpperCase() : "U";
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
-        <div className="relative w-full max-w-6xl aspect-video md:aspect-auto md:h-[80vh] bg-[#0a0a0f]/90 border border-white/10 rounded-3xl overflow-hidden flex flex-col shadow-2xl backdrop-blur-xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fadeIn">
+        <div className="relative w-full h-full sm:max-w-6xl sm:h-[85vh] bg-[#0a0a0f]/90 border-0 sm:border border-white/10 sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl backdrop-blur-xl">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+          <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-white/5">
             <div className="flex items-center gap-3">
               {isRecording && (
                 <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-bold tracking-wider animate-pulse">
@@ -5416,10 +5403,11 @@ Signed Digitally by:
                     : "Establishing a secure peer-to-peer connection via STUN/TURN servers..."}
                 </div>
               </div>
-              <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
-                <span className="text-primary">1-on-1 Mentoring Room</span>
+              <h3 className="font-bold text-foreground text-xs sm:text-sm flex items-center gap-2">
+                <span className="text-primary hidden sm:inline">1-on-1 Mentoring Room</span>
+                <span className="text-primary sm:hidden">Call</span>
                 <span className="text-muted">|</span>
-                <span className="text-xs text-muted font-normal">Session #{activeVideoSession.id}</span>
+                <span className="text-[10px] sm:text-xs text-muted font-normal">Session #{activeVideoSession.id}</span>
               </h3>
             </div>
             <button
@@ -5443,16 +5431,16 @@ Signed Digitally by:
           {/* Main Workspace */}
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
             {/* Webcam Grid */}
-            <div className="flex-1 p-6 flex flex-col gap-4 bg-black/45 overflow-y-auto">
+            <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4 bg-black/45 overflow-y-auto">
               {isPeerOfflineAlertVisible && (
                 <div className="bg-error/20 border border-error/40 text-error px-4 py-3 rounded-xl flex items-center justify-between text-xs font-bold animate-pulse">
                   <span>🚨 The other participant is currently offline. They will be notified to join soon.</span>
                   <button onClick={() => setIsPeerOfflineAlertVisible(false)} className="hover:text-foreground">Dismiss</button>
                 </div>
               )}
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4 md:gap-6">
                 {/* User Webcam Frame */}
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
+              <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video">
                 {isVideoMuted ? (
                   <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-3">
                     <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted font-bold text-2xl">
@@ -5465,7 +5453,7 @@ Signed Digitally by:
                 ) : (
                   <>
                     <video
-                      ref={localVideoRef}
+                      ref={localVideoCallbackRef}
                       autoPlay
                       playsInline
                       muted
@@ -5484,10 +5472,10 @@ Signed Digitally by:
               </div>
 
               {/* Peer (Coach/Student) Webcam Frame */}
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video md:aspect-auto md:h-full">
+              <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center aspect-video">
                 {remoteStream ? (
                   <video
-                    ref={peerVideoRef}
+                    ref={peerVideoCallbackRef}
                     autoPlay
                     playsInline
                     className="absolute inset-0 w-full h-full object-cover"
@@ -5555,7 +5543,7 @@ Signed Digitally by:
           </div>
 
             {/* Sidebar (AI Live Transcription & Text Chat) */}
-            <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 flex flex-col h-[350px] md:h-full bg-white/[0.02] backdrop-blur-lg">
+            <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-white/10 flex flex-col h-[200px] sm:h-[300px] md:h-full bg-white/[0.02] backdrop-blur-lg">
               {/* Sidebar Tab Header */}
               <div className="grid grid-cols-2 border-b border-white/10 bg-white/5 p-1 gap-1">
                 <button
@@ -5688,8 +5676,8 @@ Signed Digitally by:
           </div>
 
           {/* Footer Controls Toolbar */}
-          <div className="px-6 py-5 border-t border-white/10 bg-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="px-3 sm:px-6 py-3 sm:py-5 border-t border-white/10 bg-white/5 flex flex-wrap items-center justify-between gap-2">
+            <div className="hidden sm:flex items-center gap-3">
               <Button
                 size="sm"
                 variant={isScreenSharing ? "destructive" : "outline"}
@@ -5777,11 +5765,11 @@ Signed Digitally by:
             </div>
 
             {/* Core Mic & Video Controls */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <button
                 onClick={() => setIsMuted(!isMuted)}
                 className={cn(
-                  "w-12 h-12 rounded-full border flex items-center justify-center transition-all shadow-md active:scale-90",
+                  "w-10 h-10 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center transition-all shadow-md active:scale-90",
                   isMuted
                     ? "bg-error/20 hover:bg-error/30 text-error border-error/40"
                     : "bg-white/5 hover:bg-white/10 text-foreground border-white/10"
@@ -5811,7 +5799,7 @@ Signed Digitally by:
                 }}
                 disabled={leaveCooldown > 0}
                 className={cn(
-                  "font-bold text-sm px-6 py-2.5 rounded-full flex items-center gap-2 shadow-lg transition-all duration-200",
+                  "font-bold text-xs sm:text-sm px-4 sm:px-6 py-2 sm:py-2.5 rounded-full flex items-center gap-2 shadow-lg transition-all duration-200",
                   leaveCooldown > 0
                     ? "bg-white/5 border border-white/10 text-muted cursor-not-allowed opacity-50"
                     : "bg-error hover:bg-red-600 text-white hover:shadow-error/25 active:scale-95"

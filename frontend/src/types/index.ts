@@ -295,6 +295,7 @@ export interface MentorSession {
   mentor?: Mentor;
   mentor_name?: string;
   mentee_id: string;
+  student_id?: string;
   project_id?: string;
   project?: Project;
   scheduled_at: string;
