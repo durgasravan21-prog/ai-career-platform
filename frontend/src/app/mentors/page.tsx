@@ -239,7 +239,12 @@ export default function MentorsPage() {
     setError("");
     setSuccess("");
     try {
-      const scheduledAt = `${selectedDate}T${selectedTime}:00Z`;
+      // Parse the selected date and time in the user's local timezone
+      const localDate = new Date(`${selectedDate}T${selectedTime}`);
+      const scheduledAt = isNaN(localDate.getTime()) 
+        ? `${selectedDate}T${selectedTime}:00Z` 
+        : localDate.toISOString();
+
       await api.mentors.bookSession({
         mentor_id: bookingMentor.id,
         scheduled_at: scheduledAt,
