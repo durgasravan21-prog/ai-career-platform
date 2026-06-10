@@ -1313,9 +1313,9 @@ export default function DashboardPage() {
             // Process if it didn't originate from this exact tab/client instance
             const isLocalClient = msgObj && msgObj.clientId === clientIdRef.current;
             if (!isLocalClient) {
-              // Only process fresh signals created within 30 seconds of joining
+              // Only process fresh signals created within 10 minutes of joining
               const sigTime = new Date(sig.created_at).getTime();
-              if (!isNaN(sigTime) && sigTime > sessionStartTime - 30000) {
+              if (!isNaN(sigTime) && sigTime > sessionStartTime - 600000) {
                 handleSignal(sig.payload);
               }
             }
