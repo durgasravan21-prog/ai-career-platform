@@ -4573,6 +4573,69 @@ Signed Digitally by:
             </div>
           )}
 
+          {/* Prominent Active Sessions Banner — always visible when sessions exist */}
+          {mentorSessions.filter(s => s.status === "confirmed" || s.status === "pending").length > 0 && (
+            <div className="mb-6 animate-fadeIn">
+              <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 border border-primary/20 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Video className="h-5 w-5 text-primary" />
+                    Active Coaching Sessions
+                  </h3>
+                  <Badge className="bg-success/20 text-success border-success/30 text-[10px]">
+                    {mentorSessions.filter(s => s.status === "confirmed" || s.status === "pending").length} Session{mentorSessions.filter(s => s.status === "confirmed" || s.status === "pending").length > 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                <div className="space-y-3">
+                  {mentorSessions.filter(s => s.status === "confirmed" || s.status === "pending").map((session) => (
+                    <div
+                      key={`active-banner-${session.id}`}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white/[0.03] border border-white/10 rounded-xl p-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                          {(session.mentor_name || "C").charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {session.mentor_name || `Coach #${session.mentor_id}`}
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            {new Date(session.scheduled_at).toLocaleDateString()} at{" "}
+                            {new Date(session.scheduled_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                            {" · "}{session.duration_minutes}min
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Badge
+                          className={cn(
+                            "text-[10px]",
+                            session.status === "confirmed"
+                              ? "bg-success/20 text-success border-success/30"
+                              : "bg-warning/20 text-warning border-warning/30"
+                          )}
+                        >
+                          {session.status}
+                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveVideoSession(session);
+                            setIsVideoCallOpen(true);
+                          }}
+                          className="flex-1 sm:flex-initial bg-gradient-to-r from-success to-emerald-500 hover:brightness-110 text-white py-2 px-5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-success/20 active:scale-95"
+                        >
+                          <Video className="h-4 w-4" /> Join Call
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Left Column */}
             <div className="space-y-6">
