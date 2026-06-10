@@ -505,6 +505,8 @@ export default function DashboardPage() {
   const [transcriptionLogs, setTranscriptionLogs] = useState<string[]>([]);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
+  const [peerIsMuted, setPeerIsMuted] = useState<boolean>(false);
+  const [peerIsVideoMuted, setPeerIsVideoMuted] = useState<boolean>(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const clientIdRef = useRef<string>(Math.random().toString(36).substring(2, 15));
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -651,6 +653,18 @@ export default function DashboardPage() {
       };
       recorder.start(1000);
       setIsRecording(true);
+      
+      // Broadcast recording start to peer
+      const payload = JSON.stringify({
+        type: "recording_state",
+        isRecording: true,
+        clientId: clientIdRef.current,
+        timestamp: Date.now()
+      });
+      try { broadcastChannelRef.current?.postMessage(payload); } catch (e) {}
+      if (activeVideoSession) {
+        api.mentors.postSignal(activeVideoSession.id, payload).catch(() => {});
+      }
     } catch (err) {
       console.error("Failed to start MediaRecorder:", err);
       alert("Recording is not fully supported in this browser.");
@@ -661,6 +675,18 @@ export default function DashboardPage() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+
+      // Broadcast recording stop to peer
+      const payload = JSON.stringify({
+        type: "recording_state",
+        isRecording: false,
+        clientId: clientIdRef.current,
+        timestamp: Date.now()
+      });
+      try { broadcastChannelRef.current?.postMessage(payload); } catch (e) {}
+      if (activeVideoSession) {
+        api.mentors.postSignal(activeVideoSession.id, payload).catch(() => {});
+      }
     }
   };
 
@@ -1164,6 +1190,24 @@ export default function DashboardPage() {
     }
   }, [isVideoMuted, localStream]);
 
+  // Broadcast local mute/video state changes to the peer
+  useEffect(() => {
+    if (isVideoCallOpen && activeVideoSession && user) {
+      const payloadObj = {
+        type: "peer_state",
+        isMuted,
+        isVideoMuted,
+        clientId: clientIdRef.current,
+        timestamp: Date.now()
+      };
+      const payload = JSON.stringify(payloadObj);
+      try {
+        broadcastChannelRef.current?.postMessage(payload);
+      } catch (e) {}
+      api.mentors.postSignal(activeVideoSession.id, payload).catch(() => {});
+    }
+  }, [isMuted, isVideoMuted, isVideoCallOpen, activeVideoSession, user]);
+
   // WebRTC Peer Connection & Signaling handler
   useEffect(() => {
     if (!isVideoCallOpen || !activeVideoSession || !localStream || !user) {
@@ -1408,6 +1452,50 @@ export default function DashboardPage() {
         // Handle chat messages
         else if (msg.type === "chat") {
           setChatMessages(prev => [...prev, msg.message]);
+        }
+        // Handle peer mute/unmute states
+        else if (msg.type === "peer_state") {
+          setPeerIsMuted(!!msg.isMuted);
+          setPeerIsVideoMuted(!!msg.isVideoMuted);
+        }
+        // Handle remote control commands from Mentor to Student
+        else if (msg.type === "remote_control") {
+          if (isStudent) {
+            console.log("[RemoteControl] Student received remote control command from Mentor:", msg.action);
+            if (msg.action === "mute_audio") {
+              setIsMuted(true);
+              setTranscriptionLogs(prev => [
+                ...prev, 
+                "System: [Your microphone was remotely disabled by the Mentor]"
+              ]);
+            } else if (msg.action === "unmute_audio") {
+              setIsMuted(false);
+              setTranscriptionLogs(prev => [
+                ...prev, 
+                "System: [Your microphone was remotely enabled by the Mentor]"
+              ]);
+            } else if (msg.action === "mute_video") {
+              setIsVideoMuted(true);
+              setTranscriptionLogs(prev => [
+                ...prev, 
+                "System: [Your camera was remotely disabled by the Mentor]"
+              ]);
+            } else if (msg.action === "unmute_video") {
+              setIsVideoMuted(false);
+              setTranscriptionLogs(prev => [
+                ...prev, 
+                "System: [Your camera was remotely enabled by the Mentor]"
+              ]);
+            }
+          }
+        }
+        // Handle recording state updates from Mentor
+        else if (msg.type === "recording_state") {
+          setIsRecording(!!msg.isRecording);
+          setTranscriptionLogs(prev => {
+            const status = msg.isRecording ? "started" : "stopped";
+            return [...prev, `System: [Mentor has ${status} recording the session]`];
+          });
         }
       } catch (err) {
         console.error("[Signal] Error handling signal:", err);
@@ -5517,6 +5605,10 @@ Signed Digitally by:
   const renderVideoCallModal = () => {
     if (!activeVideoSession || !isMounted) return null;
 
+    const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
+                      (user?.email?.toLowerCase() !== "durgasravan21@gmail.com" && 
+                       user?.role !== "mentor");
+
     const peerName = user?.email?.toLowerCase() === "durgasravan21@gmail.com" || (mentorProfile && mentorProfile.verification_status === "verified")
       ? (activeVideoSession.student_name || "Student")
       : (activeVideoSession.mentor_name || "Coach");
@@ -5628,7 +5720,7 @@ Signed Digitally by:
 
               {/* Peer (Coach/Student) Webcam Frame (Remote) */}
               <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-white/5 flex flex-col items-center justify-center transition-all duration-300 md:aspect-auto md:h-full max-md:w-full max-md:h-full max-md:absolute max-md:inset-0 max-md:z-10">
-                {remoteStream ? (
+                {(remoteStream && !peerIsVideoMuted) ? (
                   <video
                     ref={peerVideoCallbackRef}
                     autoPlay
@@ -5636,28 +5728,29 @@ Signed Digitally by:
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-4">
+                  <div className="absolute inset-0 bg-[#0a0a0f] flex flex-col items-center justify-center gap-4 z-10">
                     <div className={cn(
                       "w-24 h-24 rounded-full border-2 flex items-center justify-center text-white font-extrabold text-3xl transition-all duration-500",
                       callConnectionState === "connecting" && "bg-white/5 border-white/10 animate-pulse",
                       callConnectionState === "ringing" && "bg-primary/10 border-primary/40 animate-pulse ring-4 ring-primary/20",
                       callConnectionState === "reconnecting" && "bg-warning/10 border-warning/40 animate-pulse",
                       callConnectionState === "failed" && "bg-error/10 border-error/40",
+                      (callConnectionState === "connected" || peerIsVideoMuted) && "bg-white/5 border-white/10"
                     )}>
                       {peerInitials}
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <span className={cn(
-                        "text-xs font-semibold",
-                        callConnectionState === "connecting" && "text-muted animate-pulse",
+                        "text-xs font-semibold text-muted",
                         callConnectionState === "ringing" && "text-primary animate-pulse",
                         callConnectionState === "reconnecting" && "text-warning animate-pulse",
                         callConnectionState === "failed" && "text-error",
                       )}>
-                        {callConnectionState === "connecting" && "📡 Establishing connection..."}
-                        {callConnectionState === "ringing" && "📞 Ringing..."}
-                        {callConnectionState === "reconnecting" && "🔄 Reconnecting..."}
-                        {callConnectionState === "failed" && "❌ Connection failed"}
+                        {peerIsVideoMuted ? "📹 Camera is off" : 
+                         callConnectionState === "connecting" ? "📡 Establishing connection..." :
+                         callConnectionState === "ringing" ? "📞 Ringing..." :
+                         callConnectionState === "reconnecting" ? "🔄 Reconnecting..." :
+                         callConnectionState === "failed" ? "❌ Connection failed" : "Camera is off"}
                       </span>
                       {callConnectionState === "ringing" && (
                         <div className="flex gap-1.5">
@@ -5685,14 +5778,23 @@ Signed Digitally by:
                 )}
                 <span className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-foreground border border-white/10 z-10 flex items-center gap-2 max-md:bottom-16 max-md:left-2 max-md:px-2 max-md:py-0.5 max-md:text-[10px] max-md:z-30">
                   <span>{peerName} (Live Stream)</span>
-                  {/* Waveform talk animation */}
-                  <div className="flex items-center gap-[3px] h-3.5 w-6">
-                    <div className="w-[3px] bg-success h-2 rounded-full animate-bounce" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }} />
-                    <div className="w-[3px] bg-success h-3 rounded-full animate-bounce" style={{ animationDelay: '0.3s', animationDuration: '0.6s' }} />
-                    <div className="w-[3px] bg-success h-1.5 rounded-full animate-bounce" style={{ animationDelay: '0.2s', animationDuration: '0.9s' }} />
-                    <div className="w-[3px] bg-success h-2.5 rounded-full animate-bounce" style={{ animationDelay: '0.4s', animationDuration: '0.7s' }} />
-                  </div>
+                  {peerIsMuted ? (
+                    <MicOff className="h-3.5 w-3.5 text-error" />
+                  ) : (
+                    /* Waveform talk animation */
+                    <div className="flex items-center gap-[3px] h-3.5 w-6">
+                      <div className="w-[3px] bg-success h-2 rounded-full animate-bounce" style={{ animationDelay: '0.1s', animationDuration: '0.8s' }} />
+                      <div className="w-[3px] bg-success h-3 rounded-full animate-bounce" style={{ animationDelay: '0.3s', animationDuration: '0.6s' }} />
+                      <div className="w-[3px] bg-success h-1.5 rounded-full animate-bounce" style={{ animationDelay: '0.2s', animationDuration: '0.9s' }} />
+                      <div className="w-[3px] bg-success h-2.5 rounded-full animate-bounce" style={{ animationDelay: '0.4s', animationDuration: '0.7s' }} />
+                    </div>
+                  )}
                 </span>
+                {peerIsMuted && (
+                  <span className="absolute top-4 right-4 bg-error/20 border border-error/30 text-error p-1.5 rounded-full z-20 max-md:top-2 max-md:right-2">
+                    <MicOff className="h-4 w-4" />
+                  </span>
+                )}
               </div>
               </div>
             </div>
@@ -5899,24 +6001,87 @@ Signed Digitally by:
               >
                 <Laptop className="h-4 w-4 mr-2" /> {isScreenSharing ? "Stop Sharing" : "Share Screen"}
               </Button>
-              {isRecording ? (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white"
-                  onClick={stopRecording}
-                >
-                  <Square className="h-4 w-4 fill-white" /> Stop Recording
-                </Button>
+              
+              {!isStudent ? (
+                <>
+                  {isRecording ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="text-xs font-bold flex items-center gap-1.5 animate-pulse bg-error hover:bg-error/80 text-white"
+                      onClick={stopRecording}
+                    >
+                      <Square className="h-4 w-4 fill-white" /> Stop Recording
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20"
+                      onClick={startRecording}
+                    >
+                      <Circle className="h-4 w-4 fill-error text-error animate-pulse" /> Record Session
+                    </Button>
+                  )}
+
+                  {/* Mentor Remote Controls for Student */}
+                  <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
+                    <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wider font-bold">Student:</span>
+                    <button
+                      onClick={() => {
+                        sendSignal({
+                          type: "remote_control",
+                          action: peerIsMuted ? "unmute_audio" : "mute_audio",
+                          clientId: clientIdRef.current
+                        });
+                        setPeerIsMuted(!peerIsMuted);
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all",
+                        peerIsMuted
+                          ? "bg-error/10 hover:bg-error/20 border-error/30 text-error"
+                          : "bg-white/5 hover:bg-white/10 border-white/10 text-muted-foreground"
+                      )}
+                      title={peerIsMuted ? "Unmute Student Mic" : "Mute Student Mic"}
+                    >
+                      {peerIsMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        sendSignal({
+                          type: "remote_control",
+                          action: peerIsVideoMuted ? "unmute_video" : "mute_video",
+                          clientId: clientIdRef.current
+                        });
+                        setPeerIsVideoMuted(!peerIsVideoMuted);
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all",
+                        peerIsVideoMuted
+                          ? "bg-error/10 hover:bg-error/20 border-error/30 text-error"
+                          : "bg-white/5 hover:bg-white/10 border-white/10 text-muted-foreground"
+                      )}
+                      title={peerIsVideoMuted ? "Enable Student Camera" : "Disable Student Camera"}
+                    >
+                      {peerIsVideoMuted ? <VideoOff className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs text-muted flex items-center gap-1.5 border-dashed hover:border-error/50 hover:bg-error/5 border-white/20"
-                  onClick={startRecording}
-                >
-                  <Circle className="h-4 w-4 fill-error text-error animate-pulse" /> Record Session
-                </Button>
+                /* Student: View recording status only */
+                <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+                  {isRecording ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/15 border border-error/30 text-error text-[10px] font-extrabold uppercase tracking-wider animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping" />
+                      REC LIVE
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/25" />
+                      NOT RECORDING
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
