@@ -1048,38 +1048,104 @@ export default function DashboardPage() {
     };
   }, [isVideoCallOpen]);
 
-  // Live transcription simulation — only starts AFTER remote peer connects
+  // Live transcription simulation — welcome message on peer connection
   useEffect(() => {
     if (!isVideoCallOpen || !remoteStream) return;
 
-    const dialogue = [
-      "System: [Peer connected — AI Transcription & Summarization Enabled]",
-      "Mentor: Hey! Great to connect. How has your progress been on the project?",
-      "Student: Hi! It's going well, but I ran into some issues with the API response times.",
-      "Mentor: Let's take a look. Usually, this is due to N+1 queries in the relational fetching logic.",
-      "System: [AI Alert: High database load detected in query resolver]",
-      "Mentor: I suggest using joinedload or selectinload to eager-load the related records.",
-      "Student: Ah! I was doing lazy loading, which triggered separate queries for each item. That makes so much sense.",
-      "Mentor: Exactly. Once you make that change, re-run the benchmark to verify the speedup.",
-      "System: [AI Note: Suggested learning step 'Optimize database query fetching patterns' logged]",
-      "Student: Excellent. I'll implement that and update the submission tonight.",
-      "Mentor: Sounds like a plan. Let's jump into the frontend state management next.",
-    ];
+    setTranscriptionLogs((prev) => [
+      ...prev,
+      "System: [Peer connected — AI Live Speech-to-Text & Summarization Enabled. Start talking to see live transcription!]"
+    ]);
+  }, [isVideoCallOpen, remoteStream]);
 
-    setTranscriptionLogs((prev) => [...prev, dialogue[0]]);
-    let currentIndex = 1;
+  // Real-time voice transcription using Web Speech API
+  useEffect(() => {
+    if (!isVideoCallOpen || callConnectionState !== "connected" || !localStream || !activeVideoSession || !user) {
+      return;
+    }
 
-    const interval = setInterval(() => {
-      if (currentIndex < dialogue.length) {
-        setTranscriptionLogs((prev) => [...prev, dialogue[currentIndex]]);
-        currentIndex++;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("[Speech] Speech Recognition not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    const isStudent = String(activeVideoSession.student_id) === String(user?.id) || 
+                      String(activeVideoSession.mentee_id) === String(user?.id);
+
+    recognition.onresult = (event: any) => {
+      const resultIndex = event.resultIndex;
+      if (event.results[resultIndex]) {
+        const transcript = event.results[resultIndex][0].transcript.trim();
+        if (!transcript) return;
+
+        console.log("[Speech] Local transcription text:", transcript);
+        const rolePrefix = isStudent ? "Student: " : "Mentor: ";
+        
+        // Append locally
+        setTranscriptionLogs(prev => {
+          const isDuplicate = prev.length > 0 && prev[prev.length - 1] === (rolePrefix + transcript);
+          if (isDuplicate) return prev;
+          return [...prev, rolePrefix + transcript];
+        });
+
+        // Broadcast to peer
+        const payloadObj = {
+          type: "voice_transcript",
+          text: transcript,
+          isStudent,
+          senderId: user.id,
+          clientId: clientIdRef.current,
+          timestamp: Date.now()
+        };
+        const payload = JSON.stringify(payloadObj);
+        
+        try {
+          broadcastChannelRef.current?.postMessage(payload);
+        } catch (e) {}
+        
+        api.mentors.postSignal(activeVideoSession.id, payload).catch((err: any) => {
+          console.warn("[Speech] Failed to post voice signal:", err);
+        });
       }
-    }, 4000);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.warn("[Speech] Recognition error:", event.error);
+      if (event.error === "network") {
+        setTimeout(() => {
+          try { recognition.start(); } catch (e) {}
+        }, 5000);
+      }
+    };
+
+    recognition.onend = () => {
+      console.log("[Speech] Recognition ended. Restarting...");
+      try {
+        if (isVideoCallOpen && peerConnectionRef.current?.connectionState === "connected") {
+          recognition.start();
+        }
+      } catch (e) {}
+    };
+
+    try {
+      recognition.start();
+      console.log("[Speech] Started SpeechRecognition service.");
+    } catch (e) {
+      console.error("[Speech] SpeechRecognition start failed:", e);
+    }
 
     return () => {
-      clearInterval(interval);
+      try {
+        recognition.stop();
+      } catch (e) {}
     };
-  }, [isVideoCallOpen, remoteStream]);
+  }, [isVideoCallOpen, callConnectionState, localStream, activeVideoSession, user]);
 
   // Sync active stream tracks with Mute toggles
   useEffect(() => {
@@ -1286,7 +1352,19 @@ export default function DashboardPage() {
 
           if (offerCollision) {
             console.log("[WebRTC] Collision detected. Polite peer rolling back local offer.");
-            await pc.setLocalDescription({ type: "rollback" });
+            await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+          }
+
+          // Safety check: if type is answer, we must be in have-local-offer state
+          if (type === "answer" && pc.signalingState !== "have-local-offer") {
+            console.log("[WebRTC] Ignoring answer received in wrong state:", pc.signalingState);
+            return;
+          }
+
+          // Safety check: if type is offer, we must be in stable state (or rolled back)
+          if (type === "offer" && pc.signalingState !== "stable" && !offerCollision) {
+            console.log("[WebRTC] Ignoring offer received in wrong state:", pc.signalingState);
+            return;
           }
 
           await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -1316,6 +1394,17 @@ export default function DashboardPage() {
             initiateOffer(true);
           }
         } 
+        // Handle voice transcripts from the other peer
+        else if (msg.type === "voice_transcript") {
+          console.log("[SpeechRecognition] Remote transcription received:", msg.text);
+          const peerPrefix = msg.isStudent ? "Student: " : "Mentor: ";
+          setTranscriptionLogs(prev => {
+            // Avoid duplicate transcript logging from double poll/broadcast
+            const isDuplicate = prev.length > 0 && prev[prev.length - 1] === (peerPrefix + msg.text);
+            if (isDuplicate) return prev;
+            return [...prev, peerPrefix + msg.text];
+          });
+        }
         // Handle chat messages
         else if (msg.type === "chat") {
           setChatMessages(prev => [...prev, msg.message]);
@@ -5647,6 +5736,7 @@ Signed Digitally by:
                   className="flex-1 p-5 overflow-y-auto space-y-4 text-xs font-sans scrollbar-thin"
                 >
                   {transcriptionLogs.map((log, idx) => {
+                    if (!log || typeof log !== "string") return null;
                     const isSystem = log.startsWith("System:");
                     const isMentor = log.startsWith("Mentor:");
                     const isStudent = log.startsWith("Student:");
