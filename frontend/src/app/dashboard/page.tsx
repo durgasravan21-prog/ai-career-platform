@@ -508,6 +508,8 @@ export default function DashboardPage() {
   const [peerIsMuted, setPeerIsMuted] = useState<boolean>(false);
   const [peerIsVideoMuted, setPeerIsVideoMuted] = useState<boolean>(false);
   const [peerIsRecording, setPeerIsRecording] = useState<boolean>(false);
+  const [raiseHandActive, setRaiseHandActive] = useState<boolean>(false);
+  const [peerRaiseHandActive, setPeerRaiseHandActive] = useState<boolean>(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const clientIdRef = useRef<string>(Math.random().toString(36).substring(2, 15));
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1334,53 +1336,6 @@ export default function DashboardPage() {
       }
     };
 
-    // ─── Unified signal sender: BroadcastChannel + HTTP ───
-    const broadcastSend = (msg: any) => {
-      const payloadObj = {
-        ...msg,
-        senderId: user.id,
-        clientId: clientIdRef.current,
-        timestamp: Date.now()
-      };
-      const payload = JSON.stringify(payloadObj);
-      try {
-        broadcastChannelRef.current?.postMessage(payload);
-      } catch (e) { /* ignore */ }
-      api.mentors.postSignal(sessionId, payload).catch((err: any) => {
-        console.warn("[Signal] HTTP post failed (non-critical):", err);
-      });
-    };
-
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        broadcastSend({ type: "candidate", candidate: event.candidate });
-      }
-    };
-
-    // Initiate Offer helper with optional ICE restart
-    const initiateOffer = async (iceRestart = false) => {
-      if (makingOffer) return;
-      try {
-        makingOffer = true;
-        console.log(`[WebRTC] Creating offer (iceRestart=${iceRestart})...`);
-        const offer = await pc.createOffer({ iceRestart });
-        await pc.setLocalDescription(offer);
-        broadcastSend({ type: "description", sdp: pc.localDescription });
-      } catch (err) {
-        console.error("[WebRTC] Error creating offer:", err);
-      } finally {
-        makingOffer = false;
-      }
-    };
-
-    // Trigger offer automatically on negotiation needed (if signaling state is stable)
-    pc.onnegotiationneeded = () => {
-      if (isStudent && pc.signalingState === "stable") {
-        initiateOffer(false);
-      }
-    };
-
     // ─── Signal message handler ───
     const handleSignal = async (dataStr: string) => {
       try {
@@ -1510,10 +1465,171 @@ export default function DashboardPage() {
             return [...prev, `System: [${roleStr} has ${status} recording the session]`];
           });
         }
+        // Handle Hand Raise sync
+        else if (msg.type === "raise_hand") {
+          setPeerRaiseHandActive(!!msg.active);
+          setTranscriptionLogs(prev => {
+            const status = msg.active ? "raised hand ✋" : "lowered hand";
+            const roleStr = msg.isStudent ? "Student" : "Mentor";
+            return [...prev, `System: [${roleStr} has ${status}]`];
+          });
+        }
       } catch (err) {
         console.error("[Signal] Error handling signal:", err);
       }
     };
+
+    // ─── Unified WebSocket + BroadcastChannel + HTTP Fallback Signaling ───
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const wsProto = backendUrl.startsWith("https") ? "wss" : "ws";
+    const wsHost = backendUrl.replace(/^https?:\/\//, "");
+    const wsUrl = `${wsProto}://${wsHost}/ws/signal/${sessionId}`;
+
+    let socket: WebSocket | null = null;
+    let fallbackInterval: any = null;
+    let isWsConnected = false;
+    let pollingActive = false;
+    let lastSignalId = 0;
+    const sessionStartTime = Date.now();
+
+    function broadcastSend(msg: any) {
+      const payloadObj = {
+        ...msg,
+        senderId: user?.id,
+        clientId: clientIdRef.current,
+        timestamp: Date.now()
+      };
+      const payload = JSON.stringify(payloadObj);
+
+      // 1. Send via WebSocket if connected
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(payload);
+        } catch (wsErr) {
+          console.warn("[Signal] WS send failed, fallback to HTTP:", wsErr);
+        }
+      }
+
+      // 2. Broadcast locally to other tabs in same browser
+      try {
+        broadcastChannelRef.current?.postMessage(payload);
+      } catch (e) {}
+
+      // 3. Post to HTTP endpoint for database sync and persistence
+      api.mentors.postSignal(sessionId, payload).catch((err: any) => {
+        console.warn("[Signal] HTTP sync post failed:", err);
+      });
+    }
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        broadcastSend({ type: "candidate", candidate: event.candidate });
+      }
+    };
+
+    // Initiate Offer helper with optional ICE restart
+    async function initiateOffer(iceRestart = false) {
+      if (makingOffer) return;
+      try {
+        makingOffer = true;
+        console.log(`[WebRTC] Creating offer (iceRestart=${iceRestart})...`);
+        const offer = await pc.createOffer({ iceRestart });
+        await pc.setLocalDescription(offer);
+        broadcastSend({ type: "description", sdp: pc.localDescription });
+      } catch (err) {
+        console.error("[WebRTC] Error creating offer:", err);
+      } finally {
+        makingOffer = false;
+      }
+    }
+
+    // Trigger offer automatically on negotiation needed (if signaling state is stable)
+    pc.onnegotiationneeded = () => {
+      if (isStudent && pc.signalingState === "stable") {
+        initiateOffer(false);
+      }
+    };
+
+    function startHttpFallback() {
+      if (pollingActive) return;
+      console.log("[Signal] Starting HTTP polling fallback...");
+      pollingActive = true;
+
+      const pollSignals = async () => {
+        if (!pollingActive) return;
+        try {
+          const signals = await api.mentors.getSignals(sessionId, lastSignalId);
+          if (signals && signals.length > 0) {
+            signals.forEach((sig: any) => {
+              if (sig.id > lastSignalId) {
+                lastSignalId = sig.id;
+              }
+              
+              let msgObj: any = null;
+              try {
+                msgObj = typeof sig.payload === "object" ? sig.payload : JSON.parse(sig.payload);
+              } catch (e) {}
+
+              const isLocalClient = msgObj && msgObj.clientId === clientIdRef.current;
+              if (!isLocalClient) {
+                const sigTime = new Date(sig.created_at).getTime();
+                if (!isNaN(sigTime) && sigTime > sessionStartTime - 600000) {
+                  handleSignal(sig.payload);
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.warn("[Signal] HTTP fallback poll failed:", err);
+        }
+      };
+
+      pollSignals();
+      fallbackInterval = setInterval(pollSignals, 1500);
+    }
+
+    function connectWebSocket() {
+      try {
+        console.log("[Signal] Attempting WebSocket connection:", wsUrl);
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+          console.log("[Signal] WebSocket connection established!");
+          isWsConnected = true;
+          // Clear any active HTTP polling fallback
+          if (fallbackInterval) {
+            clearInterval(fallbackInterval);
+            pollingActive = false;
+          }
+          // Notify peer that we joined and initiate offer if student
+          broadcastSend({ type: "join", isStudent });
+          if (isStudent) {
+            initiateOffer(true);
+          }
+        };
+
+        socket.onmessage = (event) => {
+          handleSignal(event.data);
+        };
+
+        socket.onerror = (err) => {
+          console.error("[Signal] WebSocket error:", err);
+          isWsConnected = false;
+          startHttpFallback();
+        };
+
+        socket.onclose = (event) => {
+          console.warn("[Signal] WebSocket closed, code:", event.code, "reason:", event.reason);
+          isWsConnected = false;
+          startHttpFallback();
+        };
+      } catch (wsErr) {
+        console.error("[Signal] WebSocket setup exception:", wsErr);
+        isWsConnected = false;
+        startHttpFallback();
+      }
+    }
 
     // ─── BroadcastChannel: ALWAYS active for same-browser ───
     const channelName = `webrtc_signal_${sessionId}`;
@@ -1523,69 +1639,38 @@ export default function DashboardPage() {
       handleSignal(event.data);
     };
 
-    // ─── HTTP Polling: for cross-device signaling ───
-    let lastSignalId = 0;
-    let pollingActive = true;
-    const sessionStartTime = Date.now();
+    // Connect to WebSocket / start signaling
+    connectWebSocket();
 
-    const pollSignals = async () => {
-      if (!pollingActive) return;
-      try {
-        const signals = await api.mentors.getSignals(sessionId, lastSignalId);
-        if (signals && signals.length > 0) {
-          signals.forEach((sig: any) => {
-            if (sig.id > lastSignalId) {
-              lastSignalId = sig.id;
-            }
-            
-            let msgObj: any = null;
-            try {
-              msgObj = typeof sig.payload === "object" ? sig.payload : JSON.parse(sig.payload);
-            } catch (e) {}
-
-            const isLocalClient = msgObj && msgObj.clientId === clientIdRef.current;
-            if (!isLocalClient) {
-              // Only process fresh signals created within 10 minutes of joining
-              const sigTime = new Date(sig.created_at).getTime();
-              if (!isNaN(sigTime) && sigTime > sessionStartTime - 600000) {
-                handleSignal(sig.payload);
-              }
-            }
-          });
-        }
-      } catch (err) {
-        console.warn("[Signal] HTTP poll failed:", err);
-      }
-    };
-
-    // Start polling immediately, then every 1.5s
-    pollSignals();
-    const pollingInterval = setInterval(pollSignals, 1500);
-
-    // Send join signal and initial offer if student
-    const joinTimeout = setTimeout(async () => {
-      try {
+    // Secondary join trigger in case WebSocket is slow
+    const joinTimeout = setTimeout(() => {
+      if (!isWsConnected) {
         broadcastSend({ type: "join", isStudent });
         if (isStudent) {
           initiateOffer(true);
         }
-      } catch (err) {
-        console.error("[Signal] Failed to send initial join/offer:", err);
       }
-    }, 800);
+    }, 1500);
 
     // Cleanup
     return () => {
       pollingActive = false;
-      clearInterval(pollingInterval);
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
       clearTimeout(joinTimeout);
-      try { channel.close(); } catch (e) { /* ignore */ }
+      if (socket) {
+        try {
+          socket.close();
+        } catch (e) {}
+      }
+      try { channel.close(); } catch (e) {}
       try {
         if (peerConnectionRef.current) {
           peerConnectionRef.current.close();
           peerConnectionRef.current = null;
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     };
   }, [isVideoCallOpen, activeVideoSession, localStream, user]);
 

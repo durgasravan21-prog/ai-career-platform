@@ -30,6 +30,8 @@ except ImportError:
 class SessionStatus(str, enum.Enum):
     """Status of a mentoring session."""
     pending = "pending"
+    waiting_payment = "waiting_payment"
+    payment_mismatch = "payment_mismatch"
     confirmed = "confirmed"
     completed = "completed"
     cancelled = "cancelled"
@@ -73,6 +75,10 @@ class MentorProfile(Base):
     price_edited_by_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     has_premium_subscription: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     video_calls_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    upi_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    agreement_pdf_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    commission_paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -156,6 +162,12 @@ class MentorSession(Base):
     amount_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payment_screenshot_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    payment_amount_paid: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payment_status: Mapped[str] = mapped_column(String(50), default="unpaid", nullable=False)
+    payment_validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raise_hand_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    screen_sharing_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -230,6 +242,9 @@ class MentorReport(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False) # pending, resolved
     reported_by: Mapped[str] = mapped_column(String(50), default="student", nullable=False) # student, mentor
     screenshot_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    appeal_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    admin_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -260,4 +275,29 @@ class WebRTCSignal(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+class MentorMonthlyCommission(Base):
+    """Monthly commissions due to the platform (5% of earnings)."""
+
+    __tablename__ = "mentor_monthly_commissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mentor_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    month_year: Mapped[str] = mapped_column(String(10), nullable=False) # e.g. "2026-06"
+    total_earnings: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    commission_due: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    payment_screenshot_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False) # pending, submitted, paid
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relationship
+    mentor: Mapped[MentorProfile] = relationship("MentorProfile", lazy="selectin")
+
 

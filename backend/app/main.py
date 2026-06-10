@@ -74,6 +74,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception:
             pass
         try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN upi_id VARCHAR(255)"))
+            logger.info("Added upi_id column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN is_visible BOOLEAN DEFAULT TRUE"))
+            logger.info("Added is_visible column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN agreement_pdf_path VARCHAR(500)"))
+            logger.info("Added agreement_pdf_path column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_profiles ADD COLUMN commission_paid_until TIMESTAMP"))
+            logger.info("Added commission_paid_until column to mentor_profiles.")
+        except Exception:
+            pass
+        try:
             await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN reported_by VARCHAR(50) DEFAULT 'student'"))
             logger.info("Added reported_by column to mentor_reports.")
         except Exception:
@@ -84,6 +104,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception:
             pass
         try:
+            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN appeal_message TEXT"))
+            logger.info("Added appeal_message column to mentor_reports.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN admin_message TEXT"))
+            logger.info("Added admin_message column to mentor_reports.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_reports ADD COLUMN resolved_at TIMESTAMP"))
+            logger.info("Added resolved_at column to mentor_reports.")
+        except Exception:
+            pass
+        try:
             await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN reminder_sent BOOLEAN DEFAULT FALSE"))
             logger.info("Added reminder_sent column to mentor_sessions.")
         except Exception:
@@ -91,6 +126,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN reminder_sent_at TIMESTAMP"))
             logger.info("Added reminder_sent_at column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_screenshot_url VARCHAR(500)"))
+            logger.info("Added payment_screenshot_url column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_amount_paid FLOAT"))
+            logger.info("Added payment_amount_paid column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_status VARCHAR(50) DEFAULT 'unpaid'"))
+            logger.info("Added payment_status column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN payment_validation_error TEXT"))
+            logger.info("Added payment_validation_error column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN raise_hand_active BOOLEAN DEFAULT FALSE"))
+            logger.info("Added raise_hand_active column to mentor_sessions.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE mentor_sessions ADD COLUMN screen_sharing_active BOOLEAN DEFAULT FALSE"))
+            logger.info("Added screen_sharing_active column to mentor_sessions.")
         except Exception:
             pass
     # Auto-seed database if it is empty (specifically, if no roles are seeded)

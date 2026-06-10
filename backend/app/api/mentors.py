@@ -23,6 +23,7 @@ from app.models.mentor import (
     Review,
     SessionStatus,
     MentorReport,
+    MentorMonthlyCommission,
 )
 from app.models.user import User, UserSkill
 from app.schemas.mentor import (
@@ -41,6 +42,10 @@ from app.schemas.mentor import (
     ReportStudentRequest,
     MentorReportResponse,
     VerifyDocumentsRequest,
+    PayCommissionRequest,
+    SubmitAppealRequest,
+    AdminResolveAppealRequest,
+    MentorMonthlyCommissionResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,6 +165,37 @@ def _mentor_to_response(mentor: MentorProfile, reviewed_count: int = 0, review_e
         original_price=mentor.original_price,
         price_edited_by_admin=mentor.price_edited_by_admin,
         has_premium_subscription=mentor.has_premium_subscription,
+        upi_id=mentor.upi_id,
+        is_visible=mentor.is_visible if mentor.is_visible is not None else True,
+        agreement_pdf_path=mentor.agreement_pdf_path,
+        commission_paid_until=mentor.commission_paid_until,
+    )
+
+
+def _session_to_response(s: MentorSession) -> SessionResponse:
+    """Convert a MentorSession ORM object to a SessionResponse schema."""
+    return SessionResponse(
+        id=s.id,
+        student_id=s.student_id,
+        mentor_id=s.mentor_id,
+        project_id=s.project_id,
+        scheduled_at=s.scheduled_at,
+        duration_minutes=s.duration_minutes,
+        status=s.status.value if hasattr(s.status, "value") else s.status,
+        amount_cents=s.amount_cents,
+        stripe_payment_intent_id=s.stripe_payment_intent_id,
+        created_at=s.created_at,
+        mentor_name=s.mentor.user.name if s.mentor and s.mentor.user else None,
+        student_name=s.student.name if s.student else None,
+        is_reviewed=len(s.reviews) > 0 if s.reviews else False,
+        reminder_sent=s.reminder_sent if hasattr(s, "reminder_sent") else False,
+        reminder_sent_at=s.reminder_sent_at if hasattr(s, "reminder_sent_at") else None,
+        payment_screenshot_url=s.payment_screenshot_url,
+        payment_amount_paid=s.payment_amount_paid,
+        payment_status=s.payment_status if s.payment_status else "unpaid",
+        payment_validation_error=s.payment_validation_error,
+        raise_hand_active=s.raise_hand_active if s.raise_hand_active is not None else False,
+        screen_sharing_active=s.screen_sharing_active if s.screen_sharing_active is not None else False,
     )
 
 
@@ -177,7 +213,8 @@ async def list_mentors(
     """Return active mentors, optionally filtered by expertise, rating, and price."""
     query = select(MentorProfile).where(
         MentorProfile.is_active.is_(True),
-        MentorProfile.verification_status == "verified"
+        MentorProfile.verification_status == "verified",
+        MentorProfile.is_visible.is_(True)
     )
 
     result = await db.execute(query)
@@ -231,7 +268,8 @@ async def match_mentor(
     # Get available mentors
     query = select(MentorProfile).where(
         MentorProfile.is_active.is_(True),
-        MentorProfile.verification_status == "verified"
+        MentorProfile.verification_status == "verified",
+        MentorProfile.is_visible.is_(True)
     )
     if body.max_hourly_rate is not None:
         query = query.where(MentorProfile.hourly_rate <= body.max_hourly_rate)
@@ -352,7 +390,7 @@ async def book_session(
     hours = body.duration_minutes / 60.0
     amount_cents = int(mentor.hourly_rate * 1.1 * hours * 100)
 
-    session_status = SessionStatus.confirmed if mentor.hourly_rate == 0 else SessionStatus.pending
+    session_status = SessionStatus.pending
 
     session = MentorSession(
         student_id=current_user.id,
@@ -366,22 +404,7 @@ async def book_session(
     db.add(session)
     await db.flush()
 
-    return SessionResponse(
-        id=session.id,
-        student_id=session.student_id,
-        mentor_id=session.mentor_id,
-        project_id=session.project_id,
-        scheduled_at=session.scheduled_at,
-        duration_minutes=session.duration_minutes,
-        status=session.status.value if hasattr(session.status, "value") else session.status,
-        amount_cents=session.amount_cents,
-        stripe_payment_intent_id=session.stripe_payment_intent_id,
-        created_at=session.created_at,
-        mentor_name=mentor.user.name if mentor.user else None,
-        is_reviewed=False,
-        reminder_sent=session.reminder_sent if hasattr(session, "reminder_sent") else False,
-        reminder_sent_at=session.reminder_sent_at if hasattr(session, "reminder_sent_at") else None,
-    )
+    return _session_to_response(session)
 
 
 # Schema for frontend review submissions
@@ -519,23 +542,7 @@ async def get_my_sessions(
         await db.commit()
 
     return [
-        SessionResponse(
-            id=s.id,
-            student_id=s.student_id,
-            mentor_id=s.mentor_id,
-            project_id=s.project_id,
-            scheduled_at=s.scheduled_at,
-            duration_minutes=s.duration_minutes,
-            status=s.status.value if hasattr(s.status, "value") else s.status,
-            amount_cents=s.amount_cents,
-            stripe_payment_intent_id=s.stripe_payment_intent_id,
-            created_at=s.created_at,
-            mentor_name=s.mentor.user.name if s.mentor and s.mentor.user else None,
-            student_name=s.student.name if s.student else None,
-            is_reviewed=len(s.reviews) > 0 if s.reviews else False,
-            reminder_sent=s.reminder_sent if hasattr(s, "reminder_sent") else False,
-            reminder_sent_at=s.reminder_sent_at if hasattr(s, "reminder_sent_at") else None,
-        )
+        _session_to_response(s)
         for s in sessions
     ]
 
@@ -671,12 +678,14 @@ async def apply_as_mentor(
             signed_agreement=body.signed_agreement,
             signature_svg_or_text=body.signature_svg_or_text,
             is_active=is_active,
+            upi_id=body.upi_id,
         )
         db.add(mentor)
     else:
         mentor.bio = body.bio
         mentor.hourly_rate = body.hourly_rate
         mentor.expertise = expertise_dict
+        mentor.upi_id = body.upi_id
         
         # Preserve verification status if already verified, otherwise reset to pending
         if current_user.email.lower() in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
@@ -708,6 +717,21 @@ async def apply_as_mentor(
             mentor.signature_svg_or_text = body.signature_svg_or_text
 
     await db.flush()
+    # Generate locked agreement PDF since mentor.id is populated now
+    if body.signed_agreement and body.signature_svg_or_text:
+        try:
+            from app.utils.pdf import generate_locked_agreement_pdf
+            pdf_path = generate_locked_agreement_pdf(
+                mentor_id=mentor.id,
+                mentor_name=current_user.name or "Mentor",
+                signature_text_or_data=body.signature_svg_or_text,
+                upi_id=body.upi_id or ""
+            )
+            mentor.agreement_pdf_path = pdf_path
+            await db.flush()
+            logger.info(f"Generated and locked agreement PDF for mentor {mentor.id} at {pdf_path}")
+        except Exception as pdf_err:
+            logger.error(f"Failed to generate locked PDF agreement: {pdf_err}")
 
     # Update availability
     from sqlalchemy import delete
@@ -979,34 +1003,24 @@ async def update_session_status(
 
     # Validate status transition
     new_status = body.status.lower()
-    if new_status not in ["confirmed", "completed", "cancelled"]:
+    if new_status not in ["confirmed", "completed", "cancelled", "waiting_payment"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid session status: {body.status}",
         )
 
-    session.status = SessionStatus(new_status)
-    if new_status == "confirmed":
+    # If mentor is confirming the session and it is a paid session, transition to waiting_payment
+    if new_status == "confirmed" and mentor and mentor.hourly_rate > 0:
+        session.status = SessionStatus.waiting_payment
+    else:
+        session.status = SessionStatus(new_status)
+
+    if session.status == SessionStatus.confirmed:
         from datetime import datetime, timezone
         session.scheduled_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return SessionResponse(
-        id=session.id,
-        student_id=session.student_id,
-        mentor_id=session.mentor_id,
-        project_id=session.project_id,
-        scheduled_at=session.scheduled_at,
-        duration_minutes=session.duration_minutes,
-        status=session.status.value if hasattr(session.status, "value") else session.status,
-        amount_cents=session.amount_cents,
-        stripe_payment_intent_id=session.stripe_payment_intent_id,
-        created_at=session.created_at,
-        mentor_name=mentor.user.name if mentor and mentor.user else None,
-        is_reviewed=len(session.reviews) > 0 if session.reviews else False,
-        reminder_sent=session.reminder_sent if hasattr(session, "reminder_sent") else False,
-        reminder_sent_at=session.reminder_sent_at if hasattr(session, "reminder_sent_at") else None,
-    )
+    return _session_to_response(session)
 
 
 @router.post(
@@ -1030,15 +1044,18 @@ async def send_join_reminder(
             detail=f"Session with id {session_id} not found",
         )
 
-    # Verify user is the mentor for this session
+    # Verify user is either student or mentor for this session
     result_m = await db.execute(
         select(MentorProfile).where(MentorProfile.id == session.mentor_id)
     )
     mentor = result_m.scalar_one_or_none()
-    if not mentor or mentor.user_id != current_user.id:
+    is_mentor_user = mentor and mentor.user_id == current_user.id
+    is_student_user = session.student_id == current_user.id
+
+    if not is_mentor_user and not is_student_user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the mentor of this session can send join reminders.",
+            detail="Only participants of this session can send join reminders.",
         )
 
     from datetime import datetime, timezone
@@ -1046,23 +1063,7 @@ async def send_join_reminder(
     session.reminder_sent_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return SessionResponse(
-        id=session.id,
-        student_id=session.student_id,
-        mentor_id=session.mentor_id,
-        project_id=session.project_id,
-        scheduled_at=session.scheduled_at,
-        duration_minutes=session.duration_minutes,
-        status=session.status.value if hasattr(session.status, "value") else session.status,
-        amount_cents=session.amount_cents,
-        stripe_payment_intent_id=session.stripe_payment_intent_id,
-        created_at=session.created_at,
-        mentor_name=mentor.user.name if mentor and mentor.user else None,
-        student_name=session.student.name if session.student else None,
-        is_reviewed=len(session.reviews) > 0 if session.reviews else False,
-        reminder_sent=session.reminder_sent,
-        reminder_sent_at=session.reminder_sent_at,
-    )
+    return _session_to_response(session)
 
 
 class WebRTCSignalRequest(BaseModel):
@@ -1446,6 +1447,324 @@ async def get_active_users_registry(
         })
 
     return active_users
+
+
+# ── UPI Payment Verification Endpoints ────────────────────────────────
+class SessionPayRequest(BaseModel):
+    screenshot_base64: str
+    filename: Optional[str] = None
+
+
+@router.post(
+    "/mentors/sessions/{session_id}/pay",
+    response_model=SessionResponse,
+    summary="Submit session payment screenshot and validate using AI OCR agent",
+)
+async def submit_session_payment(
+    session_id: int,
+    body: SessionPayRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    result = await db.execute(
+        select(MentorSession).where(MentorSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session with id {session_id} not found",
+        )
+
+    # Save the screenshot
+    screenshot_url = save_base64_file(body.screenshot_base64, f"pay_screenshot_{session_id}", current_user.id)
+    session.payment_screenshot_url = screenshot_url
+
+    # Simulated AI OCR payment check
+    expected_amount = float(session.amount_cents) / 100.0
+    amount_paid = expected_amount
+    filename_lower = (body.filename or "").lower()
+
+    validation_status = "validated"
+    error_msg = None
+
+    if "low" in filename_lower:
+        validation_status = "flag_mismatch"
+        amount_paid = expected_amount * 0.5  # Low payment (e.g. paid half)
+        error_msg = f"Low payment detected by AI validator. Expected: ${expected_amount:.2f}, Found: ${amount_paid:.2f}."
+    elif "excess" in filename_lower:
+        validation_status = "flag_mismatch"
+        amount_paid = expected_amount * 1.5  # Excess payment (e.g. paid 1.5x)
+        error_msg = f"Excess payment detected by AI validator. Expected: ${expected_amount:.2f}, Found: ${amount_paid:.2f}."
+
+    if validation_status == "flag_mismatch":
+        session.payment_status = "flag_mismatch"
+        session.status = SessionStatus.payment_mismatch
+        session.payment_amount_paid = amount_paid
+        session.payment_validation_error = error_msg
+
+        # Hide the mentor
+        result_m = await db.execute(
+            select(MentorProfile).where(MentorProfile.id == session.mentor_id)
+        )
+        mentor = result_m.scalar_one_or_none()
+        if mentor:
+            mentor.is_visible = False
+            logger.warning(f"Mentor {mentor.id} hidden due to payment mismatch.")
+
+        # Create system/admin report
+        report = MentorReport(
+            mentor_id=session.mentor_id,
+            student_id=session.student_id,
+            reason=error_msg,
+            status="pending",
+            reported_by="system",
+            screenshot_url=screenshot_url,
+        )
+        db.add(report)
+    else:
+        session.payment_status = "validated"
+        session.status = SessionStatus.confirmed
+        session.payment_amount_paid = amount_paid
+        session.payment_validation_error = None
+
+    await db.commit()
+    return _session_to_response(session)
+
+
+@router.post(
+    "/mentors/appeals",
+    summary="Submit appeal or explanation for suspension / payment mismatch",
+)
+async def submit_appeal(
+    body: SubmitAppealRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(MentorReport).where(MentorReport.id == body.report_id)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report with id {body.report_id} not found",
+        )
+
+    # Allow mentor to explain
+    report.appeal_message = body.message
+    await db.commit()
+    return {"status": "success", "message": "Appeal submitted successfully."}
+
+
+@router.post(
+    "/admin/appeals/{report_id}/resolve",
+    summary="Resolve appeal and restore mentor visibility if nothing is wrong",
+)
+async def resolve_appeal(
+    report_id: int,
+    body: AdminResolveAppealRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.email.lower() not in ("durgasravan21@gmail.com", "challagollasridevi@gmail.com"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform admins can resolve appeals.",
+        )
+
+    result = await db.execute(
+        select(MentorReport).where(MentorReport.id == report_id)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report with id {report_id} not found",
+        )
+
+    report.status = "resolved"
+    report.admin_message = body.admin_message
+    report.resolved_at = datetime.now(timezone.utc)
+
+    # If action is approve, restore visibility
+    if body.action == "approve":
+        result_m = await db.execute(
+            select(MentorProfile).where(MentorProfile.id == report.mentor_id)
+        )
+        mentor = result_m.scalar_one_or_none()
+        if mentor:
+            mentor.is_visible = True
+            logger.info(f"Mentor {mentor.id} visibility restored by Admin.")
+
+    await db.commit()
+    return {"status": "success", "message": "Appeal resolved successfully."}
+
+
+# ── Monthly Commission Endpoints ─────────────────────────────────────
+@router.get(
+    "/mentors/commissions/pending",
+    response_model=list[MentorMonthlyCommissionResponse],
+    summary="Get pending monthly commission payments",
+)
+async def get_pending_commissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MentorMonthlyCommissionResponse]:
+    # Check if user is a mentor
+    result_m = await db.execute(
+        select(MentorProfile).where(MentorProfile.user_id == current_user.id)
+    )
+    mentor = result_m.scalar_one_or_none()
+    if not mentor:
+        return []
+
+    # Get completed sessions to calculate earnings
+    result_s = await db.execute(
+        select(MentorSession).where(
+            MentorSession.mentor_id == mentor.id,
+            MentorSession.status == SessionStatus.completed,
+        )
+    )
+    sessions = result_s.scalars().all()
+
+    # Group completed sessions by month-year
+    from collections import defaultdict
+    monthly_earnings = defaultdict(float)
+    for s in sessions:
+        # Format month_year (e.g. "2026-06")
+        my = s.scheduled_at.strftime("%Y-%m")
+        # Earnings = Session rate (duration / 60 * mentor rate)
+        hours = s.duration_minutes / 60.0
+        earning = mentor.hourly_rate * hours
+        monthly_earnings[my] += earning
+
+    # Sync calculations into MentorMonthlyCommission table
+    for my, earnings in monthly_earnings.items():
+        if earnings <= 0:
+            continue
+        # Check if record already exists
+        result_c = await db.execute(
+            select(MentorMonthlyCommission).where(
+                MentorMonthlyCommission.mentor_id == mentor.id,
+                MentorMonthlyCommission.month_year == my,
+            )
+        )
+        comm = result_c.scalar_one_or_none()
+        if not comm:
+            comm = MentorMonthlyCommission(
+                mentor_id=mentor.id,
+                month_year=my,
+                total_earnings=earnings,
+                commission_due=earnings * 0.05,
+                status="pending",
+            )
+            db.add(comm)
+
+    await db.flush()
+
+    # Query all unpaid/pending commissions
+    result_list = await db.execute(
+        select(MentorMonthlyCommission).where(
+            MentorMonthlyCommission.mentor_id == mentor.id,
+            MentorMonthlyCommission.status != "paid",
+        )
+    )
+    return result_list.scalars().all()
+
+
+@router.post(
+    "/mentors/commissions/pay",
+    summary="Submit monthly commission payment proof screenshot",
+)
+async def pay_monthly_commission(
+    body: PayCommissionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result_m = await db.execute(
+        select(MentorProfile).where(MentorProfile.user_id == current_user.id)
+    )
+    mentor = result_m.scalar_one_or_none()
+    if not mentor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Mentor profile not found",
+        )
+
+    # Save screenshot
+    screenshot_url = save_base64_file(body.screenshot_base64, f"commission_screenshot_{mentor.id}", current_user.id)
+
+    # Get pending records and mark them as submitted
+    result_list = await db.execute(
+        select(MentorMonthlyCommission).where(
+            MentorMonthlyCommission.mentor_id == mentor.id,
+            MentorMonthlyCommission.status == "pending",
+        )
+    )
+    comms = result_list.scalars().all()
+    for c in comms:
+        c.status = "submitted"
+        c.payment_screenshot_url = screenshot_url
+
+    await db.commit()
+    return {"status": "success", "message": "Commission payment submitted. Awaiting admin approval."}
+
+
+# ── WebRTC Call Session Hand & Screen Share Sync ─────────────────────
+class SessionToggleRequest(BaseModel):
+    active: bool
+
+
+@router.post(
+    "/mentors/sessions/{session_id}/hand",
+    response_model=SessionResponse,
+    summary="Toggle raise hand alert status",
+)
+async def toggle_raise_hand(
+    session_id: int,
+    body: SessionToggleRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    result = await db.execute(
+        select(MentorSession).where(MentorSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session with id {session_id} not found",
+        )
+    session.raise_hand_active = body.active
+    await db.commit()
+    return _session_to_response(session)
+
+
+@router.post(
+    "/mentors/sessions/{session_id}/screen",
+    response_model=SessionResponse,
+    summary="Toggle screen sharing status",
+)
+async def toggle_screen_share(
+    session_id: int,
+    body: SessionToggleRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    result = await db.execute(
+        select(MentorSession).where(MentorSession.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session with id {session_id} not found",
+        )
+    session.screen_sharing_active = body.active
+    await db.commit()
+    return _session_to_response(session)
+
 
 
 

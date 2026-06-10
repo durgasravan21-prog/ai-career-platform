@@ -36,6 +36,10 @@ class MentorResponse(BaseModel):
     total_sessions: int
     is_active: bool
     video_calls_active: bool = True
+    upi_id: Optional[str] = None
+    is_visible: bool = True
+    agreement_pdf_path: Optional[str] = None
+    commission_paid_until: Optional[datetime] = None
     availability: list[MentorAvailabilityResponse] = []
     
     # Verification and Agreement fields
@@ -74,6 +78,7 @@ class ApplyMentorRequest(BaseModel):
     id_filename: Optional[str] = None
     signed_agreement: bool
     signature_svg_or_text: Optional[str] = None
+    upi_id: Optional[str] = None
     availability: list[dict] = []  # list of {"day_of_week": int, "start_time": str, "end_time": str}
 
 
@@ -136,6 +141,12 @@ class SessionResponse(BaseModel):
     is_reviewed: bool = False
     reminder_sent: bool = False
     reminder_sent_at: Optional[datetime] = None
+    payment_screenshot_url: Optional[str] = None
+    payment_amount_paid: Optional[float] = None
+    payment_status: str = "unpaid"
+    payment_validation_error: Optional[str] = None
+    raise_hand_active: bool = False
+    screen_sharing_active: bool = False
 
 
 class ReviewRequest(BaseModel):
@@ -184,6 +195,8 @@ class MentorReportResponse(BaseModel):
     status: str
     reported_by: str = "student"
     screenshot_url: Optional[str] = None
+    appeal_message: Optional[str] = None
+    admin_message: Optional[str] = None
     created_at: datetime
     mentor_name: Optional[str] = None
     student_name: Optional[str] = None
@@ -197,5 +210,42 @@ class VerifyDocumentsRequest(BaseModel):
     id_type: str
     selfie_filename: Optional[str] = None
     id_filename: Optional[str] = None
+
+
+class MentorMonthlyCommissionResponse(BaseModel):
+    """Monthly commission fee item."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    mentor_id: int
+    month_year: str
+    total_earnings: float
+    commission_due: float
+    payment_screenshot_url: Optional[str] = None
+    status: str
+    created_at: datetime
+
+
+class PayCommissionRequest(BaseModel):
+    """Request payload to pay monthly commission."""
+
+    screenshot_base64: str
+    filename: Optional[str] = None
+
+
+class SubmitAppealRequest(BaseModel):
+    """Request payload to submit an appeal / reason to the admin."""
+
+    report_id: int
+    message: str
+
+
+class AdminResolveAppealRequest(BaseModel):
+    """Request payload for admin to resolve an appeal."""
+
+    admin_message: Optional[str] = None
+    action: str # "approve" (restore visibility) or "reject" (keep hidden/suspended)
+
 
 
