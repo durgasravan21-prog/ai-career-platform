@@ -52,6 +52,7 @@ export default function ProfilePage() {
   const [portfolioUrl, setPortfolioUrl] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [targetRoleId, setTargetRoleId] = useState("");
+  const [upiId, setUpiId] = useState("");
 
   // Mentor Form Fields
   const [mentorProfile, setMentorProfile] = useState<any>(null);
@@ -150,6 +151,14 @@ export default function ProfilePage() {
             : ""
         );
 
+        // Admin UPI check
+        if (user?.email?.toLowerCase() === "durgasravan21@gmail.com") {
+          const savedAdminUpi = localStorage.getItem("platform_admin_upi_id");
+          if (savedAdminUpi) {
+            setUpiId(savedAdminUpi);
+          }
+        }
+
         // Fetch mentor profile status if applicable
         try {
           const mentorData = await api.mentors.getAppStatus();
@@ -159,6 +168,7 @@ export default function ProfilePage() {
             setMentorCompany(mentorData.company_name || "");
             setMentorExpertise(mentorData.expertise || []);
             setMentorAvailability(mentorData.availability || []);
+            setUpiId(mentorData.upi_id || "");
           }
         } catch (e: any) {
           // 404 or other normal errors when user is not a mentor
@@ -221,6 +231,11 @@ export default function ProfilePage() {
 
       await api.user.updateProfile(payload);
       
+      // Save admin UPI to localStorage if admin
+      if (user?.email?.toLowerCase() === "durgasravan21@gmail.com") {
+        localStorage.setItem("platform_admin_upi_id", upiId.trim());
+      }
+
       // Update mentor pricing and availability if they are a mentor, admin, or filled in coaching data
       const hasCoachingData = mentorCompany.trim() || mentorExpertise.length > 0 || mentorAvailability.length > 0 || mentorHourlyRate !== "50";
       if (mentorProfile || user?.email?.toLowerCase() === "durgasravan21@gmail.com" || hasCoachingData) {
@@ -245,6 +260,7 @@ export default function ProfilePage() {
           signed_agreement: true,
           signature_svg_or_text: (mentorProfile ? mentorProfile.signature_svg_or_text : "") || "signed",
           availability: availabilityPayload,
+          upi_id: upiId.trim(),
         });
       }
 
@@ -356,6 +372,21 @@ export default function ProfilePage() {
                   />
                   <span className="text-[10px] text-muted block mt-1">
                     Used by administration to contact you in case of session issues.
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted font-semibold uppercase tracking-wider">
+                    UPI ID for Payments
+                  </label>
+                  <Input
+                    placeholder="e.g. name@bankupi"
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                  />
+                  <span className="text-[10px] text-muted block mt-1">
+                    {user?.email?.toLowerCase() === "durgasravan21@gmail.com" 
+                      ? "Platform UPI ID where platform commissions should be sent."
+                      : "Your personal UPI ID where coaching and review payouts will be settled."}
                   </span>
                 </div>
               </div>

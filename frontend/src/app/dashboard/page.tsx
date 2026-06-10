@@ -60,9 +60,15 @@ import {
   MicOff,
   VideoOff,
   Laptop,
-  Circle,
-  Square,
   Edit,
+  Save,
+  Wallet,
+  Scale,
+  CheckCircle2,
+  Download,
+  AlertTriangle,
+  Square,
+  Circle
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -100,6 +106,34 @@ export default function DashboardPage() {
   const [unlockingMentor, setUnlockingMentor] = useState<Mentor | null>(null);
   const [agreementPassword, setAgreementPassword] = useState<string>("");
   const [unlockError, setUnlockError] = useState<string>("");
+
+  // Commission Rates Settings
+  const [commissionCoaching, setCommissionCoaching] = useState<number>(15);
+  const [commissionReview, setCommissionReview] = useState<number>(10);
+  const [editingCoachingRate, setEditingCoachingRate] = useState<string>("15");
+  const [editingReviewRate, setEditingReviewRate] = useState<string>("10");
+  const [isSavingRates, setIsSavingRates] = useState<boolean>(false);
+  
+  // UPI Settings
+  const [adminUpiId, setAdminUpiId] = useState<string>("");
+  const [tempUpiId, setTempUpiId] = useState<string>("");
+  const [editingUpiId, setEditingUpiId] = useState<boolean>(false);
+  const [isSavingUpiId, setIsSavingUpiId] = useState<boolean>(false);
+
+  // Commission Appeals States
+  const [appeals, setAppeals] = useState<any[]>([]);
+  const [isAppealModalOpen, setIsAppealModalOpen] = useState<boolean>(false);
+  const [appealType, setAppealType] = useState<"rate_revision" | "payout_dispute">("rate_revision");
+  const [appealDetails, setAppealDetails] = useState<string>("");
+  const [appealRequestedRate, setAppealRequestedRate] = useState<string>("12");
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState<boolean>(false);
+  const [selectedAppealForReview, setSelectedAppealForReview] = useState<any | null>(null);
+  const [reviewAdminNotes, setReviewAdminNotes] = useState<string>("Approved and updated in the system.");
+
+  // Payment Document Modal States
+  const [paymentDocs, setPaymentDocs] = useState<any[]>([]);
+  const [viewingSettlementMentor, setViewingSettlementMentor] = useState<any | null>(null);
+  const [viewingSettlementMonth, setViewingSettlementMonth] = useState<string>("June 2026");
 
   // Report Modal States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -920,6 +954,236 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [isVideoCallOpen]);
 
+  // Sync mentor's UPI state
+  useEffect(() => {
+    if (mentorProfile) {
+      setTempUpiId(mentorProfile.upi_id || "");
+    }
+  }, [mentorProfile]);
+
+  // Load commission rates and admin UPI on mount
+  useEffect(() => {
+    const savedRates = localStorage.getItem("platform_commission_rates");
+    if (savedRates) {
+      try {
+        const parsed = JSON.parse(savedRates);
+        if (typeof parsed.coaching === "number") {
+          setCommissionCoaching(parsed.coaching);
+          setEditingCoachingRate(String(parsed.coaching));
+        }
+        if (typeof parsed.review === "number") {
+          setCommissionReview(parsed.review);
+          setEditingReviewRate(String(parsed.review));
+        }
+      } catch (e) {
+        console.error("Failed to parse commission rates:", e);
+      }
+    }
+    
+    const savedAdminUpi = localStorage.getItem("platform_admin_upi_id");
+    if (savedAdminUpi) {
+      setAdminUpiId(savedAdminUpi);
+    }
+
+    const savedPayments = localStorage.getItem("platform_monthly_payments");
+    if (savedPayments) {
+      try {
+        setPaymentDocs(JSON.parse(savedPayments));
+      } catch (e) {
+        console.error("Failed to parse payments:", e);
+      }
+    }
+
+    const savedAppeals = localStorage.getItem("platform_commission_appeals");
+    if (savedAppeals) {
+      try {
+        setAppeals(JSON.parse(savedAppeals));
+      } catch (e) {
+        console.error("Failed to parse appeals:", e);
+      }
+    } else {
+      const initialAppeals = [
+        {
+          id: "APP-101",
+          mentorId: "1",
+          mentorName: "Sarah Connor",
+          type: "rate_revision",
+          details: "Requesting a rate reduction to 12% for coaching sessions. I have mentored over 50 hours this quarter and maintain a 4.9 rating.",
+          requestedRate: 12,
+          status: "pending",
+          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: "APP-102",
+          mentorId: "2",
+          mentorName: "John Doe",
+          type: "payout_dispute",
+          details: "My payout calculation for May seems to show 8 sessions instead of 10. Can you please verify if the last two sessions were completed?",
+          status: "approved",
+          adminNotes: "Verified logs. The 2 sessions were marked completed on June 1. Updated the payout.",
+          createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      ];
+      setAppeals(initialAppeals);
+      localStorage.setItem("platform_commission_appeals", JSON.stringify(initialAppeals));
+    }
+  }, []);
+
+  const handleSaveCommissionRates = () => {
+    setIsSavingRates(true);
+    const coaching = parseFloat(editingCoachingRate);
+    const review = parseFloat(editingReviewRate);
+    
+    if (isNaN(coaching) || coaching < 0 || coaching > 100 || isNaN(review) || review < 0 || review > 100) {
+      setError("Please enter valid commission percentages between 0 and 100.");
+      setIsSavingRates(false);
+      return;
+    }
+
+    localStorage.setItem("platform_commission_rates", JSON.stringify({ coaching, review }));
+    setCommissionCoaching(coaching);
+    setCommissionReview(review);
+    setSuccess("Commission rates updated successfully!");
+    setIsSavingRates(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSaveAdminUpi = () => {
+    localStorage.setItem("platform_admin_upi_id", adminUpiId.trim());
+    setSuccess("Admin UPI ID updated successfully!");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSaveMentorUpiId = async () => {
+    setIsSavingUpiId(true);
+    setError("");
+    setSuccess("");
+    try {
+      const payload = {
+        ...mentorProfile,
+        upi_id: tempUpiId.trim(),
+      };
+      const updatedProfile = await api.mentors.apply(payload);
+      setMentorProfile(updatedProfile);
+      setEditingUpiId(false);
+      setSuccess("UPI ID updated successfully!");
+    } catch (err: any) {
+      setError(err?.message || "Failed to update UPI ID.");
+    } finally {
+      setIsSavingUpiId(false);
+    }
+  };
+
+  const getMentorCommissionRates = (mentorId: string) => {
+    const savedCustomRates = localStorage.getItem("platform_mentor_custom_rates");
+    if (savedCustomRates) {
+      try {
+        const customRatesMap = JSON.parse(savedCustomRates);
+        if (customRatesMap[mentorId]) {
+          return {
+            coaching: customRatesMap[mentorId].coaching ?? commissionCoaching,
+            review: customRatesMap[mentorId].review ?? commissionReview,
+            isCustom: true
+          };
+        }
+      } catch (e) {}
+    }
+    return {
+      coaching: commissionCoaching,
+      review: commissionReview,
+      isCustom: false
+    };
+  };
+
+  const handleSubmitCommissionAppeal = () => {
+    if (!appealDetails.trim()) {
+      setError("Please explain the details of your appeal.");
+      return;
+    }
+    setIsSubmittingAppeal(true);
+    const newAppeal = {
+      id: `APP-${Math.floor(100 + Math.random() * 900)}`,
+      mentorId: String(mentorProfile?.id || "unknown"),
+      mentorName: user?.name || "Anonymous Mentor",
+      type: appealType,
+      details: appealDetails.trim(),
+      requestedRate: appealType === "rate_revision" ? parseFloat(appealRequestedRate) : undefined,
+      status: "pending",
+      createdAt: new Date().toISOString()
+    };
+    
+    const updated = [newAppeal, ...appeals];
+    setAppeals(updated);
+    localStorage.setItem("platform_commission_appeals", JSON.stringify(updated));
+    setAppealDetails("");
+    setIsAppealModalOpen(false);
+    setSuccess("Your payout appeal has been submitted successfully to the administrator.");
+    setIsSubmittingAppeal(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleReviewAppealSubmit = (status: "approved" | "rejected") => {
+    if (!selectedAppealForReview) return;
+    const updatedAppeals = appeals.map((app) => {
+      if (app.id === selectedAppealForReview.id) {
+        return {
+          ...app,
+          status,
+          adminNotes: reviewAdminNotes.trim()
+        };
+      }
+      return app;
+    });
+    setAppeals(updatedAppeals);
+    localStorage.setItem("platform_commission_appeals", JSON.stringify(updatedAppeals));
+    
+    if (status === "approved" && selectedAppealForReview.type === "rate_revision" && selectedAppealForReview.requestedRate !== undefined) {
+      const savedCustomRates = localStorage.getItem("platform_mentor_custom_rates");
+      let customRatesMap: Record<string, any> = {};
+      if (savedCustomRates) {
+        try {
+          customRatesMap = JSON.parse(savedCustomRates);
+        } catch (e) {}
+      }
+      customRatesMap[selectedAppealForReview.mentorId] = {
+        coaching: selectedAppealForReview.requestedRate,
+        review: selectedAppealForReview.requestedRate
+      };
+      localStorage.setItem("platform_mentor_custom_rates", JSON.stringify(customRatesMap));
+    }
+    
+    setSelectedAppealForReview(null);
+    setSuccess(`Appeal #${selectedAppealForReview.id} has been ${status === "approved" ? "approved" : "rejected"}.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleSettlePayment = (mentor: any, gross: number, commission: number, net: number) => {
+    if (paymentDocs.some(d => d.mentorId === String(mentor.id) && d.period === "June 2026")) {
+      setError("This mentor payout is already settled for June 2026.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const docId = `PAY-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newDoc = {
+      id: docId,
+      mentorId: String(mentor.id),
+      mentorName: mentor.mentor_name || mentor.name,
+      email: mentor.email,
+      upiId: mentor.upi_id || "Not Provided",
+      period: "June 2026",
+      grossAmount: gross,
+      commissionAmount: commission,
+      netPayout: net,
+      status: "settled",
+      createdAt: new Date().toISOString()
+    };
+    const updatedDocs = [...paymentDocs, newDoc];
+    setPaymentDocs(updatedDocs);
+    localStorage.setItem("platform_monthly_payments", JSON.stringify(updatedDocs));
+    setSuccess(`Successfully generated payout document and settled payment for ${mentor.mentor_name || mentor.name}.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   // Fetch dashboard data
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -970,7 +1234,11 @@ export default function DashboardPage() {
             }
           }
 
-          if (currentMentor && currentMentor.verification_status === "verified") {
+          const isMentorUser = user?.role === "mentor" || 
+                               user?.email?.toLowerCase() === "challagollasridevi@gmail.com" || 
+                               user?.email?.toLowerCase() === "durgasravan21@gmail.com";
+
+          if (currentMentor && (currentMentor.verification_status === "verified" || isMentorUser)) {
             // Mentor View: Fetch sessions and pending student submissions
             const [sessionsData, submissionsData] = await Promise.all([
               api.mentors.getMySessions(),
@@ -1868,6 +2136,8 @@ export default function DashboardPage() {
 - **Mentor ID**: ${unlockingMentor.mentor_id}
 - **Expertise Focus**: ${unlockingMentor.expertise.join(", ")}
 - **Hourly Base Rate**: $${unlockingMentor.hourly_rate} USD
+- **Platform Commission (Coaching)**: ${commissionCoaching}%
+- **Platform Commission (Reviews)**: ${commissionReview}%
 - **Premium Tier Status**: ${unlockingMentor.has_premium_subscription ? "Active - Collective Group Sessions Enabled" : "Inactive - Standard Individual Sessions Only"}
 
 This document certifies that ${unlockingMentor.mentor_name} is a verified professional mentor on CareerAI. The Mentor agrees to guide students on project submissions, provide skill-gap reviews, and maintain professional conduct. All student code reviews and feedback shared on this platform are intellectual properties of the respective student or organization.
@@ -2811,7 +3081,7 @@ Signed Digitally by:
 
           {/* TAB 6: COMMISSION & REVENUE TRACKING */}
           {adminActiveTab === "commission" && (
-            <div className="space-y-8 animate-fadeIn">
+            <div className="space-y-8 animate-fadeIn text-foreground">
               {/* Commission Overview Stats */}
               <div className="grid gap-6 md:grid-cols-4">
                 <Card className="p-5 bg-white/5 border-white/10">
@@ -2839,13 +3109,14 @@ Signed Digitally by:
                       <TrendingUp className="h-5 w-5" />
                     </div>
                     <div>
-                      <span className="text-[10px] text-muted uppercase tracking-wider block">Platform Commission (15%)</span>
+                      <span className="text-[10px] text-muted uppercase tracking-wider block">Platform Commission</span>
                       <span className="text-lg font-bold text-success">
                         {formatDualCurrencyAmount(
                           allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
                             const sessionEarnings = (m.total_sessions || 0) * (m.hourly_rate || 50);
                             const revEarnings = m.review_earnings ?? ((m.reviewed_count || 0) * 0.75);
-                            return sum + (sessionEarnings + revEarnings) * 0.15;
+                            const rates = getMentorCommissionRates(String(m.id));
+                            return sum + (sessionEarnings * (rates.coaching / 100)) + (revEarnings * (rates.review / 100));
                           }, 0)
                         )}
                       </span>
@@ -2880,24 +3151,327 @@ Signed Digitally by:
                 </Card>
               </div>
 
-              {/* Commission Reminder Banner */}
-              <Card className="p-5 bg-gradient-to-r from-warning/5 to-primary/5 border-warning/20">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-warning/15 border border-warning/25 flex items-center justify-center text-warning">
-                      <Bell className="h-5 w-5" />
+              {/* Commission Rate & Admin UPI Configuration Panel */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-accent" />
+                  Commission Rate & Settlement Policy Settings
+                </CardTitle>
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4 text-primary" />
+                      <h4 className="text-sm font-bold text-foreground">Coaching Session Rate</h4>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-foreground">Commission Settlement Reminder</h4>
-                      <p className="text-xs text-muted mt-0.5">
-                        Platform commission rate is set at <strong className="text-primary">15%</strong> on all coaching sessions and <strong className="text-primary">10%</strong> on peer code reviews.
-                        Ensure timely settlements to maintain coach satisfaction and platform health.
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={editingCoachingRate}
+                        onChange={(e) => setEditingCoachingRate(e.target.value)}
+                        className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground font-bold w-24 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <span className="text-lg font-bold text-muted">%</span>
+                    </div>
+                    <p className="text-[11px] text-muted leading-relaxed">
+                      Applied to all paid 1-on-1 video coaching sessions globally unless a mentor has an approved rate appeal.
+                    </p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <FolderKanban className="h-4 w-4 text-secondary" />
+                      <h4 className="text-sm font-bold text-foreground">Peer Review Rate</h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={editingReviewRate}
+                        onChange={(e) => setEditingReviewRate(e.target.value)}
+                        className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground font-bold w-24 focus:outline-none focus:ring-1 focus:ring-secondary"
+                      />
+                      <span className="text-lg font-bold text-muted">%</span>
+                    </div>
+                    <p className="text-[11px] text-muted leading-relaxed">
+                      Applied to all peer code review payouts. Lower rate to encourage review activities.
+                    </p>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-success" />
+                      <h4 className="text-sm font-bold text-foreground">Admin Settlement UPI ID</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="admin@upi"
+                        value={adminUpiId}
+                        onChange={(e) => setAdminUpiId(e.target.value)}
+                        className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-foreground font-semibold w-full focus:outline-none focus:ring-1 focus:ring-success"
+                      />
+                      <p className="text-[11px] text-muted leading-relaxed">
+                        Used to receive platform commission and process coach payouts.
                       </p>
                     </div>
                   </div>
-                  <Badge className="bg-warning/20 text-warning border-warning/30 text-[10px] whitespace-nowrap">
-                    Next Settlement: Monthly
-                  </Badge>
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={isSavingRates}
+                    onClick={() => {
+                      handleSaveCommissionRates();
+                      handleSaveAdminUpi();
+                    }}
+                    className="bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-6 py-2.5 rounded-xl transition-all text-xs flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" /> Save Configuration Settings
+                  </button>
+                </div>
+              </Card>
+
+              {/* APPEALS DASHBOARD PANEL */}
+              <Card className="p-6">
+                <CardTitle className="mb-6 flex items-center gap-2">
+                  <Scale className="h-5 w-5 text-warning" />
+                  Commission & Payout Appeals Dashboard
+                </CardTitle>
+
+                {selectedAppealForReview ? (
+                  <div className="p-5 rounded-2xl border border-warning/30 bg-warning/5 space-y-4 mb-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-foreground">Reviewing Appeal #{selectedAppealForReview.id}</h4>
+                      <button 
+                        onClick={() => setSelectedAppealForReview(null)}
+                        className="text-muted hover:text-foreground text-xs font-bold"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <div className="text-xs space-y-1.5 text-muted">
+                      <div><strong>Mentor:</strong> {selectedAppealForReview.mentorName} (ID: {selectedAppealForReview.mentorId})</div>
+                      <div><strong>Type:</strong> <span className="capitalize">{selectedAppealForReview.type.replace("_", " ")}</span></div>
+                      {selectedAppealForReview.requestedRate !== undefined && (
+                        <div><strong>Requested Rate:</strong> <span className="text-primary font-bold">{selectedAppealForReview.requestedRate}%</span></div>
+                      )}
+                      <div><strong>Submission Date:</strong> {new Date(selectedAppealForReview.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="text-xs p-3 rounded-xl bg-surface border border-border">
+                      <strong>Details:</strong>
+                      <p className="mt-1 leading-relaxed">{selectedAppealForReview.details}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-muted uppercase font-bold">Admin Review Notes</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Write decision notes here (visible to mentor)..."
+                        value={reviewAdminNotes}
+                        onChange={(e) => setReviewAdminNotes(e.target.value)}
+                        className="w-full bg-surface border border-border rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-warning"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleReviewAppealSubmit("rejected")}
+                        className="bg-error/20 hover:bg-error/30 text-error border border-error/30 text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95"
+                      >
+                        Reject Appeal
+                      </button>
+                      <button
+                        onClick={() => handleReviewAppealSubmit("approved")}
+                        className="bg-success hover:bg-success-hover text-success-foreground text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95"
+                      >
+                        Approve Appeal & Apply Rates
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-4">Appeal ID</th>
+                        <th className="p-4">Mentor Name</th>
+                        <th className="p-4">Type</th>
+                        <th className="p-4">Details</th>
+                        <th className="p-4 text-center">Requested Rate</th>
+                        <th className="p-4 text-center">Status</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {appeals.map((appeal) => (
+                        <tr key={appeal.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                          <td className="p-4 font-mono font-bold text-warning">{appeal.id}</td>
+                          <td className="p-4 font-semibold">{appeal.mentorName}</td>
+                          <td className="p-4">
+                            <Badge className="capitalize bg-white/5 text-muted border-white/10">
+                              {appeal.type.replace("_", " ")}
+                            </Badge>
+                          </td>
+                          <td className="p-4 max-w-[200px] truncate text-muted">{appeal.details}</td>
+                          <td className="p-4 text-center font-bold text-primary">
+                            {appeal.requestedRate !== undefined ? `${appeal.requestedRate}%` : "N/A"}
+                          </td>
+                          <td className="p-4 text-center">
+                            <Badge
+                              className={cn(
+                                "capitalize text-[10px]",
+                                appeal.status === "approved" && "bg-success/20 text-success border-success/30",
+                                appeal.status === "rejected" && "bg-error/20 text-error border-error/30",
+                                appeal.status === "pending" && "bg-warning/20 text-warning border-warning/30"
+                              )}
+                            >
+                              {appeal.status}
+                            </Badge>
+                          </td>
+                          <td className="p-4 text-right">
+                            {appeal.status === "pending" ? (
+                              <button
+                                onClick={() => {
+                                  setSelectedAppealForReview(appeal);
+                                  setReviewAdminNotes("");
+                                }}
+                                className="bg-warning/20 hover:bg-warning/30 text-warning border border-warning/30 px-3 py-1 rounded-lg font-bold text-[10px] active:scale-95 transition-all"
+                              >
+                                Review Appeal
+                              </button>
+                            ) : (
+                              <span className="text-muted text-[10px] italic">Reviewed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {appeals.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-muted italic">No commission appeals submitted yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* MONTHLY PAYMENT DOCUMENTS SECTION */}
+              <Card className="p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-success" />
+                      Monthly Payment Documents & Statements
+                    </CardTitle>
+                    <p className="text-xs text-muted mt-1">
+                      Stored payout settlement sheets generated upon payment processing.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Bulk generate payout documents for all verified mentors with activity
+                      let count = 0;
+                      allMentors.filter(m => m.verification_status === "verified" && (m.total_sessions || 0) > 0).forEach((mentor) => {
+                        const baseRate = mentor.hourly_rate || 50;
+                        const sessionsCount = mentor.total_sessions || 0;
+                        const reviewCount = mentor.reviewed_count || 0;
+                        const sessionGross = sessionsCount * baseRate;
+                        const reviewGross = mentor.review_earnings ?? (reviewCount * 0.75);
+                        
+                        const rates = getMentorCommissionRates(String(mentor.id));
+                        const sessionCommission = sessionGross * (rates.coaching / 100);
+                        const reviewCommission = reviewGross * (rates.review / 100);
+                        const gross = sessionGross + reviewGross;
+                        const commission = sessionCommission + reviewCommission;
+                        const net = gross - commission;
+                        
+                        // Check if already settled in this batch
+                        if (!paymentDocs.some(d => d.mentorId === String(mentor.id) && d.period === "June 2026")) {
+                          const docId = `PAY-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+                          paymentDocs.push({
+                            id: docId,
+                            mentorId: String(mentor.id),
+                            mentorName: mentor.mentor_name || mentor.name,
+                            email: mentor.email,
+                            upiId: mentor.upi_id || "Not Provided",
+                            period: "June 2026",
+                            grossAmount: gross,
+                            commissionAmount: commission,
+                            netPayout: net,
+                            status: "settled",
+                            createdAt: new Date().toISOString()
+                          });
+                          count++;
+                        }
+                      });
+                      if (count > 0) {
+                        setPaymentDocs([...paymentDocs]);
+                        localStorage.setItem("platform_monthly_payments", JSON.stringify(paymentDocs));
+                        setSuccess(`Successfully generated bulk monthly payment documents for ${count} mentors.`);
+                      } else {
+                        setError("All pending mentor payouts for this period are already settled & documents generated.");
+                      }
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="bg-success hover:bg-success-hover text-success-foreground font-bold px-4 py-2 rounded-xl transition-all text-xs flex items-center gap-2 active:scale-95"
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> Bulk Generate Payout Documents
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-white/10">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
+                        <th className="p-4">Statement ID</th>
+                        <th className="p-4">Mentor Name</th>
+                        <th className="p-4">Period</th>
+                        <th className="p-4 text-center">Gross Earnings</th>
+                        <th className="p-4 text-center">Commission Deducted</th>
+                        <th className="p-4 text-center">Net Payout (UPI)</th>
+                        <th className="p-4 text-center">UPI Address</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {paymentDocs.map((doc) => (
+                        <tr key={doc.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
+                          <td className="p-4 font-mono font-bold text-success">{doc.id}</td>
+                          <td className="p-4 font-semibold">{doc.mentorName}</td>
+                          <td className="p-4 text-muted">{doc.period}</td>
+                          <td className="p-4 text-center text-foreground">{formatDualCurrencyAmount(doc.grossAmount)}</td>
+                          <td className="p-4 text-center text-primary">{formatDualCurrencyAmount(doc.commissionAmount)}</td>
+                          <td className="p-4 text-center text-success font-extrabold">{formatDualCurrencyAmount(doc.netPayout)}</td>
+                          <td className="p-4 text-center font-mono text-[11px] text-muted">{doc.upiId}</td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => {
+                                // Mock statement file download
+                                const fileContent = `PLATFORM PAYOUT STATEMENT\n==========================\nStatement ID: ${doc.id}\nDate Generated: ${new Date(doc.createdAt).toLocaleString()}\nPeriod: ${doc.period}\n\nMentor Name: ${doc.mentorName}\nEmail: ${doc.email}\nMentor UPI Address: ${doc.upiId}\n\nGross Earnings: ${formatDualCurrencyAmount(doc.grossAmount)}\nCommission Deducted: ${formatDualCurrencyAmount(doc.commissionAmount)}\n--------------------------\nNET PAYOUT SENT: ${formatDualCurrencyAmount(doc.netPayout)}\n\nStatus: Paid/Settled via UPI\nAdmin UPI Source: ${adminUpiId || "Not Set"}\n\nThank you for mentoring on the AI Career Growth Platform!\n`;
+                                const blob = new Blob([fileContent], { type: "text/plain" });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `${doc.id}_Statement_${doc.mentorName.replace(/\s+/g, "_")}.txt`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 px-3 py-1 rounded-lg font-bold text-[10px] active:scale-95 transition-all inline-flex items-center gap-1"
+                            >
+                              <Download className="h-3 w-3" /> Download Statement
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {paymentDocs.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-muted italic">No payment documents generated yet. Use the bulk generator or Settle Payout buttons below.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </Card>
 
@@ -2914,13 +3488,13 @@ Signed Digitally by:
                       <tr className="bg-white/5 border-b border-white/10 text-muted uppercase font-bold tracking-wider">
                         <th className="p-4">Coach ID</th>
                         <th className="p-4">Coach Name</th>
-                        <th className="p-4">Company</th>
+                        <th className="p-4">UPI ID</th>
                         <th className="p-4 text-center">Total Sessions</th>
                         <th className="p-4 text-center">Gross Earnings</th>
-                        <th className="p-4 text-center">Commission (15%)</th>
-                        <th className="p-4 text-center">Review Commission (10%)</th>
+                        <th className="p-4 text-center">Coaching Commission</th>
+                        <th className="p-4 text-center">Review Commission</th>
                         <th className="p-4 text-center">Net Coach Payout</th>
-                        <th className="p-4 text-center">Status</th>
+                        <th className="p-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -2930,35 +3504,59 @@ Signed Digitally by:
                         const reviewCount = m.reviewed_count || 0;
                         const sessionGross = sessionsCount * baseRate;
                         const reviewGross = m.review_earnings ?? (reviewCount * 0.75);
-                        const sessionCommission = sessionGross * 0.15;
-                        const reviewCommission = reviewGross * 0.10;
+                        
+                        const rates = getMentorCommissionRates(String(m.id));
+                        const sessionCommission = sessionGross * (rates.coaching / 100);
+                        const reviewCommission = reviewGross * (rates.review / 100);
                         const totalGross = sessionGross + reviewGross;
                         const totalCommission = sessionCommission + reviewCommission;
                         const netPayout = totalGross - totalCommission;
                         const hasPendingPayout = sessionsCount > 0;
+                        const mentorUpi = m.upi_id || "Not Provided";
+                        const isSettled = paymentDocs.some(d => d.mentorId === String(m.id) && d.period === "June 2026");
 
                         return (
                           <tr key={m.id} className="hover:bg-white/[0.02] transition-colors text-foreground">
                             <td className="p-4 font-mono font-bold text-primary">{m.mentor_id || `MNT-${m.id}`}</td>
                             <td className="p-4">
-                              <div className="font-semibold text-foreground">{m.mentor_name || m.name}</div>
+                              <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                {m.mentor_name || m.name}
+                                {rates.isCustom && (
+                                  <Badge className="bg-warning/20 text-warning border-warning/30 text-[9px] py-0 px-1 font-bold">
+                                    custom
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="text-muted text-[10px]">{m.email}</div>
                             </td>
-                            <td className="p-4 text-muted">{m.company_name || "Self-Employed"}</td>
+                            <td className="p-4 font-mono text-muted text-[11px]">{mentorUpi}</td>
                             <td className="p-4 text-center font-semibold">{sessionsCount}</td>
                             <td className="p-4 text-center font-semibold text-foreground">{formatDualCurrencyAmount(totalGross)}</td>
-                            <td className="p-4 text-center font-bold text-primary">{formatDualCurrencyAmount(sessionCommission)}</td>
-                            <td className="p-4 text-center font-bold text-secondary">{formatDualCurrencyAmount(reviewCommission)}</td>
+                            <td className="p-4 text-center font-bold text-primary">
+                              {formatDualCurrencyAmount(sessionCommission)}
+                              <span className="text-[10px] font-normal text-muted block">({rates.coaching}%)</span>
+                            </td>
+                            <td className="p-4 text-center font-bold text-secondary">
+                              {formatDualCurrencyAmount(reviewCommission)}
+                              <span className="text-[10px] font-normal text-muted block">({rates.review}%)</span>
+                            </td>
                             <td className="p-4 text-center font-bold text-success">{formatDualCurrencyAmount(netPayout)}</td>
-                            <td className="p-4 text-center">
-                              {hasPendingPayout ? (
-                                <Badge className="bg-warning/20 text-warning border-warning/30 text-[10px]">
-                                  Pending Settlement
-                                </Badge>
+                            <td className="p-4 text-right">
+                              {sessionsCount > 0 ? (
+                                isSettled ? (
+                                  <Badge className="bg-success/20 text-success border-success/30 text-[10px]">
+                                    Paid & Settled
+                                  </Badge>
+                                ) : (
+                                  <button
+                                    onClick={() => handleSettlePayment(m, totalGross, totalCommission, netPayout)}
+                                    className="bg-success hover:bg-success-hover text-success-foreground px-3 py-1 rounded-lg font-bold text-[10px] active:scale-95 transition-all inline-flex items-center gap-1"
+                                  >
+                                    <Wallet className="h-3 w-3" /> Settle Payout
+                                  </button>
+                                )
                               ) : (
-                                <Badge className="bg-white/5 text-muted border-white/10 text-[10px]">
-                                  No Activity
-                                </Badge>
+                                <span className="text-muted text-[10px] italic">No activity to settle</span>
                               )}
                             </td>
                           </tr>
@@ -2984,22 +3582,25 @@ Signed Digitally by:
                           <td className="p-4 text-center text-primary">
                             {formatDualCurrencyAmount(
                               allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
-                                return sum + ((m.total_sessions || 0) * (m.hourly_rate || 50)) * 0.15;
+                                const rates = getMentorCommissionRates(String(m.id));
+                                return sum + ((m.total_sessions || 0) * (m.hourly_rate || 50)) * (rates.coaching / 100);
                               }, 0)
                             )}
                           </td>
                           <td className="p-4 text-center text-secondary">
                             {formatDualCurrencyAmount(
                               allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
-                                return sum + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75)) * 0.10;
+                                const rates = getMentorCommissionRates(String(m.id));
+                                return sum + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75)) * (rates.review / 100);
                               }, 0)
                             )}
                           </td>
-                          <td className="p-4 text-center text-success">
+                          <td className="p-4 text-center text-success font-extrabold">
                             {formatDualCurrencyAmount(
                               allMentors.filter(m => m.verification_status === "verified").reduce((sum, m) => {
                                 const gross = ((m.total_sessions || 0) * (m.hourly_rate || 50)) + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75));
-                                const commission = ((m.total_sessions || 0) * (m.hourly_rate || 50)) * 0.15 + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75)) * 0.10;
+                                const rates = getMentorCommissionRates(String(m.id));
+                                const commission = ((m.total_sessions || 0) * (m.hourly_rate || 50)) * (rates.coaching / 100) + (m.review_earnings ?? ((m.reviewed_count || 0) * 0.75)) * (rates.review / 100);
                                 return sum + gross - commission;
                               }, 0)
                             )}
@@ -3009,48 +3610,6 @@ Signed Digitally by:
                       </tfoot>
                     )}
                   </table>
-                </div>
-              </Card>
-
-              {/* Commission Rate Configuration Card */}
-              <Card className="p-6">
-                <CardTitle className="mb-6 flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-accent" />
-                  Commission Rate Policy
-                </CardTitle>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Video className="h-4 w-4 text-primary" />
-                      <h4 className="text-sm font-bold text-foreground">Coaching Session Commission</h4>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted">Commission Rate</span>
-                      <span className="text-lg font-extrabold text-primary">15%</span>
-                    </div>
-                    <p className="text-[11px] text-muted leading-relaxed">
-                      Applied to all paid 1-on-1 video coaching sessions. Commission is deducted before mentor payout.
-                    </p>
-                    <div className="bg-primary/5 border border-primary/15 rounded-xl p-3">
-                      <p className="text-[10px] text-primary font-semibold">Example: $100/hr session → $15 commission → $85 coach payout</p>
-                    </div>
-                  </div>
-                  <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <FolderKanban className="h-4 w-4 text-secondary" />
-                      <h4 className="text-sm font-bold text-foreground">Peer Review Commission</h4>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted">Commission Rate</span>
-                      <span className="text-lg font-extrabold text-secondary">10%</span>
-                    </div>
-                    <p className="text-[11px] text-muted leading-relaxed">
-                      Applied to all peer code review payouts. Lower rate to incentivize community reviews.
-                    </p>
-                    <div className="bg-secondary/5 border border-secondary/15 rounded-xl p-3">
-                      <p className="text-[10px] text-secondary font-semibold">Example: $3 review payout → $0.30 commission → $2.70 coach payout</p>
-                    </div>
-                  </div>
                 </div>
               </Card>
             </div>
@@ -3893,15 +4452,17 @@ Signed Digitally by:
       );
     }
 
+    const normalizeId = (id: any) => String(id || "").replace("mentor_", "");
+
     // Filter sessions
     const pendingBookings = mentorSessions.filter(
-      (s) => s.status === "pending" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
+      (s) => s.status === "pending" && mentorProfile && normalizeId(s.mentor_id) === normalizeId(mentorProfile.id)
     );
     const upcomingBookings = mentorSessions.filter(
-      (s) => s.status === "confirmed" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
+      (s) => s.status === "confirmed" && mentorProfile && normalizeId(s.mentor_id) === normalizeId(mentorProfile.id)
     );
     const completedBookings = mentorSessions.filter(
-      (s) => s.status === "completed" && mentorProfile && String(s.mentor_id) === String(mentorProfile.id)
+      (s) => s.status === "completed" && mentorProfile && normalizeId(s.mentor_id) === normalizeId(mentorProfile.id)
     );
 
     const activeSessions = [...pendingBookings, ...upcomingBookings].sort(
@@ -4875,6 +5436,53 @@ Signed Digitally by:
                         />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Mentor Settlement UPI ID configuration */}
+                  <div className="pt-4 border-t border-white/5 space-y-3">
+                    <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Settlement UPI ID</span>
+                    {editingUpiId ? (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="yourname@bank"
+                          value={tempUpiId}
+                          onChange={(e) => setTempUpiId(e.target.value)}
+                          className="bg-surface border border-border rounded-xl px-3 py-1.5 text-xs text-foreground font-semibold flex-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button
+                          type="button"
+                          disabled={isSavingUpiId}
+                          onClick={handleSaveMentorUpiId}
+                          className="bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-3 py-1.5 rounded-xl text-xs transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          {isSavingUpiId ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTempUpiId(mentorProfile?.upi_id || "");
+                            setEditingUpiId(false);
+                          }}
+                          className="bg-white/5 hover:bg-white/10 text-foreground border border-white/10 font-bold px-3 py-1.5 rounded-xl text-xs transition-all active:scale-95"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                        <span className="font-mono text-xs text-foreground font-semibold">
+                          {mentorProfile?.upi_id || "Not Provided"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingUpiId(true)}
+                          className="text-primary hover:underline text-xs font-semibold"
+                        >
+                          Edit UPI ID
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>

@@ -304,14 +304,20 @@ const seedLocalStorage = () => {
     let localUsers = JSON.parse(localStorage.getItem("mock_users") || "[]");
     
     // 1. Migrate Sridevi User
-    const srideviUser = localUsers.find((u: any) => u.email.toLowerCase() === "challagollasridevi@gmail.com");
-    if (srideviUser && srideviUser.role !== "mentor") {
+    let srideviUser = localUsers.find((u: any) => u.email.toLowerCase() === "challagollasridevi@gmail.com");
+    if (!srideviUser) {
+      srideviUser = { id: "4", email: "challagollasridevi@gmail.com", name: "Durga sravan Challagolla", role: "mentor" };
+      localUsers.push(srideviUser);
+      localStorage.setItem("mock_users", JSON.stringify(localUsers));
+    } else if (srideviUser.role !== "mentor" || String(srideviUser.id) !== "4") {
       srideviUser.role = "mentor";
+      srideviUser.id = "4";
       localStorage.setItem("mock_users", JSON.stringify(localUsers));
       
       const curUser = JSON.parse(localStorage.getItem("mock_current_user") || "null");
       if (curUser && curUser.email.toLowerCase() === "challagollasridevi@gmail.com") {
         curUser.role = "mentor";
+        curUser.id = "4";
         localStorage.setItem("mock_current_user", JSON.stringify(curUser));
       }
     }
@@ -338,13 +344,17 @@ const seedLocalStorage = () => {
     // 3. Migrate Mentors List
     const localMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
     
-    const hasSrideviMentor = localMentors.some((m: any) => m.email.toLowerCase() === "challagollasridevi@gmail.com");
-    if (!hasSrideviMentor) {
-      const srideviMentor = MOCK_MENTORS.find(m => m.email.toLowerCase() === "challagollasridevi@gmail.com");
-      if (srideviMentor) {
-        localMentors.push(srideviMentor);
+    const srideviMentor = localMentors.find((m: any) => m.email.toLowerCase() === "challagollasridevi@gmail.com");
+    if (!srideviMentor) {
+      const newSrideviMentor = MOCK_MENTORS.find(m => m.email.toLowerCase() === "challagollasridevi@gmail.com");
+      if (newSrideviMentor) {
+        localMentors.push(newSrideviMentor);
         localStorage.setItem("mock_mentors", JSON.stringify(localMentors));
       }
+    } else if (String(srideviMentor.id) !== "4" || String(srideviMentor.user_id) !== "4") {
+      srideviMentor.id = "4";
+      srideviMentor.user_id = "4";
+      localStorage.setItem("mock_mentors", JSON.stringify(localMentors));
     }
     
     const hasDurgasravanMentor = localMentors.some((m: any) => m.email.toLowerCase() === "durgasravan21@gmail.com");
@@ -363,12 +373,16 @@ const seedLocalStorage = () => {
       }
     }
 
-    // 4. Migrate Existing Mock Sessions to use the correct mentor_id of 9
+    // 4. Migrate Existing Mock Sessions to use the correct mentor_id
     const localSessions = JSON.parse(localStorage.getItem("mock_sessions") || "[]");
     let sessionsChanged = false;
     localSessions.forEach((s: any) => {
       if (s.mentor_name && (s.mentor_name.toLowerCase().includes("durgasravan") || s.mentor_name.toLowerCase().includes("durgasravn")) && String(s.mentor_id) !== "9") {
         s.mentor_id = "9";
+        sessionsChanged = true;
+      }
+      if (s.mentor_name && (s.mentor_name.toLowerCase().includes("sridevi") || s.mentor_name.toLowerCase().includes("challagolla")) && String(s.mentor_id) !== "4") {
+        s.mentor_id = "4";
         sessionsChanged = true;
       }
     });
@@ -668,7 +682,96 @@ class ApiClient {
               video_calls_active
             };
           });
-          const mockSessions = JSON.parse(localStorage.getItem("mock_sessions") || "[]");
+          let mockSessions = JSON.parse(localStorage.getItem("mock_sessions") || "[]");
+          if (!mockSessions || mockSessions.length === 0) {
+            mockSessions = [
+              {
+                id: "sess_1",
+                mentor_id: "4",
+                mentor_name: "Sridevi Challagolla",
+                mentee_id: "5",
+                student_id: "5",
+                student_name: "Alex Rivera",
+                scheduled_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                duration_minutes: 60,
+                status: "completed",
+                amount_cents: 4500,
+                price: 45,
+                created_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
+              },
+              {
+                id: "sess_2",
+                mentor_id: "4",
+                mentor_name: "Sridevi Challagolla",
+                mentee_id: "6",
+                student_id: "6",
+                student_name: "Yuki Tanaka",
+                scheduled_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                duration_minutes: 45,
+                status: "completed",
+                amount_cents: 3375,
+                price: 33.75,
+                created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+              },
+              {
+                id: "sess_3",
+                mentor_id: "4",
+                mentor_name: "Sridevi Challagolla",
+                mentee_id: "7",
+                student_id: "7",
+                student_name: "Emily Watson",
+                scheduled_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                duration_minutes: 60,
+                status: "pending",
+                amount_cents: 4500,
+                price: 45,
+                created_at: new Date().toISOString()
+              },
+              {
+                id: "sess_4",
+                mentor_id: "4",
+                mentor_name: "Sridevi Challagolla",
+                mentee_id: "5",
+                student_id: "5",
+                student_name: "Alex Rivera",
+                scheduled_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+                duration_minutes: 30,
+                status: "confirmed",
+                amount_cents: 2250,
+                price: 22.5,
+                created_at: new Date().toISOString()
+              },
+              {
+                id: "sess_5",
+                mentor_id: "9",
+                mentor_name: "Durgasravan",
+                mentee_id: "5",
+                student_id: "5",
+                student_name: "Alex Rivera",
+                scheduled_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+                duration_minutes: 60,
+                status: "completed",
+                amount_cents: 4500,
+                price: 45,
+                created_at: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString()
+              },
+              {
+                id: "sess_6",
+                mentor_id: "9",
+                mentor_name: "Durgasravan",
+                mentee_id: "6",
+                student_id: "6",
+                student_name: "Yuki Tanaka",
+                scheduled_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+                duration_minutes: 60,
+                status: "completed",
+                amount_cents: 4500,
+                price: 45,
+                created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+              }
+            ];
+            localStorage.setItem("mock_sessions", JSON.stringify(mockSessions));
+          }
           const mockReports = JSON.parse(localStorage.getItem("mock_reports") || "[]");
           const mockProjects = JSON.parse(localStorage.getItem("mock_projects") || "[]");
           const mockRoles = JSON.parse(localStorage.getItem("mock_roles") || "[]");
@@ -1423,18 +1526,23 @@ class ApiClient {
               reject({ message: "Not authenticated", status: 401 });
               return;
             }
-            const validGovtTypes = ["passport", "driver_license", "national_id", "aadhaar", "state_id"];
-            if (!body.id_type || !validGovtTypes.includes(body.id_type.toLowerCase())) {
-              reject({ message: "Safety Violation: Only government-issued identity documents (Passport, Driver's License, National ID Card, Aadhaar Card, State ID) are accepted for safety purposes.", status: 400 });
-              return;
-            }
-            if (!body.selfie_base64 || !body.identity_document_base64 || body.selfie_base64.length < 200 || body.identity_document_base64.length < 200) {
-              reject({ message: "AI Verification Error: Webcam selfie photo and government ID document scan are required.", status: 400 });
-              return;
-            }
 
             const updateMentors = JSON.parse(localStorage.getItem("mock_mentors") || "[]");
             let mentor = updateMentors.find((x: any) => String(x.user_id) === String(currentUser.id) || (x.email && x.email.toLowerCase() === currentUser.email.toLowerCase()));
+            
+            // Document checks are only required for new mentor registration
+            if (!mentor) {
+              const validGovtTypes = ["passport", "driver_license", "national_id", "aadhaar", "state_id"];
+              if (!body.id_type || !validGovtTypes.includes(body.id_type.toLowerCase())) {
+                reject({ message: "Safety Violation: Only government-issued identity documents (Passport, Driver's License, National ID Card, Aadhaar Card, State ID) are accepted for safety purposes.", status: 400 });
+                return;
+              }
+              if (!body.selfie_base64 || !body.identity_document_base64 || body.selfie_base64.length < 200 || body.identity_document_base64.length < 200) {
+                reject({ message: "AI Verification Error: Webcam selfie photo and government ID document scan are required.", status: 400 });
+                return;
+              }
+            }
+
             if (mentor && String(mentor.user_id) !== String(currentUser.id)) {
               mentor.user_id = String(currentUser.id);
             }
@@ -1453,11 +1561,12 @@ class ApiClient {
               mentor.linkedin_url = body.linkedin_url || mentor.linkedin_url;
               mentor.github_url = body.github_url || mentor.github_url;
               mentor.corporate_email = body.corporate_email || mentor.corporate_email;
-              mentor.selfie_url = body.selfie_base64 || mentor.selfie_url;
-              mentor.identity_document_url = body.identity_document_base64 || mentor.identity_document_url;
-              mentor.id_type = body.id_type;
+              if (body.selfie_base64) mentor.selfie_url = body.selfie_base64;
+              if (body.identity_document_base64) mentor.identity_document_url = body.identity_document_base64;
+              if (body.id_type) mentor.id_type = body.id_type;
               mentor.signed_agreement = body.signed_agreement !== undefined ? body.signed_agreement : mentor.signed_agreement;
               mentor.signature_svg_or_text = body.signature_svg_or_text || mentor.signature_svg_or_text;
+              mentor.upi_id = body.upi_id !== undefined ? body.upi_id : mentor.upi_id;
               if (mentor.verification_status !== "verified") {
                 mentor.verification_status = "pending";
               }
@@ -1490,6 +1599,7 @@ class ApiClient {
                 id_type: body.id_type,
                 signed_agreement: body.signed_agreement !== undefined ? body.signed_agreement : false,
                 signature_svg_or_text: body.signature_svg_or_text || "",
+                upi_id: body.upi_id || "",
                 created_at: new Date().toISOString()
               };
               updateMentors.push(mentor);
@@ -1724,11 +1834,39 @@ class ApiClient {
               return;
             }
 
-            const userSessions = mockSessions.filter((s: any) => 
-              String(s.student_id) === String(currentUser.id) || 
-              String(s.mentor_id) === String(currentUser.id) ||
-              (mentorProfileId && String(s.mentor_id) === mentorProfileId)
-            );
+            const userSessions = mockSessions.filter((s: any) => {
+              // 1. Check if the user is the student
+              const isStudentMatch = String(s.student_id) === String(currentUser.id) || 
+                                     String(s.mentee_id) === String(currentUser.id);
+              if (isStudentMatch) return true;
+
+              // 2. Direct match on mentor ID
+              const sMentorIdStr = String(s.mentor_id);
+              const curUserIdStr = String(currentUser.id);
+
+              if (sMentorIdStr === curUserIdStr) return true;
+              if (mentorProfileId && sMentorIdStr === mentorProfileId) return true;
+
+              // 3. Normalized ID match (stripping 'mentor_' prefix)
+              const normSMentorId = sMentorIdStr.replace("mentor_", "");
+              const normMentorProfileId = mentorProfileId ? mentorProfileId.replace("mentor_", "") : "";
+              const normCurUserId = curUserIdStr.replace("mentor_", "");
+
+              if (normSMentorId === normCurUserId) return true;
+              if (normMentorProfileId && normSMentorId === normMentorProfileId) return true;
+
+              // 4. Look up the mentor in mockMentors list to verify if their email/user_id matches the logged-in user
+              const sessionMentor = mockMentors.find((m: any) => 
+                String(m.id) === sMentorIdStr || 
+                String(m.id).replace("mentor_", "") === normSMentorId
+              );
+              if (sessionMentor) {
+                if (String(sessionMentor.user_id) === curUserIdStr) return true;
+                if (sessionMentor.email && currentUser.email && sessionMentor.email.toLowerCase() === currentUser.email.toLowerCase()) return true;
+              }
+
+              return false;
+            });
             resolve(userSessions as any);
             return;
           }

@@ -123,7 +123,8 @@ export function formatDualCurrencyWithDiscount(baseRate: number, originalPrice?:
 }
 
 export function formatDualCurrencyAmount(amount: number): string {
+  const rounded = Math.round(amount * 100) / 100;
   const inrAmount = Math.round(amount * 83.5);
-  return `₹${inrAmount.toLocaleString("en-IN")} ($${amount})`;
+  return `₹${inrAmount.toLocaleString("en-IN")} ($${rounded.toFixed(2)})`;
 }
 

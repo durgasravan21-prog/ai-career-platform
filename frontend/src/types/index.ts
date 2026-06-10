@@ -267,6 +267,7 @@ export interface Mentor {
   mentor_id?: string;
   original_price?: number;
   has_premium_subscription?: boolean;
+  upi_id?: string;
 }
 
 export interface ApplyMentorPayload {
