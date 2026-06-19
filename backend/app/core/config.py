@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     GITHUB_TOKEN: str = ""
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
+    # ── Rate Limiter ──────────────────────────────────────────────────
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = 120
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
