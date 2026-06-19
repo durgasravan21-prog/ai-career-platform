@@ -421,8 +421,17 @@ async def get_analysis(
             file_count = 55
             commit_activity = 42
 
+        # If the project was scraped, use its stored languages
+        ts = project.tech_stack
+        if isinstance(ts, dict) and "languages" in ts:
+            lang_list = ts["languages"]
+        elif isinstance(ts, dict):
+            lang_list = list(ts.keys())
+        else:
+            lang_list = ["React", "TypeScript"]
+
         mock_metadata = {
-            "languages": list(project.tech_stack.keys()) if isinstance(project.tech_stack, dict) else ["React", "TypeScript"],
+            "languages": lang_list,
             "file_count": file_count,
             "readme_score": diff_readme,
             "commit_activity": commit_activity,
@@ -434,6 +443,28 @@ async def get_analysis(
             project_id=project_id,
             github_url=project.github_url or "https://github.com/example/portfolio-project",
         )
+
+    # Merge scraped AI upgrade suggestions if available in tech_stack
+    if isinstance(project.tech_stack, dict):
+        scraped_upgrades = project.tech_stack.get("upgrade_suggestions", [])
+        if scraped_upgrades and isinstance(scraped_upgrades, list):
+            from app.schemas.project import UpgradeSuggestionSchema
+            for su in scraped_upgrades:
+                if isinstance(su, dict) and "feature_name" in su:
+                    # Only add if not already present
+                    existing_names = {u.feature_name for u in analysis.upgrade_suggestions}
+                    if su["feature_name"] not in existing_names:
+                        analysis.upgrade_suggestions.append(
+                            UpgradeSuggestionSchema(
+                                feature_name=su.get("feature_name", "Upgrade"),
+                                description=su.get("description", ""),
+                                career_impact_score=su.get("career_impact_score", 70),
+                                estimated_hours=su.get("estimated_hours", 8),
+                                companies_that_value=su.get("companies_that_value", []),
+                                difficulty=su.get("difficulty", "medium"),
+                            )
+                        )
+
     return analysis
 
 
@@ -666,3 +697,38 @@ async def review_submission(
     await db.flush()
     return {"message": "Review submitted successfully."}
 
+
+@router.post(
+    "/trigger-scan",
+    response_model=dict,
+    summary="Trigger an immediate project scan (Admin/Mentor)",
+)
+async def trigger_scan(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Manually trigger the AI project scraper to search GitHub for new projects.
+
+    Restricted to admins and verified mentors. Useful for on-demand updates.
+    """
+    isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
+    if not isAdmin:
+        result = await db.execute(
+            select(MentorProfile).where(
+                MentorProfile.user_id == current_user.id,
+                MentorProfile.verification_status == "verified",
+            )
+        )
+        mentor = result.scalar_one_or_none()
+        if not mentor:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins and verified mentors can trigger a project scan.",
+            )
+
+    from app.services.project_scraper import scrape_and_store_projects
+    new_count = await scrape_and_store_projects()
+    return {
+        "message": f"Scan completed successfully. {new_count} new project(s) added.",
+        "new_projects": new_count,
+    }

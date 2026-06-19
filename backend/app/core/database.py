@@ -20,16 +20,32 @@ from fastapi import Request
 from app.core.config import settings
 
 # ── Engine & Session Factory ─────────────────────────────────────────
+import os as _os
+
+_is_vercel = _os.environ.get("VERCEL") == "1" or _os.environ.get("VERCEL_ENV")
+
 if "sqlite" in settings.DATABASE_URL:
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=False,
     )
-else:
+elif _is_vercel:
+    # Serverless: use NullPool (no persistent connections across invocations)
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=False,
         poolclass=NullPool,
+        connect_args={"statement_cache_size": 0},
+    )
+else:
+    # Production / long-running server: use connection pooling for scalability
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_size=20,
+        max_overflow=10,
+        pool_recycle=1800,  # Recycle connections every 30 min
+        pool_pre_ping=True,  # Detect stale connections before use
         connect_args={"statement_cache_size": 0},
     )
 

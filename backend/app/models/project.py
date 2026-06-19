@@ -87,10 +87,10 @@ class ProjectSkill(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
     skill_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True
     )
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -120,10 +120,10 @@ class UserProject(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     project_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
     status: Mapped[UserProjectStatus] = mapped_column(
         Enum(UserProjectStatus, name="user_project_status_enum"),
@@ -169,7 +169,7 @@ class Recommendation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     type: Mapped[RecommendationType] = mapped_column(
         Enum(RecommendationType, name="recommendation_type_enum"),

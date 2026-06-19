@@ -104,10 +104,10 @@ class RoleSkill(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     role_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     skill_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True
     )
     proficiency_needed: Mapped[ProficiencyNeeded] = mapped_column(
         Enum(ProficiencyNeeded, name="proficiency_needed_enum"),
@@ -142,10 +142,10 @@ class CareerPath(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     target_role_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     status: Mapped[CareerPathStatus] = mapped_column(
         Enum(CareerPathStatus, name="career_path_status_enum"),

@@ -6,6 +6,7 @@ and provides a startup event for table creation.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,7 +15,8 @@ import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -101,12 +103,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Auto-seeding check/execution failed: {seed_err}")
 
     logger.info("Database tables ensured.")
+
+    # Launch the background AI project scraper (every 60 minutes)
+    scraper_task = None
+    is_vercel = os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")
+    if not is_vercel:
+        # Only run the continuous background loop in non-serverless environments
+        try:
+            from app.services.project_scraper import run_project_scraper_loop
+            scraper_task = asyncio.create_task(run_project_scraper_loop())
+            logger.info("Background project scraper task launched.")
+        except Exception as scraper_err:
+            logger.error(f"Failed to launch project scraper: {scraper_err}")
+
     yield
+
+    # Cancel the scraper on shutdown
+    if scraper_task and not scraper_task.done():
+        scraper_task.cancel()
+        try:
+            await scraper_task
+        except asyncio.CancelledError:
+            pass
+
     logger.info("Shutting down...")
     await engine.dispose()
 
 
-root_path = "/_/backend" if (os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")) else ""
+_is_production = os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")
+root_path = "/_/backend" if _is_production else ""
 app = FastAPI(
     title="AI Career & Project Intelligence Platform",
     description=(
@@ -116,10 +141,36 @@ app = FastAPI(
     ),
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
     root_path=root_path,
 )
+
+
+# ── Global Exception Handlers (Security: sanitize DB errors) ─────────
+from sqlalchemy.exc import SQLAlchemyError
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    """Catch all SQLAlchemy errors and return a sanitized response.
+
+    Prevents table names, column names, and SQL tracebacks from leaking
+    in production API responses.
+    """
+    logger.error(f"Database error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."},
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler to prevent any unhandled errors from leaking internals."""
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."},
+    )
 
 # ── CORS Middleware ───────────────────────────────────────────────────
 app.add_middleware(

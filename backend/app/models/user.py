@@ -143,10 +143,10 @@ class UserSkill(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     skill_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True
     )
     proficiency_level: Mapped[ProficiencyLevel] = mapped_column(
         Enum(ProficiencyLevel, name="proficiency_level_enum"),

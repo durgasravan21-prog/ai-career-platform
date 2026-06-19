@@ -112,7 +112,7 @@ class MentorAvailability(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     mentor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Monday, 6=Sunday
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
@@ -143,13 +143,13 @@ class MentorSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     student_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     mentor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     project_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
@@ -199,10 +199,10 @@ class Review(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mentor_sessions.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("mentor_sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     reviewer_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -233,10 +233,10 @@ class MentorReport(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     mentor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     student_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False) # pending, resolved
@@ -266,7 +266,7 @@ class WebRTCSignal(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mentor_sessions.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("mentor_sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     sender_id: Mapped[int] = mapped_column(Integer, nullable=False)
     payload: Mapped[str] = mapped_column(Text, nullable=False) # JSON-stringified payload
@@ -284,7 +284,7 @@ class MentorMonthlyCommission(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     mentor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("mentor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     month_year: Mapped[str] = mapped_column(String(10), nullable=False) # e.g. "2026-06"
     total_earnings: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
