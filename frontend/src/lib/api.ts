@@ -2214,6 +2214,78 @@ class ApiClient {
             return;
           }
 
+          // ─── PROJECT SCAN TRIGGER HANDLER ───
+          if (path === "/projects/trigger-scan" && method === "POST") {
+            const currentProjs = JSON.parse(localStorage.getItem("mock_projects") || "[]");
+            const newMockProjects = [
+              {
+                id: String(currentProjs.length + 1),
+                title: "Google Gemini Code Auditor",
+                description: "An AI agent that automatically audits repository pull requests for compliance, security risks, and technical style guides using Google Gemini API.",
+                difficulty: "advanced",
+                tech_stack: ["Python", "FastAPI", "Google Gemini API", "GitHub Actions"],
+                estimated_hours: 60,
+                career_relevance_score: 96.0,
+                created_at: new Date().toISOString()
+              },
+              {
+                id: String(currentProjs.length + 2),
+                title: "Distributed gRPC API Gateway",
+                description: "Build a highly scalable API gateway for microservices with distributed rate limiting, JWT validation, and gRPC dynamic request routing.",
+                difficulty: "advanced",
+                tech_stack: ["Go", "gRPC", "Redis", "Docker"],
+                estimated_hours: 80,
+                career_relevance_score: 94.0,
+                created_at: new Date().toISOString()
+              },
+              {
+                id: String(currentProjs.length + 3),
+                title: "Secure Kubernetes Operator",
+                description: "Create a custom Kubernetes operator in Go to manage stateful database applications with automatic failover, secure backups, and TLS rotating certificates.",
+                difficulty: "advanced",
+                tech_stack: ["Go", "Kubernetes SDK", "Docker", "PostgreSQL"],
+                estimated_hours: 90,
+                career_relevance_score: 95.0,
+                created_at: new Date().toISOString()
+              },
+              {
+                id: String(currentProjs.length + 4),
+                title: "FastAPI Vector Search Engine",
+                description: "A fast semantic search microservice using FastAPI, pgvector, and sentence-transformers to index and query millions of document embeddings.",
+                difficulty: "intermediate",
+                tech_stack: ["Python", "FastAPI", "pgvector", "PostgreSQL"],
+                estimated_hours: 45,
+                career_relevance_score: 91.0,
+                created_at: new Date().toISOString()
+              },
+              {
+                id: String(currentProjs.length + 5),
+                title: "React Native Taskmaster with Offline Sync",
+                description: "Develop a premium cross-platform mobile task app with offline database synchronization, background push notifications, and biometrics lock.",
+                difficulty: "intermediate",
+                tech_stack: ["React Native", "TypeScript", "SQLite", "Expo"],
+                estimated_hours: 50,
+                career_relevance_score: 87.0,
+                created_at: new Date().toISOString()
+              }
+            ];
+
+            const newAdded = [];
+            for (const np of newMockProjects) {
+              if (!currentProjs.some((p: any) => p.title === np.title)) {
+                currentProjs.push(np);
+                newAdded.push(np);
+              }
+            }
+            
+            localStorage.setItem("mock_projects", JSON.stringify(currentProjs));
+            resolve({
+              message: `Scan completed successfully. ${newAdded.length} new project(s) added.`,
+              new_projects: newAdded.length
+            } as any);
+            return;
+          }
+
           // ─── PROJECT SUBMISSION HANDLERS ───
           if (path === "/projects/submit" && method === "POST") {
             if (!currentUser) {
@@ -2596,6 +2668,12 @@ class ApiClient {
           review_score: score,
           review_feedback: feedback,
         }),
+      });
+    },
+
+    triggerScan: async (): Promise<any> => {
+      return this.fetchApi<any>("/projects/trigger-scan", {
+        method: "POST",
       });
     },
   };

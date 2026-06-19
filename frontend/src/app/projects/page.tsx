@@ -71,6 +71,7 @@ export default function ProjectsPage() {
   const [error, setError] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [isScanning, setIsScanning] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -226,6 +227,19 @@ export default function ProjectsPage() {
       fetchProjects();
     }
   }, [isAuthenticated, fetchProjects]);
+
+  const handleTriggerScan = async () => {
+    setIsScanning(true);
+    setError("");
+    try {
+      await api.projects.triggerScan();
+      await fetchProjects();
+    } catch (err: any) {
+      setError(err.message || "Failed to trigger projects scan");
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   // Debounced search
   useEffect(() => {
@@ -401,17 +415,29 @@ export default function ProjectsPage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8 animate-fadeIn">
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <FolderKanban className="h-8 w-8 text-primary" />
-            Projects
-          </h1>
-          <p className="text-muted mt-1">
-            Discover projects that build the skills you need.{" "}
-            {totalCount > 0 && (
-              <span className="text-foreground">{totalCount} projects</span>
-            )}
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 animate-fadeIn">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+              <FolderKanban className="h-8 w-8 text-primary" />
+              Projects
+            </h1>
+            <p className="text-muted mt-1">
+              Discover projects that build the skills you need.{" "}
+              {totalCount > 0 && (
+                <span className="text-foreground">{totalCount} projects</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <Button
+              onClick={handleTriggerScan}
+              disabled={isScanning}
+              className="bg-gradient-to-r from-primary to-secondary text-white font-medium shadow-lg hover:shadow-primary/20 hover:scale-[1.02] transition-all duration-300 flex items-center gap-2"
+            >
+              <Sparkles className={cn("h-4 w-4", isScanning && "animate-spin")} />
+              {isScanning ? "Scanning Repositories..." : "Scan & Discover Projects"}
+            </Button>
+          </div>
         </div>
 
         {/* Search & Filters */}
