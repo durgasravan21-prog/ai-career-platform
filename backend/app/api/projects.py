@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -179,7 +179,7 @@ async def get_recommendations(
 
     # Sort by relevance score descending
     recommendations.sort(key=lambda r: r.relevance_score, reverse=True)
-    return recommendations[:10]
+    return recommendations[:50]
 
 
 @router.get(
@@ -704,6 +704,7 @@ async def review_submission(
     summary="Trigger an immediate project scan (Admin/Mentor)",
 )
 async def trigger_scan(
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -726,9 +727,10 @@ async def trigger_scan(
                 detail="Only admins and verified mentors can trigger a project scan.",
             )
 
-    from app.services.project_scraper import scrape_and_store_projects
-    new_count = await scrape_and_store_projects()
+    from app.services.project_scraper import ProjectDiscoveryAgent
+    agent = ProjectDiscoveryAgent()
+    background_tasks.add_task(agent.discover_and_process)
     return {
-        "message": f"Scan completed successfully. {new_count} new project(s) added.",
-        "new_projects": new_count,
+        "status": "processing",
+        "message": "Project discovery scan started in the background. New templates will appear shortly.",
     }

@@ -12,12 +12,115 @@ import asyncio
 import logging
 import os
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+IGNORE_PATHS = {
+    'features', 'pricing', 'security', 'customer-stories', 'explore',
+    'topics', 'collections', 'trending', 'learning-lab', 'open-source',
+    'sponsor', 'login', 'signup', 'join', 'about', 'contact', 'careers',
+    'press', 'blog', 'shop', 'premium', 'business', 'enterprise', 'site',
+    'settings', 'notifications', 'search', 'pulls', 'issues', 'marketplace',
+    'stars', 'followers', 'following', 'repositories', 'gists'
+}
+
+import urllib.parse
+
+def extract_github_repos(html_content: str) -> list[str]:
+    """Extract unique public GitHub repository URLs from HTML text."""
+    # Decode URL-encoded strings in the HTML (common in search redirect URLs like DuckDuckGo)
+    decoded_html = urllib.parse.unquote(html_content)
+    pattern = r'https?://(?:www\.)?github\.com/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)'
+    matches = re.findall(pattern, decoded_html)
+    repos = []
+    for username, repo in matches:
+        # Strip trailing punctuation that might be captured
+        repo = repo.rstrip('.,;:"\')(')
+        if repo.lower().endswith(".git"):
+            repo = repo[:-4]
+        if username.lower() not in IGNORE_PATHS and repo.lower() not in IGNORE_PATHS:
+            repos.append(f"https://github.com/{username}/{repo}")
+    return list(dict.fromkeys(repos))
+
+
+async def _search_google_and_ddg_for_repos(query: str) -> list[str]:
+    """Search Google, DuckDuckGo, Yahoo, and Bing for public GitHub repositories.
+    
+    Acts as a multi-engine AI search agent to discover candidate repos via search engines.
+    """
+    logger.info(f"[Scraper] Project Discovery Agent: Searching search engines for '{query}'...")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    repos = []
+    
+    # 1. Try Yahoo Search (most reliable/least aggressive block)
+    try:
+        params = {"p": query}
+        yahoo_url = "https://search.yahoo.com/search"
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(yahoo_url, headers=headers, params=params)
+            if resp.status_code == 200:
+                yahoo_repos = extract_github_repos(resp.text)
+                repos.extend(yahoo_repos)
+                logger.info(f"[Scraper] Yahoo search returned {len(yahoo_repos)} candidate repos.")
+            else:
+                logger.warning(f"[Scraper] Yahoo search returned status {resp.status_code}")
+    except Exception as e:
+        logger.error(f"[Scraper] Yahoo search failed: {e}")
+        
+    # 2. Try Bing Search
+    try:
+        params = {"q": query}
+        bing_url = "https://www.bing.com/search"
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(bing_url, headers=headers, params=params)
+            if resp.status_code == 200:
+                bing_repos = extract_github_repos(resp.text)
+                repos.extend(bing_repos)
+                logger.info(f"[Scraper] Bing search returned {len(bing_repos)} candidate repos.")
+            else:
+                logger.warning(f"[Scraper] Bing search returned status {resp.status_code}")
+    except Exception as e:
+        logger.error(f"[Scraper] Bing search failed: {e}")
+
+    # 3. Try Google Search
+    try:
+        params = {"q": query}
+        google_url = "https://www.google.com/search"
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(google_url, headers=headers, params=params)
+            if resp.status_code == 200:
+                google_repos = extract_github_repos(resp.text)
+                repos.extend(google_repos)
+                logger.info(f"[Scraper] Google search returned {len(google_repos)} candidate repos.")
+            else:
+                logger.warning(f"[Scraper] Google search returned status {resp.status_code}")
+    except Exception as e:
+        logger.error(f"[Scraper] Google search failed: {e}")
+        
+    # 4. Try DuckDuckGo
+    try:
+        params = {"q": query}
+        ddg_url = "https://html.duckduckgo.com/html/"
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(ddg_url, headers=headers, params=params)
+            if resp.status_code == 200:
+                ddg_repos = extract_github_repos(resp.text)
+                repos.extend(ddg_repos)
+                logger.info(f"[Scraper] DuckDuckGo search returned {len(ddg_repos)} candidate repos.")
+            else:
+                logger.warning(f"[Scraper] DuckDuckGo search returned status {resp.status_code}")
+    except Exception as e:
+        logger.error(f"[Scraper] DuckDuckGo search failed: {e}")
+        
+    # Return unique repos
+    return list(dict.fromkeys(repos))
 
 # ── Search topics mapped to platform roles and skills ─────────────────
 SEARCH_TOPICS = [
@@ -239,7 +342,49 @@ async def scrape_and_store_projects() -> int:
     total_scanned = 0
 
     for topic in SEARCH_TOPICS:
+        # 1. Fetch from GitHub Search API
         repos = await _search_github_repos(topic["query"], per_page=3)
+        if not repos:
+            repos = []
+
+        # 2. Fetch from Google & DuckDuckGo Search Engine Scraper
+        # Formulate query
+        search_kw = topic["skill_hints"][0] if topic["skill_hints"] else "programming"
+        search_query = f"site:github.com \"{search_kw}\" project template"
+        discovered_urls = await _search_google_and_ddg_for_repos(search_query)
+
+        # Filter discovered URLs to only keep new ones and limit to top 2 to respect rate limits
+        new_urls = []
+        for url in discovered_urls:
+            async with async_session_factory() as session:
+                existing = await session.execute(
+                    select(Project).where(Project.github_url == url)
+                )
+                if existing.scalar_one_or_none():
+                    continue
+            new_urls.append(url)
+            if len(new_urls) >= 2:
+                break
+
+        # Fetch metadata for the new URLs and convert to repo dicts
+        from app.services.github import fetch_repo_metadata
+        for url in new_urls:
+            try:
+                meta = await fetch_repo_metadata(url)
+                # Parse repo name
+                repo_name = url.rstrip("/").split("/")[-1]
+                repos.append({
+                    "html_url": url,
+                    "name": repo_name,
+                    "description": meta.description,
+                    "stargazers_count": meta.stars,
+                    "size": meta.file_count * 15,  # Estimate size in KB
+                    "language": meta.languages[0] if meta.languages else "Python"
+                })
+                logger.info(f"[Scraper] Discovered new repo via Google/DDG search: {url}")
+            except Exception as e:
+                logger.error(f"[Scraper] Failed to fetch metadata for discovered URL {url}: {e}")
+
         if not repos:
             continue
 
@@ -349,6 +494,22 @@ async def scrape_and_store_projects() -> int:
     return new_count
 
 
+class ProjectDiscoveryAgent:
+    """AI Agent responsible for project discovery across GitHub and Google search engines.
+    
+    Operates periodically or on-demand, categorizes repositories with LLMs,
+    and updates the database.
+    """
+    def __init__(self):
+        self.logger = logging.getLogger("ProjectDiscoveryAgent")
+
+    async def discover_and_process(self) -> int:
+        self.logger.info("[ProjectDiscoveryAgent] Starting project discovery and scanning session...")
+        count = await scrape_and_store_projects()
+        self.logger.info(f"[ProjectDiscoveryAgent] Discovery session completed. {count} new project templates added to the database.")
+        return count
+
+
 async def run_project_scraper_loop(interval_seconds: int = 3600) -> None:
     """Run the project scraper in a continuous loop.
 
@@ -360,10 +521,11 @@ async def run_project_scraper_loop(interval_seconds: int = 3600) -> None:
     # Initial delay to let the app fully start up
     await asyncio.sleep(10)
 
+    agent = ProjectDiscoveryAgent()
     while True:
         try:
-            count = await scrape_and_store_projects()
-            logger.info(f"[Scraper] Completed cycle. {count} new projects added. Next run in {interval_seconds}s.")
+            count = await agent.discover_and_process()
+            logger.info(f"[Scraper] Completed cycle. Next run in {interval_seconds}s.")
         except asyncio.CancelledError:
             logger.info("[Scraper] Background scraper cancelled. Shutting down.")
             break
