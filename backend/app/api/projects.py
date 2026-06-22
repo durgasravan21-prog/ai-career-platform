@@ -225,6 +225,33 @@ async def list_projects(
 
 
 @router.get(
+    "/cron-scrape",
+    response_model=dict,
+    summary="Vercel Cron endpoint for automated project scraping",
+    include_in_schema=False,
+)
+async def cron_scrape() -> dict:
+    """Automated project scraper endpoint triggered by Vercel Cron.
+
+    Processes 4 topics per invocation to stay within Vercel's 60s function timeout.
+    Rotates through all topics across invocations. No authentication required 
+    (protected by Vercel Cron secret header at infrastructure level).
+    """
+    import os
+    # Verify this is a legitimate cron call (Vercel sets this header)
+    # In production, Vercel automatically blocks external access to cron endpoints
+    
+    from app.services.project_scraper import ProjectDiscoveryAgent
+    agent = ProjectDiscoveryAgent()
+    count = await agent.discover_and_process(max_topics=4)
+    return {
+        "status": "completed",
+        "new_projects": count,
+        "message": f"Cron scraper completed. {count} new projects added.",
+    }
+
+
+@router.get(
     "/{project_id}",
     response_model=ProjectResponse,
     summary="Get project details",
@@ -737,29 +764,4 @@ async def trigger_scan(
     }
 
 
-@router.get(
-    "/cron-scrape",
-    response_model=dict,
-    summary="Vercel Cron endpoint for automated project scraping",
-    include_in_schema=False,
-)
-async def cron_scrape() -> dict:
-    """Automated project scraper endpoint triggered by Vercel Cron.
-
-    Processes 4 topics per invocation to stay within Vercel's 60s function timeout.
-    Rotates through all topics across invocations. No authentication required 
-    (protected by Vercel Cron secret header at infrastructure level).
-    """
-    import os
-    # Verify this is a legitimate cron call (Vercel sets this header)
-    # In production, Vercel automatically blocks external access to cron endpoints
-    
-    from app.services.project_scraper import ProjectDiscoveryAgent
-    agent = ProjectDiscoveryAgent()
-    count = await agent.discover_and_process(max_topics=4)
-    return {
-        "status": "completed",
-        "new_projects": count,
-        "message": f"Cron scraper completed. {count} new projects added.",
-    }
 
