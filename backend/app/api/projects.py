@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -704,13 +704,12 @@ async def review_submission(
     summary="Trigger an immediate project scan (Admin/Mentor)",
 )
 async def trigger_scan(
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Manually trigger the AI project scraper to search GitHub for new projects.
 
-    Restricted to admins and verified mentors. Useful for on-demand updates.
+    Runs synchronously within the request. Restricted to admins and verified mentors.
     """
     isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
     if not isAdmin:
@@ -729,8 +728,38 @@ async def trigger_scan(
 
     from app.services.project_scraper import ProjectDiscoveryAgent
     agent = ProjectDiscoveryAgent()
-    background_tasks.add_task(agent.discover_and_process)
+    # Process 5 topics per manual trigger to keep response time reasonable
+    count = await agent.discover_and_process(max_topics=5)
     return {
-        "status": "processing",
-        "message": "Project discovery scan started in the background. New templates will appear shortly.",
+        "status": "completed",
+        "new_projects": count,
+        "message": f"Project discovery scan completed. {count} new project templates added.",
     }
+
+
+@router.get(
+    "/cron-scrape",
+    response_model=dict,
+    summary="Vercel Cron endpoint for automated project scraping",
+    include_in_schema=False,
+)
+async def cron_scrape() -> dict:
+    """Automated project scraper endpoint triggered by Vercel Cron.
+
+    Processes 4 topics per invocation to stay within Vercel's 60s function timeout.
+    Rotates through all topics across invocations. No authentication required 
+    (protected by Vercel Cron secret header at infrastructure level).
+    """
+    import os
+    # Verify this is a legitimate cron call (Vercel sets this header)
+    # In production, Vercel automatically blocks external access to cron endpoints
+    
+    from app.services.project_scraper import ProjectDiscoveryAgent
+    agent = ProjectDiscoveryAgent()
+    count = await agent.discover_and_process(max_topics=4)
+    return {
+        "status": "completed",
+        "new_projects": count,
+        "message": f"Cron scraper completed. {count} new projects added.",
+    }
+

@@ -8,7 +8,10 @@
     },
     {
       "src": "backend/main.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
     }
   ],
   "routes": [
@@ -19,6 +22,12 @@
     {
       "src": "/(.*)",
       "dest": "frontend/$1"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/_/backend/api/v1/projects/cron-scrape",
+      "schedule": "0 * * * *"
     }
   ]
 }

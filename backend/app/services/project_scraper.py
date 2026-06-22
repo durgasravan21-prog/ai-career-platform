@@ -125,26 +125,40 @@ async def _search_google_and_ddg_for_repos(query: str) -> list[str]:
 # ── Search topics mapped to platform roles and skills ─────────────────
 SEARCH_TOPICS = [
     # Frontend
-    {"query": "topic:react stars:>5 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["React", "TypeScript", "CSS/Tailwind"]},
-    {"query": "topic:nextjs stars:>5 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["Next.js", "React", "TypeScript"]},
-    {"query": "topic:vue stars:>5 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["React", "TypeScript", "CSS/Tailwind"]},
+    {"query": "topic:react stars:>20 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["React", "TypeScript", "CSS/Tailwind"]},
+    {"query": "topic:nextjs stars:>15 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["Next.js", "React", "TypeScript"]},
+    {"query": "topic:vue stars:>15 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["Vue.js", "JavaScript"]},
+    {"query": "topic:angular stars:>15 pushed:>2025-01-01", "role_hint": "Frontend Developer", "skill_hints": ["Angular", "TypeScript"]},
     # Backend
-    {"query": "topic:fastapi stars:>5 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Python", "REST APIs", "PostgreSQL"]},
-    {"query": "topic:express stars:>5 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Node.js", "REST APIs"]},
-    {"query": "topic:django stars:>5 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Python", "REST APIs", "PostgreSQL"]},
+    {"query": "topic:fastapi stars:>10 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Python", "REST APIs", "PostgreSQL"]},
+    {"query": "topic:express stars:>10 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Node.js", "Express", "REST APIs"]},
+    {"query": "topic:django stars:>10 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Python", "Django", "PostgreSQL"]},
+    {"query": "topic:spring-boot stars:>15 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Java", "Spring Boot"]},
+    {"query": "topic:golang api stars:>10 pushed:>2025-01-01", "role_hint": "Backend Developer", "skill_hints": ["Go", "REST APIs"]},
     # Full-Stack
-    {"query": "topic:fullstack stars:>3 pushed:>2025-01-01", "role_hint": "Full-Stack Developer", "skill_hints": ["React", "Node.js", "PostgreSQL", "REST APIs"]},
-    # DevOps
-    {"query": "topic:docker stars:>10 pushed:>2025-01-01", "role_hint": "DevOps Engineer", "skill_hints": ["Docker", "CI/CD", "AWS"]},
-    {"query": "topic:kubernetes stars:>10 pushed:>2025-01-01", "role_hint": "DevOps Engineer", "skill_hints": ["Kubernetes", "Docker", "Terraform"]},
-    {"query": "topic:terraform stars:>5 pushed:>2025-01-01", "role_hint": "Cloud Architect", "skill_hints": ["Terraform", "AWS", "Docker"]},
-    # ML/AI
-    {"query": "topic:machine-learning stars:>10 pushed:>2025-01-01", "role_hint": "ML Engineer", "skill_hints": ["Python", "TensorFlow", "PyTorch", "Machine Learning"]},
-    {"query": "topic:pytorch stars:>5 pushed:>2025-01-01", "role_hint": "ML Engineer", "skill_hints": ["PyTorch", "Python", "Machine Learning"]},
-    {"query": "topic:deep-learning stars:>5 pushed:>2025-01-01", "role_hint": "Data Scientist", "skill_hints": ["TensorFlow", "Python", "Machine Learning"]},
+    {"query": "topic:fullstack stars:>5 pushed:>2025-01-01", "role_hint": "Full-Stack Developer", "skill_hints": ["React", "Node.js", "PostgreSQL", "REST APIs"]},
+    {"query": "topic:mern stars:>5 pushed:>2025-01-01", "role_hint": "Full-Stack Developer", "skill_hints": ["React", "Node.js", "MongoDB"]},
+    # DevOps & Cloud
+    {"query": "topic:docker stars:>20 pushed:>2025-01-01", "role_hint": "DevOps Engineer", "skill_hints": ["Docker", "CI/CD", "AWS"]},
+    {"query": "topic:kubernetes stars:>15 pushed:>2025-01-01", "role_hint": "DevOps Engineer", "skill_hints": ["Kubernetes", "Docker", "Terraform"]},
+    {"query": "topic:terraform stars:>10 pushed:>2025-01-01", "role_hint": "Cloud Architect", "skill_hints": ["Terraform", "AWS", "Docker"]},
+    {"query": "topic:github-actions stars:>10 pushed:>2025-01-01", "role_hint": "DevOps Engineer", "skill_hints": ["CI/CD", "GitHub Actions"]},
+    # ML/AI & Data Science
+    {"query": "topic:machine-learning stars:>20 pushed:>2025-01-01", "role_hint": "ML Engineer", "skill_hints": ["Python", "TensorFlow", "PyTorch", "Machine Learning"]},
+    {"query": "topic:deep-learning stars:>10 pushed:>2025-01-01", "role_hint": "Data Scientist", "skill_hints": ["TensorFlow", "Python", "Machine Learning"]},
+    {"query": "topic:nlp stars:>10 pushed:>2025-01-01", "role_hint": "ML Engineer", "skill_hints": ["Python", "NLP", "Transformers"]},
+    {"query": "topic:computer-vision stars:>10 pushed:>2025-01-01", "role_hint": "ML Engineer", "skill_hints": ["Python", "OpenCV", "PyTorch"]},
     # Mobile
-    {"query": "topic:flutter stars:>5 pushed:>2025-01-01", "role_hint": "Mobile Developer", "skill_hints": ["Flutter"]},
-    {"query": "topic:swiftui stars:>5 pushed:>2025-01-01", "role_hint": "Mobile Developer", "skill_hints": ["Swift"]},
+    {"query": "topic:flutter stars:>15 pushed:>2025-01-01", "role_hint": "Mobile Developer", "skill_hints": ["Flutter", "Dart"]},
+    {"query": "topic:react-native stars:>10 pushed:>2025-01-01", "role_hint": "Mobile Developer", "skill_hints": ["React Native", "TypeScript"]},
+    # Data Engineering
+    {"query": "topic:data-engineering stars:>10 pushed:>2025-01-01", "role_hint": "Data Engineer", "skill_hints": ["Python", "SQL", "Apache Spark"]},
+    # Systems Programming
+    {"query": "topic:rust stars:>20 pushed:>2025-01-01", "role_hint": "Systems Engineer", "skill_hints": ["Rust", "Systems Programming"]},
+    # Security
+    {"query": "topic:cybersecurity stars:>10 pushed:>2025-01-01", "role_hint": "Security Engineer", "skill_hints": ["Python", "Networking", "Security"]},
+    # Game Development
+    {"query": "topic:game-development stars:>10 pushed:>2025-01-01", "role_hint": "Game Developer", "skill_hints": ["Unity", "C#", "Game Design"]},
 ]
 
 
@@ -327,11 +341,15 @@ def _fallback_categorize(
     }
 
 
-async def scrape_and_store_projects() -> int:
+async def scrape_and_store_projects(max_topics: int = 0) -> int:
     """Run one cycle of the project scraper.
 
     Searches GitHub, categorizes repos with AI, and stores new project
     templates in the database. Returns the count of newly added projects.
+
+    Args:
+        max_topics: If > 0, only process this many topics (for serverless chunking).
+                    If 0, process all topics.
     """
     from app.core.database import async_session_factory
     from app.models.project import Project, ProjectDifficulty, ProjectSkill
@@ -341,55 +359,62 @@ async def scrape_and_store_projects() -> int:
     new_count = 0
     total_scanned = 0
 
-    for topic in SEARCH_TOPICS:
-        # 1. Fetch from GitHub Search API
-        repos = await _search_github_repos(topic["query"], per_page=3)
+    topics_to_process = SEARCH_TOPICS
+    if max_topics > 0:
+        # Rotate through topics using a simple offset stored in /tmp
+        offset = _get_and_advance_topic_offset(max_topics)
+        topics_to_process = SEARCH_TOPICS[offset:offset + max_topics]
+        logger.info(f"[Scraper] Processing topics {offset} to {offset + len(topics_to_process)} of {len(SEARCH_TOPICS)}")
+
+    is_serverless = os.environ.get("VERCEL") == "1" or os.environ.get("VERCEL_ENV")
+
+    for topic in topics_to_process:
+        # 1. Fetch from GitHub Search API (primary source, always works)
+        repos = await _search_github_repos(topic["query"], per_page=5)
         if not repos:
             repos = []
 
-        # 2. Fetch from Google & DuckDuckGo Search Engine Scraper
-        # Formulate query
-        search_kw = topic["skill_hints"][0] if topic["skill_hints"] else "programming"
-        search_query = f"site:github.com \"{search_kw}\" project template"
-        discovered_urls = await _search_google_and_ddg_for_repos(search_query)
+        # 2. On long-running servers, also search Google/DuckDuckGo/Bing/Yahoo
+        #    Skip on serverless to stay within function timeout
+        if not is_serverless:
+            search_kw = topic["skill_hints"][0] if topic["skill_hints"] else "programming"
+            search_query = f"site:github.com \"{search_kw}\" project template"
+            discovered_urls = await _search_google_and_ddg_for_repos(search_query)
 
-        # Filter discovered URLs to only keep new ones and limit to top 2 to respect rate limits
-        new_urls = []
-        for url in discovered_urls:
-            async with async_session_factory() as session:
-                existing = await session.execute(
-                    select(Project).where(Project.github_url == url)
-                )
-                if existing.scalar_one_or_none():
-                    continue
-            new_urls.append(url)
-            if len(new_urls) >= 2:
-                break
+            new_urls = []
+            for url in discovered_urls:
+                async with async_session_factory() as session:
+                    existing = await session.execute(
+                        select(Project).where(Project.github_url == url)
+                    )
+                    if existing.scalar_one_or_none():
+                        continue
+                new_urls.append(url)
+                if len(new_urls) >= 2:
+                    break
 
-        # Fetch metadata for the new URLs and convert to repo dicts
-        from app.services.github import fetch_repo_metadata
-        for url in new_urls:
-            try:
-                meta = await fetch_repo_metadata(url)
-                # Parse repo name
-                repo_name = url.rstrip("/").split("/")[-1]
-                repos.append({
-                    "html_url": url,
-                    "name": repo_name,
-                    "description": meta.description,
-                    "stargazers_count": meta.stars,
-                    "size": meta.file_count * 15,  # Estimate size in KB
-                    "language": meta.languages[0] if meta.languages else "Python"
-                })
-                logger.info(f"[Scraper] Discovered new repo via Google/DDG search: {url}")
-            except Exception as e:
-                logger.error(f"[Scraper] Failed to fetch metadata for discovered URL {url}: {e}")
+            from app.services.github import fetch_repo_metadata
+            for url in new_urls:
+                try:
+                    meta = await fetch_repo_metadata(url)
+                    repo_name = url.rstrip("/").split("/")[-1]
+                    repos.append({
+                        "html_url": url,
+                        "name": repo_name,
+                        "description": meta.description,
+                        "stargazers_count": meta.stars,
+                        "size": meta.file_count * 15,
+                        "language": meta.languages[0] if meta.languages else "Python"
+                    })
+                    logger.info(f"[Scraper] Discovered new repo via search engines: {url}")
+                except Exception as e:
+                    logger.error(f"[Scraper] Failed to fetch metadata for {url}: {e}")
 
         if not repos:
             continue
 
         # Small delay between topic queries to respect rate limits
-        await asyncio.sleep(2)
+        await asyncio.sleep(1 if is_serverless else 2)
 
         for repo in repos:
             total_scanned += 1
@@ -494,6 +519,37 @@ async def scrape_and_store_projects() -> int:
     return new_count
 
 
+def _get_and_advance_topic_offset(batch_size: int) -> int:
+    """Get the current topic offset and advance it for the next invocation.
+    
+    Uses /tmp for persistence across Vercel cold starts within the same deployment.
+    Wraps around when all topics have been processed.
+    """
+    offset_file = "/tmp/scraper_topic_offset.txt"
+    try:
+        with open(offset_file, "r") as f:
+            offset = int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        offset = 0
+    
+    # Wrap around if we've gone past the end
+    if offset >= len(SEARCH_TOPICS):
+        offset = 0
+    
+    # Advance for next invocation
+    next_offset = offset + batch_size
+    if next_offset >= len(SEARCH_TOPICS):
+        next_offset = 0
+    
+    try:
+        with open(offset_file, "w") as f:
+            f.write(str(next_offset))
+    except Exception:
+        pass
+    
+    return offset
+
+
 class ProjectDiscoveryAgent:
     """AI Agent responsible for project discovery across GitHub and Google search engines.
     
@@ -503,9 +559,9 @@ class ProjectDiscoveryAgent:
     def __init__(self):
         self.logger = logging.getLogger("ProjectDiscoveryAgent")
 
-    async def discover_and_process(self) -> int:
+    async def discover_and_process(self, max_topics: int = 0) -> int:
         self.logger.info("[ProjectDiscoveryAgent] Starting project discovery and scanning session...")
-        count = await scrape_and_store_projects()
+        count = await scrape_and_store_projects(max_topics=max_topics)
         self.logger.info(f"[ProjectDiscoveryAgent] Discovery session completed. {count} new project templates added to the database.")
         return count
 
