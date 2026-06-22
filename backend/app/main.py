@@ -42,16 +42,19 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: create tables on startup, cleanup on shutdown."""
     logger.info("Starting AI Career & Project Intelligence Platform...")
-    async with engine.begin() as conn:
-        if conn.dialect.name != "sqlite":
-            from sqlalchemy import text
-            try:
-                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            except Exception as e:
-                logger.warning(f"Could not create vector extension: {e}. Assuming pre-installed.")
-        # Create all tables if they don't exist (dev convenience).
-        # In production, use Alembic migrations instead.
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            if conn.dialect.name != "sqlite":
+                from sqlalchemy import text
+                try:
+                    await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                except Exception as e:
+                    logger.warning(f"Could not create vector extension: {e}. Assuming pre-installed.")
+            # Create all tables if they don't exist (dev convenience).
+            # In production, use Alembic migrations instead.
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as db_err:
+        logger.error(f"Failed to connect/initialize database during lifespan startup: {db_err}")
 
     # Add new columns to tables dynamically in separate transactions (to prevent Postgres transaction aborts)
     from sqlalchemy import text
