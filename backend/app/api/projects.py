@@ -736,22 +736,8 @@ async def trigger_scan(
 ) -> dict:
     """Manually trigger the AI project scraper to search GitHub for new projects.
 
-    Runs synchronously within the request. Restricted to admins and verified mentors.
+    Runs synchronously within the request. Open to any authenticated user.
     """
-    isAdmin = current_user.email.lower() == "durgasravan21@gmail.com"
-    if not isAdmin:
-        result = await db.execute(
-            select(MentorProfile).where(
-                MentorProfile.user_id == current_user.id,
-                MentorProfile.verification_status == "verified",
-            )
-        )
-        mentor = result.scalar_one_or_none()
-        if not mentor:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins and verified mentors can trigger a project scan.",
-            )
 
     from app.services.project_scraper import ProjectDiscoveryAgent
     agent = ProjectDiscoveryAgent()
