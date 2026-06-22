@@ -27,7 +27,7 @@
   "crons": [
     {
       "path": "/_/backend/api/v1/projects/cron-scrape",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
