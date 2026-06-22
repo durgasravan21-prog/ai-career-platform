@@ -35,7 +35,10 @@ elif _is_vercel:
         settings.DATABASE_URL,
         echo=False,
         poolclass=NullPool,
-        connect_args={"statement_cache_size": 0},
+        connect_args={
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+        },
     )
 else:
     # Production / long-running server: use connection pooling for scalability
@@ -46,7 +49,10 @@ else:
         max_overflow=10,
         pool_recycle=1800,  # Recycle connections every 30 min
         pool_pre_ping=True,  # Detect stale connections before use
-        connect_args={"statement_cache_size": 0},
+        connect_args={
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+        },
     )
 
 async_session_factory = async_sessionmaker(
