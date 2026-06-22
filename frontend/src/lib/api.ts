@@ -554,12 +554,12 @@ class ApiClient {
     if (!project) return project;
     let flatTech: string[] = [];
     if (Array.isArray(project.tech_stack)) {
-      flatTech = project.tech_stack.filter((item): item is string => typeof item === "string");
+      flatTech = project.tech_stack.filter((item: any): item is string => typeof item === "string");
     } else if (project.tech_stack && typeof project.tech_stack === "object") {
       flatTech = Object.values(project.tech_stack)
         .filter(Array.isArray)
         .flat()
-        .filter((item): item is string => typeof item === "string");
+        .filter((item: any): item is string => typeof item === "string");
     }
     return {
       ...project,
